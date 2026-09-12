@@ -14,7 +14,6 @@ catalogMode: prefer
 # ago, so a freshly hijacked release cannot reach the lockfile on install.
 minimumReleaseAge: 1440
 
-# Dependency install scripts stay blocked (pnpm's default). No package in the
-# current tree declares a preinstall/install/postinstall hook, so there is
-# nothing to allow; add an `allowBuilds:` entry here only with a written
-# reason, and never widen it to a wildcard.
+# Dependency install scripts stay blocked (pnpm's default). If a package ever
+# needs to run one, add an `allowBuilds:` entry here with a written reason, and
+# never widen it to a wildcard.

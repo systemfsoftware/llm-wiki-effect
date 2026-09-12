@@ -1,12 +1,6 @@
 name: Setup Node runtime
 description: Install Node.js and enable Corepack, which provides the pnpm version pinned by packageManager
 
-inputs:
-  node-version:
-    description: Node.js version
-    required: false
-    default: "24"
-
 runs:
   using: composite
   steps:
@@ -15,5 +9,5 @@ runs:
       run: corepack enable
     - uses: actions/setup-node@v7
       with:
-        node-version: ${{ inputs.node-version }}
+        node-version: "24"
         cache: pnpm

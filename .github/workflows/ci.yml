@@ -45,10 +45,15 @@ jobs:
         uses: ./.github/actions/install-deps
 
       - name: Check frontend build
-        run: corepack pnpm exec vite build
+        run: corepack pnpm build
 
+      # ci.yml does not run tauri-action, so nothing else would produce the
+      # mcp-server/dist resource that cargo build expects.
       - name: Build MCP server bundle
         run: corepack pnpm mcp:build
+
+      - name: Test MCP server
+        run: corepack pnpm mcp:test
 
       - name: Check Rust build
         working-directory: src-tauri

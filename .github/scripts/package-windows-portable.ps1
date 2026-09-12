@@ -21,7 +21,7 @@ if (!(Test-Path $PdfiumPath)) {
 }
 foreach ($Path in @(
   (Join-Path $McpRoot "package.json"),
-  (Join-Path $McpRoot "dist")
+  (Join-Path $McpRoot "dist/src/index.js")
 )) {
   if (!(Test-Path $Path)) {
     throw "Required MCP resource was not found at $Path. Run pnpm install and pnpm mcp:build first."

@@ -98,9 +98,9 @@ jobs:
       - name: Install workspace dependencies
         uses: ./.github/actions/install-deps
 
-      - name: Prepare MCP server resources
-        run: corepack pnpm mcp:build
-
+      # No separate MCP build step: tauri-action runs beforeBuildCommand
+      # (pnpm build:desktop, which starts with pnpm mcp:build) before it
+      # collects the mcp-server/dist resource.
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:

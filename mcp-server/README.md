@@ -20,9 +20,11 @@ Optional:
 
 ## Build
 
+Run both commands from the repository root. `mcp-server/` is a pnpm workspace package, so the root install already provides its dependencies.
+
 ```bash
 pnpm install
-pnpm mcp:build        # from the repo root
+pnpm mcp:build        # bundles dist/src/index.js
 ```
 
 ## Run

@@ -155,12 +155,13 @@ function apiPath(path: string): string {
   return path.startsWith('/api/v1') ? path : `/api/v1${path.startsWith('/') ? path : `/${path}`}`
 }
 
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function requireObject(value: unknown, context: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error(`${context}: expected JSON object`)
-  }
-  const record: Record<string, unknown> = { ...value }
-  return record
+  if (!isJsonObject(value)) throw new Error(`${context}: expected JSON object`)
+  return value
 }
 
 function numberOrUndefined(value: unknown): number | undefined {

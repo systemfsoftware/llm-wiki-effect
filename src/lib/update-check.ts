@@ -14,7 +14,7 @@
  * covers 95% of the value.
  */
 
-import { getHttpFetch, isFetchNetworkError } from "./tauri-fetch"
+import { getHttpFetch, isFetchNetworkError } from './tauri-fetch'
 
 /** The subset of the GitHub release API response we care about. */
 /**
@@ -46,17 +46,17 @@ export function toLatestReleaseUrl(htmlUrl: string): string {
 }
 
 export interface GithubRelease {
-  tag_name: string          // e.g. "v0.3.10"
-  name: string              // display title
-  body: string              // markdown release notes
-  html_url: string          // browser URL for the release page
-  published_at: string      // ISO timestamp
+  tag_name: string // e.g. "v0.3.10"
+  name: string // display title
+  body: string // markdown release notes
+  html_url: string // browser URL for the release page
+  published_at: string // ISO timestamp
 }
 
 export type UpdateStatus =
-  | { kind: "available"; local: string; remote: string; release: GithubRelease }
-  | { kind: "up-to-date"; local: string; remote: string }
-  | { kind: "error"; local: string; message: string }
+  | { kind: 'available'; local: string; remote: string; release: GithubRelease }
+  | { kind: 'up-to-date'; local: string; remote: string }
+  | { kind: 'error'; local: string; message: string }
 
 /**
  * Strict semver-ish comparison of two "MAJOR.MINOR.PATCH" strings.
@@ -72,8 +72,8 @@ export type UpdateStatus =
 export function isNewer(remote: string, local: string): boolean {
   const parse = (s: string): [number, number, number] => {
     const [a = 0, b = 0, c = 0] = s
-      .replace(/^v/, "")
-      .split(".")
+      .replace(/^v/, '')
+      .split('.')
       .map((n) => {
         const v = parseInt(n, 10)
         return Number.isFinite(v) ? v : 0
@@ -105,10 +105,10 @@ export async function fetchLatestRelease(
   try {
     const httpFetch = await getHttpFetch()
     const resp = await httpFetch(url, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
       },
     })
     if (!resp.ok) return null
@@ -116,16 +116,15 @@ export async function fetchLatestRelease(
     // Duck-type the response shape — GitHub occasionally adds fields
     // but the ones below have been stable since the API's v3 days.
     if (
-      typeof data?.tag_name === "string" &&
-      typeof data?.html_url === "string"
+      typeof data?.tag_name === 'string' &&
+      typeof data?.html_url === 'string'
     ) {
       return {
         tag_name: data.tag_name,
-        name: typeof data.name === "string" ? data.name : data.tag_name,
-        body: typeof data.body === "string" ? data.body : "",
+        name: typeof data.name === 'string' ? data.name : data.tag_name,
+        body: typeof data.body === 'string' ? data.body : '',
         html_url: data.html_url,
-        published_at:
-          typeof data.published_at === "string" ? data.published_at : "",
+        published_at: typeof data.published_at === 'string' ? data.published_at : '',
       }
     }
     return null
@@ -149,21 +148,21 @@ export async function checkForUpdates(opts: {
   const release = await fetchLatestRelease(repo)
   if (!release) {
     return {
-      kind: "error",
+      kind: 'error',
       local: currentVersion,
-      message: "Could not reach GitHub Releases API.",
+      message: 'Could not reach GitHub Releases API.',
     }
   }
   const remote = release.tag_name
   if (isNewer(remote, currentVersion)) {
     return {
-      kind: "available",
+      kind: 'available',
       local: currentVersion,
       remote,
       release,
     }
   }
-  return { kind: "up-to-date", local: currentVersion, remote }
+  return { kind: 'up-to-date', local: currentVersion, remote }
 }
 
 /** Cache duration: don't re-hit the API if we checked more recently than this. */

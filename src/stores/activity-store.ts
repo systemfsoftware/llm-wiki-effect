@@ -1,10 +1,10 @@
-import { create } from "zustand"
+import { create } from 'zustand'
 
 export interface ActivityItem {
   id: string
-  type: "ingest" | "lint" | "query"
+  type: 'ingest' | 'lint' | 'query'
   title: string
-  status: "running" | "done" | "error"
+  status: 'running' | 'done' | 'error'
   detail: string
   filesWritten: string[]
   createdAt: number
@@ -12,8 +12,8 @@ export interface ActivityItem {
 
 interface ActivityState {
   items: ActivityItem[]
-  addItem: (item: Omit<ActivityItem, "id" | "createdAt">) => string
-  updateItem: (id: string, updates: Partial<Pick<ActivityItem, "status" | "detail" | "filesWritten">>) => void
+  addItem: (item: Omit<ActivityItem, 'id' | 'createdAt'>) => string
+  updateItem: (id: string, updates: Partial<Pick<ActivityItem, 'status' | 'detail' | 'filesWritten'>>) => void
   appendDetail: (id: string, text: string) => void
   clearDone: () => void
 }
@@ -36,20 +36,16 @@ export const useActivityStore = create<ActivityState>((set) => ({
 
   updateItem: (id, updates) =>
     set((state) => ({
-      items: state.items.map((item) =>
-        item.id === id ? { ...item, ...updates } : item
-      ),
+      items: state.items.map((item) => item.id === id ? { ...item, ...updates } : item),
     })),
 
   appendDetail: (id, text) =>
     set((state) => ({
-      items: state.items.map((item) =>
-        item.id === id ? { ...item, detail: item.detail + text } : item
-      ),
+      items: state.items.map((item) => item.id === id ? { ...item, detail: item.detail + text } : item),
     })),
 
   clearDone: () =>
     set((state) => ({
-      items: state.items.filter((i) => i.status === "running"),
+      items: state.items.filter((i) => i.status === 'running'),
     })),
 }))

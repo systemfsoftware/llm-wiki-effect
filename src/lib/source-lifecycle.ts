@@ -7,74 +7,60 @@ import {
   listDirectory,
   readFile,
   writeFile,
-} from "@/commands/fs"
-import type { WikiProject, FileNode } from "@/types/wiki"
-import type { LlmConfig } from "@/stores/wiki-store"
-import { enqueueBatch } from "@/lib/ingest-queue"
-import { hasUsableLlm } from "@/lib/has-usable-llm"
-import { getTaskLlmConfig } from "@/lib/llm-task-routing"
-import { getFileName, getFileStem, getRelativePath, normalizePath } from "@/lib/path-utils"
-import {
-  sourceIdentityForPath,
-  sourceReferenceIdentity,
-  sourceSummarySlugFromIdentity,
-} from "@/lib/source-identity"
-import {
-  parseFrontmatterArray,
-  parseSources,
-  writeFrontmatterArray,
-  writeSources,
-} from "@/lib/sources-merge"
-import { moveIngestCacheEntry, removeFromIngestCache } from "@/lib/ingest-cache"
-import { removePageEmbedding } from "@/lib/embedding"
-import {
-  buildDeletedKeys,
-  cleanIndexListing,
-  normalizeWikiRefKey,
-  stripDeletedWikilinks,
-} from "@/lib/wiki-cleanup"
-import { collectAllFilesIncludingDot } from "@/lib/sources-tree-delete"
-import { isPathAllowedBySourceWatch, normalizeSourceWatchConfig } from "@/lib/source-watch-config"
-import { isSensitiveConfigSourceFile } from "@/lib/source-filter"
-import { naturalCompare } from "@/lib/natural-sort"
-import type { SourceWatchConfig } from "@/stores/wiki-store"
-import { useWikiStore } from "@/stores/wiki-store"
-import { preprocessSourceFiles } from "@/lib/source-preprocess"
-import { moveParsedMarkdown, removeParsedMarkdown } from "@/lib/parsed-source-output"
+} from '@/commands/fs'
+import { removePageEmbedding } from '@/lib/embedding'
+import { hasUsableLlm } from '@/lib/has-usable-llm'
+import { moveIngestCacheEntry, removeFromIngestCache } from '@/lib/ingest-cache'
+import { enqueueBatch } from '@/lib/ingest-queue'
+import { getTaskLlmConfig } from '@/lib/llm-task-routing'
+import { naturalCompare } from '@/lib/natural-sort'
+import { moveParsedMarkdown, removeParsedMarkdown } from '@/lib/parsed-source-output'
+import { getFileName, getFileStem, getRelativePath, normalizePath } from '@/lib/path-utils'
+import { isSensitiveConfigSourceFile } from '@/lib/source-filter'
+import { sourceIdentityForPath, sourceReferenceIdentity, sourceSummarySlugFromIdentity } from '@/lib/source-identity'
+import { preprocessSourceFiles } from '@/lib/source-preprocess'
+import { isPathAllowedBySourceWatch, normalizeSourceWatchConfig } from '@/lib/source-watch-config'
+import { parseFrontmatterArray, parseSources, writeFrontmatterArray, writeSources } from '@/lib/sources-merge'
+import { collectAllFilesIncludingDot } from '@/lib/sources-tree-delete'
+import { buildDeletedKeys, cleanIndexListing, normalizeWikiRefKey, stripDeletedWikilinks } from '@/lib/wiki-cleanup'
+import type { LlmConfig } from '@/stores/wiki-store'
+import type { SourceWatchConfig } from '@/stores/wiki-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import type { FileNode, WikiProject } from '@/types/wiki'
 
 export const INGESTABLE_SOURCE_EXTENSIONS = new Set([
-  "md",
-  "mdx",
-  "txt",
-  "pdf",
-  "doc",
-  "docx",
-  "docm",
-  "ppt",
-  "pps",
-  "pot",
-  "pptx",
-  "pptm",
-  "ppsx",
-  "ppsm",
-  "xlsx",
-  "xlsm",
-  "xlsb",
-  "odt",
-  "odp",
-  "ods",
-  "xls",
-  "csv",
-  "json",
-  "html",
-  "htm",
-  "rtf",
-  "xml",
-  "yaml",
-  "yml",
-  "epub",
-  "mobi",
-  "org",
+  'md',
+  'mdx',
+  'txt',
+  'pdf',
+  'doc',
+  'docx',
+  'docm',
+  'ppt',
+  'pps',
+  'pot',
+  'pptx',
+  'pptm',
+  'ppsx',
+  'ppsm',
+  'xlsx',
+  'xlsm',
+  'xlsb',
+  'odt',
+  'odp',
+  'ods',
+  'xls',
+  'csv',
+  'json',
+  'html',
+  'htm',
+  'rtf',
+  'xml',
+  'yaml',
+  'yml',
+  'epub',
+  'mobi',
+  'org',
 ])
 
 function flattenFiles(nodes: FileNode[]): FileNode[] {
@@ -91,12 +77,12 @@ function flattenFiles(nodes: FileNode[]): FileNode[] {
 
 function parentPath(path: string): string {
   const normalized = normalizePath(path)
-  const index = normalized.lastIndexOf("/")
-  return index > 0 ? normalized.slice(0, index) : ""
+  const index = normalized.lastIndexOf('/')
+  return index > 0 ? normalized.slice(0, index) : ''
 }
 
 function stripTrailingSlash(path: string): string {
-  return normalizePath(path).replace(/\/+$/, "")
+  return normalizePath(path).replace(/\/+$/, '')
 }
 
 function isSameOrInside(path: string, parent: string): boolean {
@@ -151,7 +137,7 @@ export async function migrateSourcePath(
   )
   // Legacy pages sometimes stored only `config.yaml` for a nested source.
   // Rewrite that shorthand only when the live source basename is unique.
-  const canMigrateLegacyBasename = oldIdentity.includes("/") && matchingBasenames.length === 1
+  const canMigrateLegacyBasename = oldIdentity.includes('/') && matchingBasenames.length === 1
   const writes: Array<{ path: string; original: string; migrated: string }> = []
   for (const file of allMd) {
     const content = await readFile(file.path)
@@ -162,7 +148,7 @@ export async function migrateSourcePath(
       const normalizedSource = sourceReferenceIdentity(source)
       const matchesIdentity = normalizedSource.toLowerCase() === oldIdentity.toLowerCase()
       const matchesUniqueLegacyBasename = canMigrateLegacyBasename &&
-        !normalizedSource.includes("/") &&
+        !normalizedSource.includes('/') &&
         normalizedSource.toLowerCase() === oldBaseName
       if (!matchesIdentity && !matchesUniqueLegacyBasename) {
         return source
@@ -196,8 +182,8 @@ export async function migrateSourcePath(
       completedWrites.push(write)
     }
     if (shouldMoveSummary) {
-      const migratedSummary = writes.find((write) => write.path === oldSummaryPath)?.migrated
-        ?? await readFile(oldSummaryPath)
+      const migratedSummary = writes.find((write) => write.path === oldSummaryPath)?.migrated ??
+        await readFile(oldSummaryPath)
       await writeFile(newSummaryPath, migratedSummary)
       newSummaryCreated = true
       await deleteFile(oldSummaryPath)
@@ -207,7 +193,7 @@ export async function migrateSourcePath(
     try {
       await moveParsedMarkdown(pp, oldSourcePath, newSourcePath)
     } catch (err) {
-      console.warn("[source-lifecycle] failed to move optional parsed Markdown:", err)
+      console.warn('[source-lifecycle] failed to move optional parsed Markdown:', err)
     }
     return writes.length
   } catch (err) {
@@ -231,25 +217,25 @@ export async function migrateSourcePath(
 
 export function isIngestableSourcePath(path: string): boolean {
   const normalized = normalizePath(path)
-  if (normalized.split("/").includes(".cache")) return false
-  const fileName = normalized.split("/").pop() ?? ""
-  if (!fileName || fileName.startsWith(".")) return false
-  const ext = fileName.includes(".") ? fileName.split(".").pop()?.toLowerCase() : ""
+  if (normalized.split('/').includes('.cache')) return false
+  const fileName = normalized.split('/').pop() ?? ''
+  if (!fileName || fileName.startsWith('.')) return false
+  const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : ''
   return ext ? INGESTABLE_SOURCE_EXTENSIONS.has(ext) : false
 }
 
-export function folderContextForSourcePath(sourcePath: string, sourcesRoot = "raw/sources"): string {
+export function folderContextForSourcePath(sourcePath: string, sourcesRoot = 'raw/sources'): string {
   const path = normalizePath(sourcePath)
   const root = normalizePath(sourcesRoot)
-  const rawMarker = "/raw/sources/"
+  const rawMarker = '/raw/sources/'
   const rel = path.startsWith(`${root}/`)
     ? path.slice(root.length + 1)
     : path.includes(rawMarker)
-      ? path.slice(path.indexOf(rawMarker) + rawMarker.length)
-      : path
-  const parts = rel.split("/")
+    ? path.slice(path.indexOf(rawMarker) + rawMarker.length)
+    : path
+  const parts = rel.split('/')
   parts.pop()
-  return parts.join(" > ")
+  return parts.join(' > ')
 }
 
 export async function enqueueSourceIngest(
@@ -262,7 +248,7 @@ export async function enqueueSourceIngest(
   // Do not parse a batch that cannot proceed to ingest because no usable
   // model is configured. Imported source files remain on disk and can be
   // queued after the user configures a provider.
-  if (!hasUsableLlm(getTaskLlmConfig("ingest", llmConfig))) return []
+  if (!hasUsableLlm(getTaskLlmConfig('ingest', llmConfig))) return []
   const files = sourcePaths
     .filter((sourcePath) =>
       isIngestableSourcePath(sourcePath) &&
@@ -276,19 +262,19 @@ export async function enqueueSourceIngest(
       ),
     }))
   if (files.length === 0) return []
-  const parsingConcurrency = options.parsingConcurrency
-    ?? normalizeSourceWatchConfig(useWikiStore.getState().sourceWatchConfig).parsingConcurrency
+  const parsingConcurrency = options.parsingConcurrency ??
+    normalizeSourceWatchConfig(useWikiStore.getState().sourceWatchConfig).parsingConcurrency
   await preprocessSourceFiles(files.map((file) => file.sourcePath), parsingConcurrency)
   return enqueueBatch(project.id, files)
 }
 
 export type SourceImportSkipReason =
-  | "unsupported-type"
-  | "excluded"
-  | "too-large"
-  | "unreadable"
-  | "copy-failed"
-  | "sensitive-config"
+  | 'unsupported-type'
+  | 'excluded'
+  | 'too-large'
+  | 'unreadable'
+  | 'copy-failed'
+  | 'sensitive-config'
 
 export interface SkippedSourceImport {
   name: string
@@ -327,29 +313,29 @@ export async function importSourceFiles(
   const maxBytes = cfg.maxFileSizeMb * 1024 * 1024
 
   for (const sourcePath of sourcePaths) {
-    const originalName = getFileName(sourcePath) || "unknown"
+    const originalName = getFileName(sourcePath) || 'unknown'
     if (isSensitiveConfigSourceFile(sourcePath)) {
-      skipped.push({ name: originalName, reason: "sensitive-config" })
+      skipped.push({ name: originalName, reason: 'sensitive-config' })
       continue
     }
     // Exclusions first: a hidden or excluded file may still be a supported
     // type, and "excluded" is the reason the user can act on.
     if (!isPathAllowedBySourceWatch(sourcePath, explicitImportConfig)) {
-      skipped.push({ name: originalName, reason: "excluded" })
+      skipped.push({ name: originalName, reason: 'excluded' })
       continue
     }
     if (!isIngestableSourcePath(sourcePath)) {
-      skipped.push({ name: originalName, reason: "unsupported-type" })
+      skipped.push({ name: originalName, reason: 'unsupported-type' })
       continue
     }
     try {
       const size = await getFileSize(sourcePath)
       if (size > maxBytes) {
-        skipped.push({ name: originalName, reason: "too-large", detail: formatMegabytes(size) })
+        skipped.push({ name: originalName, reason: 'too-large', detail: formatMegabytes(size) })
         continue
       }
     } catch (err) {
-      skipped.push({ name: originalName, reason: "unreadable", detail: errorDetail(err) })
+      skipped.push({ name: originalName, reason: 'unreadable', detail: errorDetail(err) })
       continue
     }
 
@@ -359,7 +345,7 @@ export async function importSourceFiles(
       importedPaths.push(destPath)
     } catch (err) {
       console.error(`Failed to import ${originalName}:`, err)
-      skipped.push({ name: originalName, reason: "copy-failed", detail: errorDetail(err) })
+      skipped.push({ name: originalName, reason: 'copy-failed', detail: errorDetail(err) })
     }
   }
 
@@ -379,9 +365,9 @@ export async function importSourceFolder(
   const pp = normalizePath(project.path)
   const sourceRoot = normalizePath(selectedFolder)
   if (isProjectScopedImport(pp, sourceRoot)) {
-    throw new Error("Cannot import the project folder or a folder inside the current project.")
+    throw new Error('Cannot import the project folder or a folder inside the current project.')
   }
-  const folderName = getFileName(selectedFolder) || "imported"
+  const folderName = getFileName(selectedFolder) || 'imported'
   const destDir = `${pp}/raw/sources/${folderName}`
   const cfg = normalizeSourceWatchConfig(sourceWatchConfig)
   const maxBytes = cfg.maxFileSizeMb * 1024 * 1024
@@ -399,21 +385,21 @@ export async function importSourceFolder(
     const destPath = `${destDir}/${relativeSourcePath}`
     const relPath = `raw/sources/${folderName}/${relativeSourcePath}`
     if (isSensitiveConfigSourceFile(file.path)) {
-      skipped.push({ name: displayName, reason: "sensitive-config" })
+      skipped.push({ name: displayName, reason: 'sensitive-config' })
       continue
     }
     if (!isPathAllowedBySourceWatch(relPath, cfg)) {
-      skipped.push({ name: displayName, reason: "excluded" })
+      skipped.push({ name: displayName, reason: 'excluded' })
       continue
     }
     try {
       const size = await getFileSize(file.path)
       if (size > maxBytes) {
-        skipped.push({ name: displayName, reason: "too-large", detail: formatMegabytes(size) })
+        skipped.push({ name: displayName, reason: 'too-large', detail: formatMegabytes(size) })
         continue
       }
     } catch (err) {
-      skipped.push({ name: displayName, reason: "unreadable", detail: errorDetail(err) })
+      skipped.push({ name: displayName, reason: 'unreadable', detail: errorDetail(err) })
       continue
     }
     try {
@@ -423,15 +409,15 @@ export async function importSourceFolder(
       allowedFiles.push(destPath)
     } catch (err) {
       console.error(`Failed to import ${displayName}:`, err)
-      skipped.push({ name: displayName, reason: "copy-failed", detail: errorDetail(err) })
+      skipped.push({ name: displayName, reason: 'copy-failed', detail: errorDetail(err) })
     }
   }
 
   const naturallyOrderedFiles = [...allowedFiles].sort((a, b) =>
-    naturalCompare(getRelativePath(a, destDir), getRelativePath(b, destDir)),
+    naturalCompare(getRelativePath(a, destDir), getRelativePath(b, destDir))
   )
 
-  if (hasUsableLlm(getTaskLlmConfig("ingest", llmConfig))) {
+  if (hasUsableLlm(getTaskLlmConfig('ingest', llmConfig))) {
     await enqueueSourceIngest(project, naturallyOrderedFiles, llmConfig, {
       sourceRoot: destDir,
       rootContext: folderName,
@@ -515,7 +501,7 @@ export async function deleteSourceFiles(
   try {
     allMd = flattenMd(await listDirectory(`${pp}/wiki`))
   } catch (err) {
-    console.warn("[source-lifecycle] failed to scan wiki sources during delete:", err)
+    console.warn('[source-lifecycle] failed to scan wiki sources during delete:', err)
   }
 
   for (const file of allMd) {
@@ -554,13 +540,13 @@ export async function deleteSourceFiles(
 
   let deletedWikiPaths: string[] = []
   if (pagesToDelete.length > 0) {
-    const { cascadeDeleteWikiPagesWithRefs } = await import("@/lib/wiki-page-delete")
+    const { cascadeDeleteWikiPagesWithRefs } = await import('@/lib/wiki-page-delete')
     const result = await cascadeDeleteWikiPagesWithRefs(pp, pagesToDelete)
     deletedWikiPaths = result.deletedPaths
   }
 
   await appendSourceDeleteLog(pp, sourceInfos.map((info) => info.identity), {
-    reason: options.logReason ?? (options.fileAlreadyDeleted ? "external delete" : "delete"),
+    reason: options.logReason ?? (options.fileAlreadyDeleted ? 'external delete' : 'delete'),
     deletedWikiCount: deletedWikiPaths.length,
     keptWikiCount: rewrittenSourcePages,
   })
@@ -584,7 +570,7 @@ export async function deleteSourceFolder(
   if (files.length > 0) {
     const result = await deleteSourceFiles(projectPath, files, {
       fileAlreadyDeleted: options.folderAlreadyDeleted,
-      logReason: options.folderAlreadyDeleted ? "external folder delete" : "folder delete",
+      logReason: options.folderAlreadyDeleted ? 'external folder delete' : 'folder delete',
     })
     deletedWikiPaths.push(...result.deletedWikiPaths)
   }
@@ -606,8 +592,8 @@ export async function cleanupDeletedWikiPages(
 ): Promise<void> {
   const pp = normalizePath(projectPath)
   const deletedInfos = relativePaths
-    .map((path) => ({ slug: getFileStem(path), title: "" }))
-    .filter((info) => info.slug.length > 0 && !info.slug.startsWith("."))
+    .map((path) => ({ slug: getFileStem(path), title: '' }))
+    .filter((info) => info.slug.length > 0 && !info.slug.startsWith('.'))
 
   if (deletedInfos.length === 0) return
 
@@ -633,16 +619,16 @@ export async function cleanupDeletedWikiPages(
     }
 
     let updated = content
-    if (file.path === `${pp}/wiki/index.md` || file.name === "index.md") {
+    if (file.path === `${pp}/wiki/index.md` || file.name === 'index.md') {
       updated = cleanIndexListing(updated, deletedKeys)
     }
     updated = stripDeletedWikilinks(updated, deletedKeys)
 
-    const related = parseFrontmatterArray(updated, "related")
+    const related = parseFrontmatterArray(updated, 'related')
     if (related.length > 0) {
       const filtered = related.filter((s) => !deletedKeys.has(normalizeWikiRefKey(s)))
       if (filtered.length !== related.length) {
-        updated = writeFrontmatterArray(updated, "related", filtered)
+        updated = writeFrontmatterArray(updated, 'related', filtered)
       }
     }
 
@@ -663,9 +649,9 @@ export async function getUniqueDestPath(dir: string, fileName: string): Promise<
     return basePath
   }
 
-  const ext = fileName.includes(".") ? fileName.slice(fileName.lastIndexOf(".")) : ""
+  const ext = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')) : ''
   const nameWithoutExt = ext ? fileName.slice(0, -ext.length) : fileName
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "")
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
 
   const withDate = `${dir}/${nameWithoutExt}-${date}${ext}`
   if (!(await fileExists(withDate))) {
@@ -690,14 +676,18 @@ async function appendSourceDeleteLog(
   try {
     const names = Array.isArray(fileNames) ? fileNames : [fileNames]
     const logPath = `${projectPath}/wiki/log.md`
-    const logContent = await readFile(logPath).catch(() => "# Wiki Log\n")
+    const logContent = await readFile(logPath).catch(() => '# Wiki Log\n')
     const date = new Date().toISOString().slice(0, 10)
     const subject = names.length === 1 ? names[0] : `${names.length} source files`
-    const listed = names.length === 1 ? "" : `\n\nSources:\n${names.map((name) => `- ${name}`).join("\n")}`
-    const logEntry = `\n## [${date}] ${detail.reason} | ${subject}\n\nDeleted ${names.length} source file${names.length === 1 ? "" : "s"} and ${detail.deletedWikiCount} wiki pages.${detail.keptWikiCount > 0 ? ` ${detail.keptWikiCount} shared pages kept (have other sources).` : ""}${listed}\n`
+    const listed = names.length === 1 ? '' : `\n\nSources:\n${names.map((name) => `- ${name}`).join('\n')}`
+    const logEntry = `\n## [${date}] ${detail.reason} | ${subject}\n\nDeleted ${names.length} source file${
+      names.length === 1 ? '' : 's'
+    } and ${detail.deletedWikiCount} wiki pages.${
+      detail.keptWikiCount > 0 ? ` ${detail.keptWikiCount} shared pages kept (have other sources).` : ''
+    }${listed}\n`
     await writeFile(logPath, logContent.trimEnd() + logEntry)
   } catch (err) {
-    console.warn("[source-lifecycle] failed to append delete log:", err)
+    console.warn('[source-lifecycle] failed to append delete log:', err)
   }
 }
 
@@ -707,7 +697,7 @@ function flattenMd(nodes: readonly FileNode[]): FileNode[] {
     for (const item of items) {
       if (item.is_dir) {
         if (item.children) walk(item.children)
-      } else if (item.name.endsWith(".md")) {
+      } else if (item.name.endsWith('.md')) {
         out.push(item)
       }
     }
@@ -728,7 +718,7 @@ function sourceNameMatchesAny(
   // Legacy wiki pages stored only basenames in `sources`. Keep that fallback
   // for old pages, but do not let a path-aware source like
   // `project-b/config.yaml` match a different deleted `config.yaml`.
-  if (normalized.includes("/")) return false
+  if (normalized.includes('/')) return false
 
   const normalizedSource = normalized.toLowerCase()
   return deletingNames.has(normalizedSource)

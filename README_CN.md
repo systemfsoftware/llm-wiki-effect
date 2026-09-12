@@ -88,6 +88,7 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 ### 1. 从命令行到桌面应用
 
 原始设计是一个抽象的模式文档，设计上是复制粘贴给 LLM agent 使用的。我们将其构建为**完整的跨平台桌面应用**：
+
 - **三栏布局**：知识树 / 文件树（左）+ 聊天（中）+ 预览（右）
 - **图标侧边栏** —— 在 Wiki、资料源、搜索、图谱、Lint、审核、深度研究、设置之间快速切换
 - **自定义可调面板** —— 左右面板支持拖拽调整大小，带最小/最大约束
@@ -98,6 +99,7 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 ### 2. Purpose.md —— Wiki 的灵魂
 
 原始设计有 Schema（Wiki 如何运作），但没有正式定义 **为什么** 这个 Wiki 存在。我们新增了 `purpose.md`：
+
 - 定义目标、关键问题、研究范围、演进中的论点
 - LLM 在每次摄入和查询时都会读取它以获取上下文
 - LLM 可以根据使用模式建议更新
@@ -123,6 +125,7 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 ```
 
 超越原始设计的摄入增强：
+
 - **SHA256 增量缓存** —— 摄入前检查源文件内容哈希，未变更则自动跳过，节省 LLM token 和时间
 - **持久化摄入队列** —— 串行处理防止并发 LLM 调用；队列持久化到磁盘，应用重启后自动恢复；失败任务自动重试最多 3 次
 - **文件夹导入** —— 递归导入保留目录结构；文件夹路径作为分类上下文传给 LLM（如 "papers > energy" 帮助分类）
@@ -144,14 +147,16 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 原始设计提到了 `[[wikilinks]]` 用于交叉引用，但没有图分析。我们构建了**完整的知识图谱可视化和关联度引擎**：
 
 **四信号关联度模型：**
-| 信号 | 权重 | 描述 |
-|------|------|------|
-| 直接链接 | ×3.0 | 通过 `[[wikilinks]]` 链接的页面 |
-| 来源重叠 | ×4.0 | 共享同一原始资料的页面（通过 frontmatter `sources[]`） |
-| Adamic-Adar | ×1.5 | 共享共同邻居的页面（按邻居度数加权） |
-| 类型亲和 | ×1.0 | 相同页面类型的加分（实体↔实体，概念↔概念） |
+
+| 信号        | 权重 | 描述                                                   |
+| ----------- | ---- | ------------------------------------------------------ |
+| 直接链接    | ×3.0 | 通过 `[[wikilinks]]` 链接的页面                        |
+| 来源重叠    | ×4.0 | 共享同一原始资料的页面（通过 frontmatter `sources[]`） |
+| Adamic-Adar | ×1.5 | 共享共同邻居的页面（按邻居度数加权）                   |
+| 类型亲和    | ×1.0 | 相同页面类型的加分（实体↔实体，概念↔概念）             |
 
 **图谱可视化（sigma.js + graphology + ForceAtlas2）：**
+
 - 按页面类型或社区着色节点，按链接数缩放节点大小（√ 缩放）
 - 边的粗细和颜色按关联权重变化（绿色=强，灰色=弱）
 - 悬停交互：邻居节点保持可见，非邻居变暗，边高亮并显示关联度分数
@@ -178,16 +183,19 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 原始设计中没有。系统**自动分析图谱结构**，呈现可操作的洞察：
 
 **惊奇连接：**
+
 - 检测意外关联：跨社区边、跨类型链接、边缘↔核心耦合
 - 复合惊奇度评分排序最值得关注的连接
 - 可消除 —— 标记为已查看后不再重复出现
 
 **知识空白：**
+
 - **孤立页面**（度 ≤ 1）—— 与 Wiki 其余部分缺少连接的页面
 - **稀疏社区**（cohesion < 0.15，≥ 3 页）—— 内部交叉引用薄弱的知识领域
 - **桥接节点**（连接 3+ 个集群）—— 维系多个知识领域的关键枢纽页面
 
 **交互：**
+
 - 点击洞察卡片**高亮**图谱中对应节点和边；再次点击取消
 - 知识空白和桥接节点附带 **Deep Research 按钮** —— 触发 LLM 智能主题生成（读取 overview.md + purpose.md 获取领域上下文）
 - 研究主题在**可编辑确认对话框**中展示 —— 用户可修改主题和搜索查询后再启动
@@ -321,16 +329,16 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 
 原始设计聚焦于纯文本/Markdown。我们支持保留文档语义的结构化提取：
 
-| 格式 | 方法 |
-|------|------|
-| PDF | 内置 pdf-extract（Rust）+ 文件缓存；可选 MinerU 云端、Local API 或 Pipeline 模式解析复杂排版 |
-| DOCX | docx-rs —— 标题、加粗/斜体、列表、表格 → 结构化 Markdown |
-| PPTX | ZIP + XML —— 逐页提取，保留标题/列表结构 |
-| XLSX/XLS/ODS | calamine —— 正确的单元格类型、多工作表支持、Markdown 表格 |
-| EPUB/MOBI | 提取电子书元数据、章节和正文，转换为可摄取内容 |
-| 图片 | 原生预览（png, jpg, gif, webp, svg 等） |
-| 视频/音频 | 内置播放器 |
-| 网页剪藏 | Readability.js + Turndown.js → 干净的 Markdown |
+| 格式         | 方法                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| PDF          | 内置 pdf-extract（Rust）+ 文件缓存；可选 MinerU 云端、Local API 或 Pipeline 模式解析复杂排版 |
+| DOCX         | docx-rs —— 标题、加粗/斜体、列表、表格 → 结构化 Markdown                                     |
+| PPTX         | ZIP + XML —— 逐页提取，保留标题/列表结构                                                     |
+| XLSX/XLS/ODS | calamine —— 正确的单元格类型、多工作表支持、Markdown 表格                                    |
+| EPUB/MOBI    | 提取电子书元数据、章节和正文，转换为可摄取内容                                               |
+| 图片         | 原生预览（png, jpg, gif, webp, svg 等）                                                      |
+| 视频/音频    | 内置播放器                                                                                   |
+| 网页剪藏     | Readability.js + Turndown.js → 干净的 Markdown                                               |
 
 > MinerU 是可选功能。复杂 PDF 可使用 MinerU 云端、官方 Local API 或本地 Pipeline 模式；本地模式无需上传文件，提取的图片会保存到项目管理的 `wiki/media` 目录。若 MinerU 失败，LLM Wiki 会回退到内置解析器。
 
@@ -378,26 +386,27 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 
 ## 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| 桌面 | Tauri v2（Rust 后端） |
-| 前端 | React 19 + TypeScript + Vite |
-| UI | shadcn/ui + Tailwind CSS v4 |
-| 编辑器 | Milkdown（基于 ProseMirror 的所见即所得） |
-| 图谱 | sigma.js + graphology + ForceAtlas2 |
-| 搜索 | 分词搜索 + 图谱关联度 + 可选向量（LanceDB） |
-| 向量数据库 | LanceDB（Rust，嵌入式，可选） |
-| 文档解析 | pdf-extract + MinerU 云端/本地 + docx-rs + calamine + EPUB/MOBI 提取 |
-| 国际化 | react-i18next |
-| 状态管理 | Zustand |
-| LLM | 流式 fetch（OpenAI、Anthropic、Google、Ollama、自定义） |
-| 网络搜索 | Tavily、SerpApi、SearXNG JSON API |
+| 层级       | 技术                                                                 |
+| ---------- | -------------------------------------------------------------------- |
+| 桌面       | Tauri v2（Rust 后端）                                                |
+| 前端       | React 19 + TypeScript + Vite                                         |
+| UI         | shadcn/ui + Tailwind CSS v4                                          |
+| 编辑器     | Milkdown（基于 ProseMirror 的所见即所得）                            |
+| 图谱       | sigma.js + graphology + ForceAtlas2                                  |
+| 搜索       | 分词搜索 + 图谱关联度 + 可选向量（LanceDB）                          |
+| 向量数据库 | LanceDB（Rust，嵌入式，可选）                                        |
+| 文档解析   | pdf-extract + MinerU 云端/本地 + docx-rs + calamine + EPUB/MOBI 提取 |
+| 国际化     | react-i18next                                                        |
+| 状态管理   | Zustand                                                              |
+| LLM        | 流式 fetch（OpenAI、Anthropic、Google、Ollama、自定义）              |
+| 网络搜索   | Tavily、SerpApi、SearXNG JSON API                                    |
 
 ## 安装
 
 ### 预编译二进制文件
 
 从 [Releases](https://github.com/nashsu/llm_wiki/releases) 下载：
+
 - **macOS**：`.dmg`（Apple Silicon + Intel）
 - **Windows**：`.msi`
 - **Linux**：`.deb` / `.AppImage`

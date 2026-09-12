@@ -19,22 +19,19 @@
  * to apply their own fault-tolerance policy (e.g. continue with the
  * next file in a batch, or surface to the user via toast).
  */
-import { deleteFile, listDirectory, readFile, writeFile } from "@/commands/fs"
-import { getFileStem, normalizePath } from "@/lib/path-utils"
-import { removePageEmbedding } from "@/lib/embedding"
+import { deleteFile, listDirectory, readFile, writeFile } from '@/commands/fs'
+import { removePageEmbedding } from '@/lib/embedding'
+import { getFileStem, normalizePath } from '@/lib/path-utils'
+import { parseFrontmatterArray, writeFrontmatterArray } from '@/lib/sources-merge'
 import {
   buildDeletedKeys,
   cleanIndexListing,
+  type DeletedPageInfo,
   extractFrontmatterTitle,
   normalizeWikiRefKey,
   stripDeletedWikilinks,
-  type DeletedPageInfo,
-} from "@/lib/wiki-cleanup"
-import {
-  parseFrontmatterArray,
-  writeFrontmatterArray,
-} from "@/lib/sources-merge"
-import type { FileNode } from "@/types/wiki"
+} from '@/lib/wiki-cleanup'
+import type { FileNode } from '@/types/wiki'
 
 /**
  * Detect whether a wiki page lives under `wiki/sources/`. We treat
@@ -47,7 +44,7 @@ import type { FileNode } from "@/types/wiki"
  */
 function isSourcePage(pagePath: string): boolean {
   const normalized = normalizePath(pagePath)
-  return normalized.includes("/wiki/sources/")
+  return normalized.includes('/wiki/sources/')
 }
 
 /**
@@ -90,7 +87,7 @@ export async function cascadeDeleteWikiPage(
   // that resolves to a hidden directory under `wiki/media/`. The
   // worst case (slug == ".") would target `wiki/media/.` and delete
   // the entire media root.
-  if (isSourcePage(pagePath) && slug.length > 0 && !slug.startsWith(".")) {
+  if (isSourcePage(pagePath) && slug.length > 0 && !slug.startsWith('.')) {
     const pp = normalizePath(projectPath)
     const mediaDir = `${pp}/wiki/media/${slug}`
     try {
@@ -114,7 +111,7 @@ function flattenMd(nodes: readonly FileNode[]): FileNode[] {
         if (n.children) walk(n.children)
         continue
       }
-      if (n.name.endsWith(".md")) out.push(n)
+      if (n.name.endsWith('.md')) out.push(n)
     }
   }
   walk(nodes)
@@ -172,7 +169,7 @@ export async function cascadeDeleteWikiPagesWithRefs(
   //    slug-form and title-form. Capture before delete.
   const infos: DeletedPageInfo[] = []
   for (const pagePath of pagePaths) {
-    let title = ""
+    let title = ''
     try {
       const content = await readFile(pagePath)
       title = extractFrontmatterTitle(content)
@@ -212,7 +209,7 @@ export async function cascadeDeleteWikiPagesWithRefs(
     }
 
     let updated = content
-    if (file.path === indexAbs || file.name === "index.md") {
+    if (file.path === indexAbs || file.name === 'index.md') {
       updated = cleanIndexListing(updated, deletedKeys)
     }
     updated = stripDeletedWikilinks(updated, deletedKeys)
@@ -221,13 +218,13 @@ export async function cascadeDeleteWikiPagesWithRefs(
     // page. parseFrontmatterArray returns the parsed string list;
     // writeFrontmatterArray rewrites only that field, preserving
     // every other line.
-    const related = parseFrontmatterArray(updated, "related")
+    const related = parseFrontmatterArray(updated, 'related')
     if (related.length > 0) {
       const filtered = related.filter(
         (s) => !deletedKeys.has(normalizeWikiRefKey(s)),
       )
       if (filtered.length !== related.length) {
-        updated = writeFrontmatterArray(updated, "related", filtered)
+        updated = writeFrontmatterArray(updated, 'related', filtered)
       }
     }
 

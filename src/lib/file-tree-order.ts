@@ -1,5 +1,5 @@
-import type { FileNode } from "@/types/wiki"
-import { naturalCompare } from "@/lib/natural-sort"
+import { naturalCompare } from '@/lib/natural-sort'
+import type { FileNode } from '@/types/wiki'
 
 export function compareFileNodes(a: FileNode, b: FileNode): number {
   if (a.is_dir && !b.is_dir) return -1

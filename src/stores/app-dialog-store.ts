@@ -1,6 +1,6 @@
-import { create } from "zustand"
+import { create } from 'zustand'
 
-export type AppDialogVariant = "default" | "destructive"
+export type AppDialogVariant = 'default' | 'destructive'
 
 export interface AppDialogOptions {
   title?: string
@@ -12,7 +12,7 @@ export interface AppDialogOptions {
 
 interface DialogRequest extends AppDialogOptions {
   id: number
-  kind: "alert" | "confirm"
+  kind: 'alert' | 'confirm'
   resolve: (value: boolean) => void
 }
 
@@ -48,7 +48,7 @@ export const useAppDialogStore = create<AppDialogState>((set, get) => ({
 let nextDialogId = 1
 
 function enqueueDialog(
-  kind: DialogRequest["kind"],
+  kind: DialogRequest['kind'],
   options: AppDialogOptions,
 ): Promise<boolean> {
   return new Promise((resolve) => {
@@ -63,10 +63,9 @@ function enqueueDialog(
 
 const appDialogApi = {
   alert: async (options: AppDialogOptions): Promise<void> => {
-    await enqueueDialog("alert", options)
+    await enqueueDialog('alert', options)
   },
-  confirm: (options: AppDialogOptions): Promise<boolean> =>
-    enqueueDialog("confirm", options),
+  confirm: (options: AppDialogOptions): Promise<boolean> => enqueueDialog('confirm', options),
 }
 
 export function useAppDialog() {

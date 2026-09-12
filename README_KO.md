@@ -148,12 +148,12 @@ LLM Wiki는 문서를 자동으로 정리되고 서로 연결된 지식 베이�
 
 **4-신호 관련성 모델:**
 
-| 신호 | 가중치 | 설명 |
-|------|--------|------|
-| 직접 링크 | x3.0 | `[[wikilinks]]`로 연결된 페이지 |
-| 출처 중복 | x4.0 | frontmatter `sources[]`를 통해 같은 원본 소스를 공유하는 페이지 |
-| Adamic-Adar | x1.5 | 공통 이웃을 공유하는 페이지(이웃 차수로 가중) |
-| 타입 친화도 | x1.0 | 같은 페이지 타입(entity↔entity, concept↔concept)에 보너스 |
+| 신호        | 가중치 | 설명                                                            |
+| ----------- | ------ | --------------------------------------------------------------- |
+| 직접 링크   | x3.0   | `[[wikilinks]]`로 연결된 페이지                                 |
+| 출처 중복   | x4.0   | frontmatter `sources[]`를 통해 같은 원본 소스를 공유하는 페이지 |
+| Adamic-Adar | x1.5   | 공통 이웃을 공유하는 페이지(이웃 차수로 가중)                   |
+| 타입 친화도 | x1.0   | 같은 페이지 타입(entity↔entity, concept↔concept)에 보너스       |
 
 **그래프 시각화(sigma.js + graphology + ForceAtlas2):**
 
@@ -329,16 +329,16 @@ LLM Wiki는 문서를 자동으로 정리되고 서로 연결된 지식 베이�
 
 원본은 text/markdown에 집중합니다. 우리는 문서 의미 구조를 보존하는 구조화 추출을 지원합니다.
 
-| 형식 | 방식 |
-|------|------|
-| PDF | 파일 캐싱이 포함된 내장 pdf-extract(Rust); 복잡한 레이아웃에는 MinerU Cloud, Local API 또는 Pipeline 모드 사용 가능 |
-| DOCX | docx-rs — headings, bold/italic, lists, tables → 구조화된 Markdown |
-| PPTX | ZIP + XML — slide-by-slide extraction with heading/list structure |
-| XLSX/XLS/ODS | calamine — proper cell types, multi-sheet support, Markdown tables |
-| EPUB/MOBI | 전자책 메타데이터, 장, 본문을 추출해 인제스트 가능한 콘텐츠로 변환 |
-| Images | Native preview(png, jpg, gif, webp, svg 등) |
-| Video/Audio | 내장 player |
-| Web clips | Readability.js + Turndown.js → clean Markdown |
+| 형식         | 방식                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| PDF          | 파일 캐싱이 포함된 내장 pdf-extract(Rust); 복잡한 레이아웃에는 MinerU Cloud, Local API 또는 Pipeline 모드 사용 가능 |
+| DOCX         | docx-rs — headings, bold/italic, lists, tables → 구조화된 Markdown                                                  |
+| PPTX         | ZIP + XML — slide-by-slide extraction with heading/list structure                                                   |
+| XLSX/XLS/ODS | calamine — proper cell types, multi-sheet support, Markdown tables                                                  |
+| EPUB/MOBI    | 전자책 메타데이터, 장, 본문을 추출해 인제스트 가능한 콘텐츠로 변환                                                  |
+| Images       | Native preview(png, jpg, gif, webp, svg 등)                                                                         |
+| Video/Audio  | 내장 player                                                                                                         |
+| Web clips    | Readability.js + Turndown.js → clean Markdown                                                                       |
 
 > MinerU는 선택 기능입니다. 복잡한 PDF에는 MinerU Cloud, 공식 Local API 또는 로컬 Pipeline 모드를 사용할 수 있습니다. 로컬 모드는 파일을 외부로 전송하지 않으며 추출된 이미지는 프로젝트가 관리하는 `wiki/media`에 저장됩니다. 실패하면 내장 파서로 fallback합니다.
 
@@ -386,20 +386,20 @@ LLM Wiki는 문서를 자동으로 정리되고 서로 연결된 지식 베이�
 
 ## 기술 스택
 
-| 계층 | 기술 |
-|------|------|
-| Desktop | Tauri v2(Rust backend) |
-| Frontend | React 19 + TypeScript + Vite |
-| UI | shadcn/ui + Tailwind CSS v4 |
-| Editor | Milkdown(ProseMirror 기반 WYSIWYG) |
-| Graph | sigma.js + graphology + ForceAtlas2 |
-| Search | Tokenized search + graph relevance + optional vector(LanceDB) |
-| Vector DB | LanceDB(Rust, embedded, optional) |
-| 문서 파싱 | pdf-extract + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI 추출 |
-| i18n | react-i18next |
-| State | Zustand |
-| LLM | Streaming fetch(OpenAI, Anthropic, Google, Ollama, Custom) |
-| Web Search | Tavily, SerpApi, SearXNG JSON API |
+| 계층       | 기술                                                                   |
+| ---------- | ---------------------------------------------------------------------- |
+| Desktop    | Tauri v2(Rust backend)                                                 |
+| Frontend   | React 19 + TypeScript + Vite                                           |
+| UI         | shadcn/ui + Tailwind CSS v4                                            |
+| Editor     | Milkdown(ProseMirror 기반 WYSIWYG)                                     |
+| Graph      | sigma.js + graphology + ForceAtlas2                                    |
+| Search     | Tokenized search + graph relevance + optional vector(LanceDB)          |
+| Vector DB  | LanceDB(Rust, embedded, optional)                                      |
+| 문서 파싱  | pdf-extract + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI 추출 |
+| i18n       | react-i18next                                                          |
+| State      | Zustand                                                                |
+| LLM        | Streaming fetch(OpenAI, Anthropic, Google, Ollama, Custom)             |
+| Web Search | Tavily, SerpApi, SearXNG JSON API                                      |
 
 ## 설치
 

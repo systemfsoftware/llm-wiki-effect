@@ -1,4 +1,4 @@
-import { create } from "zustand"
+import { create } from 'zustand'
 
 export interface ZoomState {
   /** Current zoom level as a decimal (1 = 100%) */

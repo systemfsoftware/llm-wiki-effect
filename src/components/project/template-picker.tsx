@@ -1,6 +1,6 @@
-import { templates } from "@/lib/templates"
-import { cn } from "@/lib/utils"
-import { useTranslation } from "react-i18next"
+import { templates } from '@/lib/templates'
+import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 interface TemplatePickerProps {
   selected: string
@@ -11,7 +11,7 @@ export function TemplatePicker({ selected, onSelect }: TemplatePickerProps) {
   const { t } = useTranslation()
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className='grid grid-cols-2 gap-2 sm:grid-cols-3'>
       {templates.map((template) => {
         const name = t(`templates.${template.id}.name`, { defaultValue: template.name })
         const description = t(`templates.${template.id}.description`, {
@@ -21,18 +21,18 @@ export function TemplatePicker({ selected, onSelect }: TemplatePickerProps) {
         return (
           <button
             key={template.id}
-            type="button"
+            type='button'
             onClick={() => onSelect(template.id)}
             className={cn(
-              "flex flex-col gap-1 rounded-md border p-3 text-left transition-colors hover:bg-accent",
+              'flex flex-col gap-1 rounded-md border p-3 text-left transition-colors hover:bg-accent',
               selected === template.id
-                ? "border-primary bg-accent ring-1 ring-primary"
-                : "border-border bg-background",
+                ? 'border-primary bg-accent ring-1 ring-primary'
+                : 'border-border bg-background',
             )}
           >
-            <span className="text-xl leading-none">{template.icon}</span>
-            <span className="text-sm font-medium leading-tight">{name}</span>
-            <span className="text-xs text-muted-foreground leading-tight">{description}</span>
+            <span className='text-xl leading-none'>{template.icon}</span>
+            <span className='text-sm font-medium leading-tight'>{name}</span>
+            <span className='text-xs text-muted-foreground leading-tight'>{description}</span>
           </button>
         )
       })}

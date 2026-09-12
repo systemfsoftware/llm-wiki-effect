@@ -8,7 +8,7 @@
  * these functions; visual review covers the wiring, unit tests
  * cover the decision logic.
  */
-import type { FileNode } from "@/types/wiki"
+import type { FileNode } from '@/types/wiki'
 
 /**
  * Recursively collect every leaf (non-directory) file under
@@ -48,9 +48,9 @@ export function collectAllFilesIncludingDot(folder: FileNode): FileNode[] {
  *                      onDeleteFolder + clear pending
  */
 export type DeleteClickAction =
-  | { kind: "arm"; path: string }
-  | { kind: "fire-file"; node: FileNode }
-  | { kind: "fire-folder"; node: FileNode }
+  | { kind: 'arm'; path: string }
+  | { kind: 'fire-file'; node: FileNode }
+  | { kind: 'fire-folder'; node: FileNode }
 
 /**
  * Pure state-machine for the inline delete-confirm button.
@@ -69,8 +69,8 @@ export function decideDeleteClick(
 ): DeleteClickAction {
   if (currentPending === clicked.path) {
     return clicked.is_dir
-      ? { kind: "fire-folder", node: clicked }
-      : { kind: "fire-file", node: clicked }
+      ? { kind: 'fire-folder', node: clicked }
+      : { kind: 'fire-file', node: clicked }
   }
-  return { kind: "arm", path: clicked.path }
+  return { kind: 'arm', path: clicked.path }
 }

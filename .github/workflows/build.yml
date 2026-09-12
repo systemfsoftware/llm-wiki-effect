@@ -3,7 +3,7 @@ name: Build & Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -16,19 +16,19 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
+            args: "--target aarch64-apple-darwin"
             rust_target: aarch64-apple-darwin
           - platform: ubuntu-22.04
-            args: ''
-            rust_target: ''
+            args: ""
+            rust_target: ""
           # GitHub-hosted ARM Linux runner (free for public repos
           # since 2024). Native build — no cross-compile of webkit2gtk.
           - platform: ubuntu-22.04-arm
-            args: ''
-            rust_target: ''
+            args: ""
+            rust_target: ""
           - platform: windows-latest
-            args: ''
-            rust_target: ''
+            args: ""
+            rust_target: ""
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -119,7 +119,7 @@ jobs:
           # branch build without polluting the Releases page.
           tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
           releaseName: ${{ github.event_name == 'push' && format('LLM Wiki {0}', github.ref_name) || '' }}
-          releaseBody: 'See the assets below for download links.'
+          releaseBody: "See the assets below for download links."
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

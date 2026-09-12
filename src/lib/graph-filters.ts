@@ -1,5 +1,5 @@
-import type { GraphEdge, GraphNode } from "@/lib/wiki-graph"
-import { shouldHideNodeType } from "@/lib/graph-visibility"
+import { shouldHideNodeType } from '@/lib/graph-visibility'
+import type { GraphEdge, GraphNode } from '@/lib/wiki-graph'
 
 export interface GraphFilterState {
   hiddenTypes: ReadonlySet<string>
@@ -25,20 +25,20 @@ export const DEFAULT_GRAPH_FILTERS: GraphFilterState = {
   maxLinks: undefined,
 }
 
-const STRUCTURAL_IDS = new Set(["index", "overview", "log", "schema", "purpose"])
+const STRUCTURAL_IDS = new Set(['index', 'overview', 'log', 'schema', 'purpose'])
 
-export function isStructuralGraphNode(node: Pick<GraphNode, "id" | "path" | "type">): boolean {
+export function isStructuralGraphNode(node: Pick<GraphNode, 'id' | 'path' | 'type'>): boolean {
   const id = node.id.toLowerCase()
   if (STRUCTURAL_IDS.has(id)) return true
-  if (node.type === "overview") return true
+  if (node.type === 'overview') return true
 
-  const normalizedPath = node.path.replace(/\\/g, "/").toLowerCase()
+  const normalizedPath = node.path.replace(/\\/g, '/').toLowerCase()
   return (
-    normalizedPath.endsWith("/wiki/index.md") ||
-    normalizedPath.endsWith("/wiki/overview.md") ||
-    normalizedPath.endsWith("/wiki/log.md") ||
-    normalizedPath.endsWith("/purpose.md") ||
-    normalizedPath.endsWith("/schema.md")
+    normalizedPath.endsWith('/wiki/index.md') ||
+    normalizedPath.endsWith('/wiki/overview.md') ||
+    normalizedPath.endsWith('/wiki/log.md') ||
+    normalizedPath.endsWith('/purpose.md') ||
+    normalizedPath.endsWith('/schema.md')
   )
 }
 

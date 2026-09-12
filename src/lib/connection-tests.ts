@@ -1,6 +1,6 @@
-import type { EmbeddingConfig, LlmConfig } from "@/stores/wiki-store"
-import { fetchEmbedding, getLastEmbeddingError } from "@/lib/embedding"
-import { streamChat } from "@/lib/llm-client"
+import { fetchEmbedding, getLastEmbeddingError } from '@/lib/embedding'
+import { streamChat } from '@/lib/llm-client'
+import type { EmbeddingConfig, LlmConfig } from '@/stores/wiki-store'
 
 export interface ProviderTestResult {
   ok: boolean
@@ -11,18 +11,18 @@ export const LLM_PROVIDER_TEST_MAX_TOKENS = 512
 
 export async function testEmbeddingConnection(cfg: EmbeddingConfig): Promise<ProviderTestResult> {
   if (!cfg.endpoint.trim()) {
-    return { ok: false, message: "Embedding endpoint is empty." }
+    return { ok: false, message: 'Embedding endpoint is empty.' }
   }
   if (!cfg.model.trim()) {
-    return { ok: false, message: "Embedding model is empty." }
+    return { ok: false, message: 'Embedding model is empty.' }
   }
 
   const started = performance.now()
-  const vector = await fetchEmbedding("LLM Wiki embedding connection test.", cfg, 0)
+  const vector = await fetchEmbedding('LLM Wiki embedding connection test.', cfg, 0)
   if (!vector) {
     return {
       ok: false,
-      message: getLastEmbeddingError() ?? "Embedding endpoint returned no vector.",
+      message: getLastEmbeddingError() ?? 'Embedding endpoint returned no vector.',
     }
   }
 
@@ -33,12 +33,12 @@ export async function testEmbeddingConnection(cfg: EmbeddingConfig): Promise<Pro
 }
 
 export async function testEmbeddingFunction(cfg: EmbeddingConfig): Promise<ProviderTestResult> {
-  const first = await fetchEmbedding("LLM Wiki functional embedding test: apple banana graph.", cfg, 0)
-  const second = await fetchEmbedding("LLM Wiki functional embedding test: apple banana graph.", cfg, 0)
+  const first = await fetchEmbedding('LLM Wiki functional embedding test: apple banana graph.', cfg, 0)
+  const second = await fetchEmbedding('LLM Wiki functional embedding test: apple banana graph.', cfg, 0)
   if (!first || !second) {
     return {
       ok: false,
-      message: getLastEmbeddingError() ?? "Embedding endpoint did not return vectors.",
+      message: getLastEmbeddingError() ?? 'Embedding endpoint did not return vectors.',
     }
   }
   if (first.length !== second.length) {
@@ -48,12 +48,12 @@ export async function testEmbeddingFunction(cfg: EmbeddingConfig): Promise<Provi
     }
   }
   if (first.length === 0 || first.some((v) => !Number.isFinite(v)) || second.some((v) => !Number.isFinite(v))) {
-    return { ok: false, message: "Embedding endpoint returned an empty or non-finite vector." }
+    return { ok: false, message: 'Embedding endpoint returned an empty or non-finite vector.' }
   }
 
   const norm = Math.sqrt(first.reduce((sum, v) => sum + v * v, 0))
   if (!Number.isFinite(norm) || norm <= 0) {
-    return { ok: false, message: "Embedding vector norm is zero or invalid." }
+    return { ok: false, message: 'Embedding vector norm is zero or invalid.' }
   }
 
   return {
@@ -64,26 +64,30 @@ export async function testEmbeddingFunction(cfg: EmbeddingConfig): Promise<Provi
 
 export async function testLlmConnection(cfg: LlmConfig): Promise<ProviderTestResult> {
   const started = performance.now()
-  let content = ""
+  let content = ''
   let errorMessage: string | null = null
 
   await streamChat(
     cfg,
     [
-      { role: "system", content: "You are a connection checker. Reply briefly." },
-      { role: "user", content: "Reply with one short word." },
+      { role: 'system', content: 'You are a connection checker. Reply briefly.' },
+      { role: 'user', content: 'Reply with one short word.' },
     ],
     {
-      onToken: (token) => { content += token },
+      onToken: (token) => {
+        content += token
+      },
       onDone: () => {},
-      onError: (err) => { errorMessage = err.message },
+      onError: (err) => {
+        errorMessage = err.message
+      },
     },
     undefined,
-    { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: "auto" } },
+    { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: 'auto' } },
   )
 
   if (errorMessage) return { ok: false, message: errorMessage }
-  if (!content.trim()) return { ok: false, message: "Model connected but returned empty content." }
+  if (!content.trim()) return { ok: false, message: 'Model connected but returned empty content.' }
   return {
     ok: true,
     message: `Connected in ${Math.round(performance.now() - started)} ms. Response: ${content.trim().slice(0, 80)}`,
@@ -91,34 +95,40 @@ export async function testLlmConnection(cfg: LlmConfig): Promise<ProviderTestRes
 }
 
 export async function testLlmFunction(cfg: LlmConfig): Promise<ProviderTestResult> {
-  let content = ""
+  let content = ''
   let errorMessage: string | null = null
 
   await streamChat(
     cfg,
     [
       {
-        role: "system",
-        content: "You are a deterministic API test. Do not explain. Output only the requested token.",
+        role: 'system',
+        content: 'You are a deterministic API test. Do not explain. Output only the requested token.',
       },
-      { role: "user", content: "Output exactly this token and nothing else: LLM_WIKI_TEST_OK" },
+      { role: 'user', content: 'Output exactly this token and nothing else: LLM_WIKI_TEST_OK' },
     ],
     {
-      onToken: (token) => { content += token },
+      onToken: (token) => {
+        content += token
+      },
       onDone: () => {},
-      onError: (err) => { errorMessage = err.message },
+      onError: (err) => {
+        errorMessage = err.message
+      },
     },
     undefined,
-    { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: "auto" } },
+    { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: 'auto' } },
   )
 
   if (errorMessage) return { ok: false, message: errorMessage }
   const trimmed = content.trim()
-  if (!trimmed.includes("LLM_WIKI_TEST_OK")) {
+  if (!trimmed.includes('LLM_WIKI_TEST_OK')) {
     return {
       ok: false,
-      message: `Model responded, but did not follow the functional test prompt. Response: ${trimmed.slice(0, 120) || "(empty)"}`,
+      message: `Model responded, but did not follow the functional test prompt. Response: ${
+        trimmed.slice(0, 120) || '(empty)'
+      }`,
     }
   }
-  return { ok: true, message: "Functional test passed. The model returned the expected token." }
+  return { ok: true, message: 'Functional test passed. The model returned the expected token.' }
 }

@@ -1,15 +1,15 @@
-import { findLlmPreset } from "@/components/settings/llm-presets"
-import { resolveConfig } from "@/components/settings/preset-resolver"
+import { findLlmPreset } from '@/components/settings/llm-presets'
+import { resolveConfig } from '@/components/settings/preset-resolver'
 import type {
+  CustomLlmPreset,
   LlmConfig,
   ProjectLlmOverride,
-  CustomLlmPreset,
   ProviderConfigs,
   TaskModelRoutingConfig,
-} from "@/stores/wiki-store"
-import { useWikiStore } from "@/stores/wiki-store"
+} from '@/stores/wiki-store'
+import { useWikiStore } from '@/stores/wiki-store'
 
-export type LlmTaskKind = "chat" | "ingest"
+export type LlmTaskKind = 'chat' | 'ingest'
 
 export function resolveProjectLlmConfig(
   globalConfig: LlmConfig,
@@ -30,7 +30,7 @@ export function resolveProjectLlmConfig(
   return resolveConfig(preset, override, globalConfig)
 }
 
-export function projectLlmProfile(config: LlmConfig): Omit<LlmConfig, "apiKey" | "customHeaders"> {
+export function projectLlmProfile(config: LlmConfig): Omit<LlmConfig, 'apiKey' | 'customHeaders'> {
   // Headers can contain gateway credentials, so keep them in the provider
   // credential record and merge them at runtime just like the API key.
   const { apiKey: _apiKey, customHeaders: _customHeaders, ...profile } = config
@@ -52,7 +52,7 @@ export function resolveTaskLlmConfig(
   customPresets: CustomLlmPreset[] = [],
 ): LlmConfig {
   if (projectOverride?.enabled) return fallback
-  const presetId = task === "chat" ? routing.chatPresetId : routing.ingestPresetId
+  const presetId = task === 'chat' ? routing.chatPresetId : routing.ingestPresetId
   if (!presetId) return fallback
   const preset = findLlmPreset(presetId, customPresets)
   if (!preset) return fallback

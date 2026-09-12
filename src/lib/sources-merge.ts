@@ -39,10 +39,10 @@ export function parseFrontmatterArray(content: string, fieldName: string): strin
   const fm = fmMatch[1]
   // Anchor to start of line + exact field name + colon. The negative
   // lookahead-style check is done by requiring `:` immediately after.
-  const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const blockRe = new RegExp(
     `^${escapedName}:\\s*\\r?\\n((?:[ \\t]+-\\s+.+(?:\\r?\\n|$))+)`,
-    "m",
+    'm',
   )
   const block = fm.match(blockRe)
   if (block) {
@@ -54,18 +54,18 @@ export function parseFrontmatterArray(content: string, fieldName: string): strin
     return out
   }
 
-  const inlineRe = new RegExp(`^${escapedName}:\\s*\\[([^\\]]*)\\]`, "m")
+  const inlineRe = new RegExp(`^${escapedName}:\\s*\\[([^\\]]*)\\]`, 'm')
   const inline = fm.match(inlineRe)
   if (!inline) return []
   const body = inline[1].trim()
-  if (body === "") return []
+  if (body === '') return []
   return splitInlineArray(body)
 }
 
 function splitInlineArray(body: string): string[] {
   const out: string[] = []
-  let current = ""
-  let quote: "\"" | "'" | null = null
+  let current = ''
+  let quote: '"' | "'" | null = null
   let escaped = false
 
   for (const ch of body) {
@@ -74,11 +74,11 @@ function splitInlineArray(body: string): string[] {
       escaped = false
       continue
     }
-    if (quote === "\"" && ch === "\\") {
+    if (quote === '"' && ch === '\\') {
       escaped = true
       continue
     }
-    if ((ch === "\"" || ch === "'") && quote === null) {
+    if ((ch === '"' || ch === "'") && quote === null) {
       quote = ch
       continue
     }
@@ -86,10 +86,10 @@ function splitInlineArray(body: string): string[] {
       quote = null
       continue
     }
-    if (ch === "," && quote === null) {
+    if (ch === ',' && quote === null) {
       const value = current.trim()
       if (value) out.push(value)
-      current = ""
+      current = ''
       continue
     }
     current += ch
@@ -120,13 +120,13 @@ export function writeFrontmatterArray(
   if (!fmMatch) return content
 
   const [, openDelim, fmBody, closeDelim] = fmMatch
-  const newline = openDelim.endsWith("\r\n") ? "\r\n" : "\n"
-  const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  const serialized = values.map(quoteInlineArrayValue).join(", ")
+  const newline = openDelim.endsWith('\r\n') ? '\r\n' : '\n'
+  const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const serialized = values.map(quoteInlineArrayValue).join(', ')
   const newLine = `${fieldName}: [${serialized}]`
 
   // Replace inline form in place — preserves field ordering.
-  const inlineRe = new RegExp(`^${escapedName}:\\s*\\[[^\\]]*\\]`, "m")
+  const inlineRe = new RegExp(`^${escapedName}:\\s*\\[[^\\]]*\\]`, 'm')
   if (inlineRe.test(fmBody)) {
     const rewritten = fmBody.replace(inlineRe, newLine)
     return `${openDelim}${rewritten}${closeDelim}${content.slice(fmMatch[0].length)}`
@@ -135,12 +135,10 @@ export function writeFrontmatterArray(
   // Replace block form in place, normalized to inline form.
   const blockRe = new RegExp(
     `^${escapedName}:\\s*\\r?\\n((?:[ \\t]+-\\s+.+(?:\\r?\\n|$))+)`,
-    "m",
+    'm',
   )
   if (blockRe.test(fmBody)) {
-    const rewritten = fmBody.replace(blockRe, (matched) =>
-      `${newLine}${/\r?\n$/.test(matched) ? newline : ""}`,
-    )
+    const rewritten = fmBody.replace(blockRe, (matched) => `${newLine}${/\r?\n$/.test(matched) ? newline : ''}`)
     return `${openDelim}${rewritten}${closeDelim}${content.slice(fmMatch[0].length)}`
   }
 
@@ -150,7 +148,7 @@ export function writeFrontmatterArray(
 }
 
 function quoteInlineArrayValue(value: string): string {
-  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }
 
 /**
@@ -220,7 +218,7 @@ export function mergeArrayFieldsIntoContent(
  * sources-view.tsx (source-delete flow).
  */
 export function parseSources(content: string): string[] {
-  return parseFrontmatterArray(content, "sources")
+  return parseFrontmatterArray(content, 'sources')
 }
 
 /**
@@ -229,7 +227,7 @@ export function parseSources(content: string): string[] {
  * sources list back).
  */
 export function writeSources(content: string, sources: string[]): string {
-  return writeFrontmatterArray(content, "sources", sources)
+  return writeFrontmatterArray(content, 'sources', sources)
 }
 
 /**
@@ -256,5 +254,5 @@ export function mergeSourcesIntoContent(
   newContent: string,
   existingContent: string | null,
 ): string {
-  return mergeArrayFieldsIntoContent(newContent, existingContent, ["sources"])
+  return mergeArrayFieldsIntoContent(newContent, existingContent, ['sources'])
 }

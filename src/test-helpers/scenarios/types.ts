@@ -13,11 +13,11 @@
  */
 
 export type ReviewType =
-  | "contradiction"
-  | "duplicate"
-  | "missing-page"
-  | "confirm"
-  | "suggestion"
+  | 'contradiction'
+  | 'duplicate'
+  | 'missing-page'
+  | 'confirm'
+  | 'suggestion'
 
 export interface ReviewFixture {
   id: string
@@ -55,7 +55,7 @@ export interface LintScenario {
   expected: {
     /** Expected structural lint findings. Order-independent. */
     structural: Array<{
-      type: "orphan" | "broken-link" | "no-outlinks"
+      type: 'orphan' | 'broken-link' | 'no-outlinks'
       /** Page path relative to wiki/ (e.g. "attention.md") */
       page: string
       /** For broken-link, the substring that should appear in the detail */
@@ -125,7 +125,7 @@ export interface IngestScenario {
      * review has the same type and a title containing titleContains.
      */
     reviewsCreated?: Array<{
-      type: "contradiction" | "duplicate" | "missing-page" | "suggestion" | "confirm"
+      type: 'contradiction' | 'duplicate' | 'missing-page' | 'suggestion' | 'confirm'
       titleContains: string
     }>
   }

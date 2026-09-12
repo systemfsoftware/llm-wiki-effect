@@ -8,8 +8,8 @@
  * Each doc is designed with a specific testing intent — see the comment
  * above each const for what feature path it exercises.
  */
-import fs from "node:fs/promises"
-import path from "node:path"
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 // ── A. Existing baseline (4) ────────────────────────────────────────────────
 
@@ -1691,31 +1691,31 @@ training.
 
 export const REAL_CONTENT_DOCS: RealContentDoc[] = [
   // A. Baseline (4)
-  { filename: "rope-paper.md", content: ROPE_PAPER },
-  { filename: "flash-attention-paper.md", content: FLASH_ATTENTION_PAPER },
-  { filename: "lora-paper.md", content: LORA_PAPER },
-  { filename: "transformer-survey-zh.md", content: TRANSFORMER_SURVEY_ZH },
+  { filename: 'rope-paper.md', content: ROPE_PAPER },
+  { filename: 'flash-attention-paper.md', content: FLASH_ATTENTION_PAPER },
+  { filename: 'lora-paper.md', content: LORA_PAPER },
+  { filename: 'transformer-survey-zh.md', content: TRANSFORMER_SURVEY_ZH },
   // B. Non-English languages (5)
-  { filename: "japanese-philosophy-ja.md", content: JAPANESE_PHILOSOPHY },
-  { filename: "vietnamese-cuisine-vi.md", content: VIETNAMESE_CUISINE },
-  { filename: "arabic-architecture-ar.md", content: ARABIC_ARCHITECTURE },
-  { filename: "german-philosophy-de.md", content: GERMAN_PHILOSOPHY },
-  { filename: "russian-literature-ru.md", content: RUSSIAN_LITERATURE },
+  { filename: 'japanese-philosophy-ja.md', content: JAPANESE_PHILOSOPHY },
+  { filename: 'vietnamese-cuisine-vi.md', content: VIETNAMESE_CUISINE },
+  { filename: 'arabic-architecture-ar.md', content: ARABIC_ARCHITECTURE },
+  { filename: 'german-philosophy-de.md', content: GERMAN_PHILOSOPHY },
+  { filename: 'russian-literature-ru.md', content: RUSSIAN_LITERATURE },
   // C. Review triggers (3)
-  { filename: "missing-page-trigger-en.md", content: MISSING_PAGE_TRIGGER },
-  { filename: "duplicate-trigger-en.md", content: DUPLICATE_TRIGGER },
-  { filename: "contradiction-trigger-en.md", content: CONTRADICTION_TRIGGER },
+  { filename: 'missing-page-trigger-en.md', content: MISSING_PAGE_TRIGGER },
+  { filename: 'duplicate-trigger-en.md', content: DUPLICATE_TRIGGER },
+  { filename: 'contradiction-trigger-en.md', content: CONTRADICTION_TRIGGER },
   // D. Knowledge graph / entity (2)
-  { filename: "biographical-hinton-en.md", content: BIOGRAPHICAL_HINTON },
-  { filename: "rich-graph-survey-en.md", content: RICH_GRAPH_SURVEY },
+  { filename: 'biographical-hinton-en.md', content: BIOGRAPHICAL_HINTON },
+  { filename: 'rich-graph-survey-en.md', content: RICH_GRAPH_SURVEY },
   // E. Domain diversity (3)
-  { filename: "legal-saas-tos-en.md", content: LEGAL_SAAS_TOS },
-  { filename: "recipe-thai-curry-en.md", content: RECIPE_THAI_CURRY },
-  { filename: "math-heavy-maxwell-en.md", content: MATH_HEAVY_MAXWELL },
+  { filename: 'legal-saas-tos-en.md', content: LEGAL_SAAS_TOS },
+  { filename: 'recipe-thai-curry-en.md', content: RECIPE_THAI_CURRY },
+  { filename: 'math-heavy-maxwell-en.md', content: MATH_HEAVY_MAXWELL },
   // G. Long content (1)
-  { filename: "rlhf-survey-en.md", content: RLHF_SURVEY },
+  { filename: 'rlhf-survey-en.md', content: RLHF_SURVEY },
   // Sweep-chain resolver (auxiliary)
-  { filename: "layer-norm-resolver-en.md", content: LAYER_NORM_RESOLVER },
+  { filename: 'layer-norm-resolver-en.md', content: LAYER_NORM_RESOLVER },
 ]
 
 export async function materializeRealContent(
@@ -1726,7 +1726,7 @@ export async function materializeRealContent(
     await fs.writeFile(
       path.join(targetDir, doc.filename),
       doc.content,
-      "utf-8",
+      'utf-8',
     )
   }
 }

@@ -7,8 +7,8 @@ export interface StructuralLintPage {
 }
 
 export interface StructuralLintFinding {
-  type: "orphan" | "broken-link" | "no-outlinks"
-  severity: "warning" | "info"
+  type: 'orphan' | 'broken-link' | 'no-outlinks'
+  severity: 'warning' | 'info'
   page: string
   detail: string
   brokenTarget?: string
@@ -35,13 +35,13 @@ const CONTAINS_TARGET_SCORE = 0.82
 const MAX_SUGGESTION_CANDIDATES = 64
 
 function fileName(path: string): string {
-  return path.replace(/\\/g, "/").split("/").pop() ?? path
+  return path.replace(/\\/g, '/').split('/').pop() ?? path
 }
 
 function normalizeTarget(target: string): string {
-  return target.replace(/\\/g, "/")
-    .replace(/^wiki\//i, "")
-    .replace(/\.md$/i, "")
+  return target.replace(/\\/g, '/')
+    .replace(/^wiki\//i, '')
+    .replace(/\.md$/i, '')
     .trim()
     .toLowerCase()
 }
@@ -77,7 +77,7 @@ function stringSimilarity(a: string, b: string): number {
 }
 
 function fragments(value: string): string[] {
-  const normalized = normalizeTarget(value).normalize("NFKC")
+  const normalized = normalizeTarget(value).normalize('NFKC')
   const chars = Array.from(normalized)
   if (chars.length < 2) return normalized ? [normalized] : []
   const result = new Set<string>()
@@ -110,7 +110,7 @@ export function computeStructuralLint(
   const fragmentIndex = new Map<string, number[]>()
 
   pages.forEach((page, index) => {
-    const basename = fileName(page.shortName).replace(/\.md$/i, "")
+    const basename = fileName(page.shortName).replace(/\.md$/i, '')
     slugMap.set(normalizeTarget(page.slug), index)
     slugMap.set(normalizeTarget(basename), index)
     for (const token of page.tokenSet) addToIndex(tokenIndex, token, index)
@@ -122,13 +122,13 @@ export function computeStructuralLint(
   const inboundCounts = new Map<number, number>()
   for (const page of pages) {
     for (const link of page.outlinks) {
-      const target = slugMap.get(normalizeTarget(link))
-        ?? slugMap.get(normalizeTarget(fileName(link).replace(/\.md$/i, "")))
+      const target = slugMap.get(normalizeTarget(link)) ??
+        slugMap.get(normalizeTarget(fileName(link).replace(/\.md$/i, '')))
       if (target !== undefined) inboundCounts.set(target, (inboundCounts.get(target) ?? 0) + 1)
     }
   }
 
-  function relatedCandidate(pageIndex: number, direction: "source" | "target"): IndexedPage | undefined {
+  function relatedCandidate(pageIndex: number, direction: 'source' | 'target'): IndexedPage | undefined {
     const page = pages[pageIndex]
     const scores = new Map<number, number>()
     for (const token of page.tokenSet) {
@@ -143,16 +143,17 @@ export function computeStructuralLint(
     let best: { page: IndexedPage; score: number } | undefined
     for (const candidateIndex of topCandidates(scores, pageIndex)) {
       const candidate = pages[candidateIndex]
-      if (direction === "target") {
-        const keys = [candidate.slug, candidate.shortName, fileName(candidate.shortName).replace(/\.md$/i, "")]
+      if (direction === 'target') {
+        const keys = [candidate.slug, candidate.shortName, fileName(candidate.shortName).replace(/\.md$/i, '')]
           .map(normalizeTarget)
         if (keys.some((key) => existing.has(key))) continue
       }
       const overlap = scores.get(candidateIndex) ?? 0
-      const folderBonus = page.shortName.split("/")[0] === candidate.shortName.split("/")[0]
+      const folderBonus = page.shortName.split('/')[0] === candidate.shortName.split('/')[0]
         ? SAME_FOLDER_SCORE_BONUS
         : 0
-      const score = overlap / Math.sqrt(Math.max(1, page.tokenSet.size) * Math.max(1, candidate.tokenSet.size)) + folderBonus
+      const score = overlap / Math.sqrt(Math.max(1, page.tokenSet.size) * Math.max(1, candidate.tokenSet.size)) +
+        folderBonus
       if (score > (best?.score ?? 0)) best = { page: candidate, score }
     }
     return best && best.score >= RELATED_PAGE_SUGGESTION_MIN_SCORE ? best.page : undefined
@@ -188,28 +189,28 @@ export function computeStructuralLint(
     const ignored = pageKeys.some((key) => ignoredPages.has(key))
     if (!ignored && !config.ignoreOrphan && !inboundCounts.has(pageIndex)) {
       results.push({
-        type: "orphan",
-        severity: "info",
+        type: 'orphan',
+        severity: 'info',
         page: page.shortName,
-        detail: "No other pages link to this page.",
-        suggestedSource: relatedCandidate(pageIndex, "source")?.shortName,
+        detail: 'No other pages link to this page.',
+        suggestedSource: relatedCandidate(pageIndex, 'source')?.shortName,
       })
     }
     if (!ignored && !config.ignoreNoOutlinks && page.outlinks.length === 0) {
       results.push({
-        type: "no-outlinks",
-        severity: "info",
+        type: 'no-outlinks',
+        severity: 'info',
         page: page.shortName,
-        detail: "This page has no [[wikilink]] references to other pages.",
-        suggestedTarget: relatedCandidate(pageIndex, "target")?.shortName,
+        detail: 'This page has no [[wikilink]] references to other pages.',
+        suggestedTarget: relatedCandidate(pageIndex, 'target')?.shortName,
       })
     }
     for (const link of ignored ? [] : page.outlinks) {
-      const basename = fileName(link).replace(/\.md$/i, "")
+      const basename = fileName(link).replace(/\.md$/i, '')
       if (slugMap.has(normalizeTarget(link)) || slugMap.has(normalizeTarget(basename))) continue
       results.push({
-        type: "broken-link",
-        severity: "warning",
+        type: 'broken-link',
+        severity: 'warning',
         page: page.shortName,
         detail: `Broken link: [[${link}]] — target page not found.`,
         brokenTarget: link,

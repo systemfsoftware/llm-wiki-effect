@@ -1,4 +1,4 @@
-import type { FileNode } from "@/types/wiki"
+import type { FileNode } from '@/types/wiki'
 
 export interface ReplaceNodeChildrenResult {
   nodes: FileNode[]

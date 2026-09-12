@@ -11,10 +11,10 @@
  * lexical-graph.json (when added) — same `.llm-wiki/` directory,
  * same JSON-on-disk pattern.
  */
-import { readFile, writeFile, fileExists } from "@/commands/fs"
-import { normalizePath } from "@/lib/path-utils"
+import { fileExists, readFile, writeFile } from '@/commands/fs'
+import { normalizePath } from '@/lib/path-utils'
 
-const FILE_NAME = ".llm-wiki/dedup-not-duplicates.json"
+const FILE_NAME = '.llm-wiki/dedup-not-duplicates.json'
 
 export async function loadNotDuplicates(projectPath: string): Promise<string[][]> {
   const pp = normalizePath(projectPath)
@@ -29,8 +29,7 @@ export async function loadNotDuplicates(projectPath: string): Promise<string[][]
     const parsed = JSON.parse(content)
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
-      (g): g is string[] =>
-        Array.isArray(g) && g.every((s) => typeof s === "string"),
+      (g): g is string[] => Array.isArray(g) && g.every((s) => typeof s === 'string'),
     )
   } catch {
     return []
@@ -64,5 +63,5 @@ export async function addNotDuplicate(
 }
 
 function canonicalKey(slugs: string[]): string {
-  return [...slugs].map((s) => s.toLowerCase()).sort().join(",")
+  return [...slugs].map((s) => s.toLowerCase()).sort().join(',')
 }

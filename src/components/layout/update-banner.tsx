@@ -1,10 +1,10 @@
-import { useCallback } from "react"
-import { Sparkles, X, Download } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { openUrl } from "@tauri-apps/plugin-opener"
-import { useUpdateStore, shouldShowUpdateBanner } from "@/stores/update-store"
-import { saveUpdateCheckState } from "@/lib/project-store"
-import { toLatestReleaseUrl } from "@/lib/update-check"
+import { saveUpdateCheckState } from '@/lib/project-store'
+import { toLatestReleaseUrl } from '@/lib/update-check'
+import { shouldShowUpdateBanner, useUpdateStore } from '@/stores/update-store'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { Download, Sparkles, X } from 'lucide-react'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * App-wide update-available banner.
@@ -33,7 +33,7 @@ export function UpdateBanner() {
   const result = useUpdateStore((s) => s.lastResult)
 
   const handleOpen = useCallback(async () => {
-    if (!result || result.kind !== "available") return
+    if (!result || result.kind !== 'available') return
     // Send the user to `/releases/latest`, NOT the tag-specific
     // page from `release.html_url`. /latest always follows GitHub's
     // redirect to whatever is currently the most recent release —
@@ -43,12 +43,12 @@ export function UpdateBanner() {
     try {
       await openUrl(toLatestReleaseUrl(result.release.html_url))
     } catch (err) {
-      console.error("[update-banner] openUrl failed:", err)
+      console.error('[update-banner] openUrl failed:', err)
     }
   }, [result])
 
   const handleDismiss = useCallback(async () => {
-    if (!result || result.kind !== "available") return
+    if (!result || result.kind !== 'available') return
     // Mark THIS remote version as dismissed; helper hides banner.
     // Future newer releases re-pop because their version doesn't
     // match dismissedVersion anymore. Persist so the choice
@@ -62,7 +62,7 @@ export function UpdateBanner() {
     })
   }, [result])
 
-  if (!visible || !result || result.kind !== "available") return null
+  if (!visible || !result || result.kind !== 'available') return null
 
   return (
     // Visual style notes:
@@ -77,33 +77,33 @@ export function UpdateBanner() {
     //   - the action button uses bg-primary fill so it's the
     //     unambiguous CTA; close button stays ghost so it doesn't
     //     compete
-    <div className="flex shrink-0 items-center gap-3 border-b border-primary/20 bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-4 py-2 text-sm">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
+    <div className='flex shrink-0 items-center gap-3 border-b border-primary/20 bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-4 py-2 text-sm'>
+      <div className='flex min-w-0 flex-1 items-center gap-2.5'>
+        <div className='flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15'>
+          <Sparkles className='h-3.5 w-3.5 text-primary' />
         </div>
-        <span className="truncate font-medium text-foreground">
-          {t("updateBanner.message", {
-            version: result.remote.replace(/^v/, ""),
-            defaultValue: `Version ${result.remote.replace(/^v/, "")} is available`,
+        <span className='truncate font-medium text-foreground'>
+          {t('updateBanner.message', {
+            version: result.remote.replace(/^v/, ''),
+            defaultValue: `Version ${result.remote.replace(/^v/, '')} is available`,
           })}
         </span>
       </div>
       <button
-        type="button"
+        type='button'
         onClick={handleOpen}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        className='inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90'
       >
-        <Download className="h-3.5 w-3.5" />
-        {t("updateBanner.openDownload", { defaultValue: "Open download page" })}
+        <Download className='h-3.5 w-3.5' />
+        {t('updateBanner.openDownload', { defaultValue: 'Open download page' })}
       </button>
       <button
-        type="button"
+        type='button'
         onClick={handleDismiss}
-        aria-label={t("updateBanner.dismiss", { defaultValue: "Dismiss" })}
-        className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        aria-label={t('updateBanner.dismiss', { defaultValue: 'Dismiss' })}
+        className='shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
       >
-        <X className="h-4 w-4" />
+        <X className='h-4 w-4' />
       </button>
     </div>
   )

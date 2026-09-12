@@ -1,5 +1,5 @@
-import { create } from "zustand"
-import type { UpdateStatus } from "@/lib/update-check"
+import type { UpdateStatus } from '@/lib/update-check'
+import { create } from 'zustand'
 
 /**
  * UI-side state for the update-check feature. Persistence (user-level
@@ -39,8 +39,7 @@ export const useUpdateStore = create<UpdateStoreState>((set) => ({
   enabled: true,
 
   setChecking: (checking) => set({ checking }),
-  setResult: (lastResult, lastCheckedAt) =>
-    set({ lastResult, lastCheckedAt, checking: false }),
+  setResult: (lastResult, lastCheckedAt) => set({ lastResult, lastCheckedAt, checking: false }),
   setDismissed: (dismissedVersion) => set({ dismissedVersion }),
   setEnabled: (enabled) => set({ enabled }),
   hydrate: (partial) => set(partial),
@@ -58,7 +57,7 @@ export const useUpdateStore = create<UpdateStoreState>((set) => ({
  */
 export function hasAvailableUpdate(state: UpdateStoreState): boolean {
   if (!state.lastResult) return false
-  return state.lastResult.kind === "available"
+  return state.lastResult.kind === 'available'
 }
 
 /**
@@ -79,7 +78,7 @@ export function shouldShowUpdateBanner(state: UpdateStoreState): boolean {
   // can narrow safely here. Type-narrow inside the branch rather
   // than using `as` so a future refactor of UpdateStatus would
   // catch up the gating logic too.
-  if (state.lastResult?.kind !== "available") return false
+  if (state.lastResult?.kind !== 'available') return false
   if (state.dismissedVersion === state.lastResult.remote) {
     return false
   }

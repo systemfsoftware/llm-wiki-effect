@@ -10,13 +10,13 @@
 
 export type DeleteDecision =
   /** Keep the page on disk; rewrite its sources to the returned list. */
-  | { action: "keep"; updatedSources: string[] }
+  | { action: 'keep'; updatedSources: string[] }
   /** Delete the page — the deleting source was its sole contributor. */
-  | { action: "delete" }
+  | { action: 'delete' }
   /** Leave the page alone entirely — it ended up in findRelatedWikiPages'
    *  results by accident (loose frontmatter substring match) but its
    *  sources list doesn't actually include the deleting source. */
-  | { action: "skip"; reason: string }
+  | { action: 'skip'; reason: string }
 
 /**
  * Decide whether a page should be kept, deleted, or skipped in response
@@ -41,7 +41,7 @@ export function decidePageFate(
   )
   if (!inList) {
     return {
-      action: "skip",
+      action: 'skip',
       reason: `page sources do not include "${deletingSource}"`,
     }
   }
@@ -51,8 +51,8 @@ export function decidePageFate(
   )
 
   if (survivors.length > 0) {
-    return { action: "keep", updatedSources: survivors }
+    return { action: 'keep', updatedSources: survivors }
   }
 
-  return { action: "delete" }
+  return { action: 'delete' }
 }

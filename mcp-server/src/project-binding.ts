@@ -1,4 +1,4 @@
-import type { ApiProject } from "./api-client.js"
+import type { ApiProject } from './api-client.js'
 
 export class McpProjectBinding {
   private pinned: ApiProject | null = null
@@ -12,7 +12,7 @@ export class McpProjectBinding {
   }
 
   pin(requested: string, projects: ApiProject[], current: ApiProject | null): ApiProject {
-    const candidate = requested === "current"
+    const candidate = requested === 'current'
       ? current
       : projects.find((project) => project.id === requested || project.path === requested) ?? null
     if (!candidate) throw new Error(`Unknown LLM Wiki project: ${requested}`)
@@ -21,16 +21,16 @@ export class McpProjectBinding {
   }
 
   resolve(requested?: string): string {
-    if (!this.pinned) return requested ?? "current"
+    if (!this.pinned) return requested ?? 'current'
     if (
       requested &&
-      requested !== "current" &&
+      requested !== 'current' &&
       requested !== this.pinned.id &&
       requested !== this.pinned.path
     ) {
       throw new Error(
         `This MCP session is pinned to ${this.pinned.name} (${this.pinned.id}); ` +
-        `project override ${requested} was rejected. Call llm_wiki_set_project to change scope.`,
+          `project override ${requested} was rejected. Call llm_wiki_set_project to change scope.`,
       )
     }
     return this.pinned.id

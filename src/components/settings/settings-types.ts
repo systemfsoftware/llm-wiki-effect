@@ -1,5 +1,14 @@
-import type { CustomApiMode } from "./llm-presets"
-import type { AzureModelFamily, CloseBehavior, MineruEffort, MineruLocalBackend, MineruModelVersion, MineruParseMethod, ReasoningConfig, SourceWatchConfig } from "@/stores/wiki-store"
+import type {
+  AzureModelFamily,
+  CloseBehavior,
+  MineruEffort,
+  MineruLocalBackend,
+  MineruModelVersion,
+  MineruParseMethod,
+  ReasoningConfig,
+  SourceWatchConfig,
+} from '@/stores/wiki-store'
+import type { CustomApiMode } from './llm-presets'
 
 /**
  * Shape of the draft state each section reads from and writes into.
@@ -9,7 +18,7 @@ import type { AzureModelFamily, CloseBehavior, MineruEffort, MineruLocalBackend,
  */
 export interface SettingsDraft {
   // LLM provider
-  provider: "openai" | "anthropic" | "google" | "azure" | "ollama" | "custom" | "minimax" | "claude-code" | "codex-cli"
+  provider: 'openai' | 'anthropic' | 'google' | 'azure' | 'ollama' | 'custom' | 'minimax' | 'claude-code' | 'codex-cli'
   apiKey: string
   model: string
   ollamaUrl: string
@@ -43,7 +52,16 @@ export interface SettingsDraft {
   // Multimodal (image captioning at ingest time)
   multimodalEnabled: boolean
   multimodalUseMainLlm: boolean
-  multimodalProvider: "openai" | "anthropic" | "google" | "azure" | "ollama" | "custom" | "minimax" | "claude-code" | "codex-cli"
+  multimodalProvider:
+    | 'openai'
+    | 'anthropic'
+    | 'google'
+    | 'azure'
+    | 'ollama'
+    | 'custom'
+    | 'minimax'
+    | 'claude-code'
+    | 'codex-cli'
   multimodalApiKey: string
   multimodalModel: string
   multimodalOllamaUrl: string
@@ -72,7 +90,7 @@ export interface SettingsDraft {
 
   // UI
   uiLanguage: string
-  theme: "light" | "dark" | "system"
+  theme: 'light' | 'dark' | 'system'
   zoomLevel: number
 
   // General app behavior
@@ -84,7 +102,7 @@ export interface SettingsDraft {
 
   // MinerU PDF parsing
   mineruEnabled: boolean
-  mineruBackend: "cloud" | "local"
+  mineruBackend: 'cloud' | 'local'
   mineruLocalEndpoint: string
   mineruLocalToken: string
   mineruLocalBackend: MineruLocalBackend

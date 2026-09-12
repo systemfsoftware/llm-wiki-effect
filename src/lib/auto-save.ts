@@ -1,8 +1,8 @@
-import { useReviewStore } from "@/stores/review-store"
-import { useLintStore } from "@/stores/lint-store"
-import { useChatStore } from "@/stores/chat-store"
-import { useWikiStore } from "@/stores/wiki-store"
-import { saveReviewItems, saveLintItems, saveChatHistory, saveChatPreferences } from "./persist"
+import { useChatStore } from '@/stores/chat-store'
+import { useLintStore } from '@/stores/lint-store'
+import { useReviewStore } from '@/stores/review-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import { saveChatHistory, saveChatPreferences, saveLintItems, saveReviewItems } from './persist'
 
 let reviewTimer: ReturnType<typeof setTimeout> | null = null
 let lintTimer: ReturnType<typeof setTimeout> | null = null
@@ -17,9 +17,18 @@ let chatTimer: ReturnType<typeof setTimeout> | null = null
 let suspended = false
 
 function clearTimers(): void {
-  if (reviewTimer) { clearTimeout(reviewTimer); reviewTimer = null }
-  if (lintTimer) { clearTimeout(lintTimer); lintTimer = null }
-  if (chatTimer) { clearTimeout(chatTimer); chatTimer = null }
+  if (reviewTimer) {
+    clearTimeout(reviewTimer)
+    reviewTimer = null
+  }
+  if (lintTimer) {
+    clearTimeout(lintTimer)
+    lintTimer = null
+  }
+  if (chatTimer) {
+    clearTimeout(chatTimer)
+    chatTimer = null
+  }
 }
 
 /**
@@ -72,7 +81,7 @@ export async function runWithSuspendedAutoSave<T>(
     try {
       onFailure?.()
     } catch (cleanupErr) {
-      console.warn("Failed to clean up after suspended auto-save operation:", cleanupErr)
+      console.warn('Failed to clean up after suspended auto-save operation:', cleanupErr)
     }
     throw err
   } finally {

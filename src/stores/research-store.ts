@@ -1,5 +1,5 @@
-import { create } from "zustand"
-import type { WebSearchResult } from "@/lib/web-search"
+import type { WebSearchResult } from '@/lib/web-search'
+import { create } from 'zustand'
 
 export interface ResearchTask {
   id: string
@@ -9,7 +9,7 @@ export interface ResearchTask {
   sourceReviewId?: string
   rerunOfTaskId?: string
   searchQueries?: string[]
-  status: "queued" | "searching" | "synthesizing" | "saving" | "done" | "error"
+  status: 'queued' | 'searching' | 'synthesizing' | 'saving' | 'done' | 'error'
   webResults: WebSearchResult[]
   synthesis: string
   savedPath: string | null
@@ -23,7 +23,9 @@ interface ResearchState {
   maxConcurrent: number
 
   addTask: (topic: string) => string
-  addTasks: (inputs: Array<Pick<ResearchTask, "topic" | "searchQueries" | "sourceReviewId" | "rerunOfTaskId">>) => string[]
+  addTasks: (
+    inputs: Array<Pick<ResearchTask, 'topic' | 'searchQueries' | 'sourceReviewId' | 'rerunOfTaskId'>>,
+  ) => string[]
   updateTask: (id: string, updates: Partial<ResearchTask>) => void
   removeTask: (id: string) => void
   setPanelOpen: (open: boolean) => void
@@ -33,11 +35,11 @@ interface ResearchState {
 
 let counter = 0
 
-const ACTIVE_RESEARCH_STATUSES = new Set<ResearchTask["status"]>([
-  "queued",
-  "searching",
-  "synthesizing",
-  "saving",
+const ACTIVE_RESEARCH_STATUSES = new Set<ResearchTask['status']>([
+  'queued',
+  'searching',
+  'synthesizing',
+  'saving',
 ])
 
 function researchLineageRoot(tasksById: ReadonlyMap<string, ResearchTask>, taskId: string): string {
@@ -58,12 +60,12 @@ export function hasActiveResearchRerun(tasks: readonly ResearchTask[], taskId: s
   return tasks.some((task) =>
     task.id !== taskId &&
     ACTIVE_RESEARCH_STATUSES.has(task.status) &&
-    researchLineageRoot(tasksById, task.id) === root,
+    researchLineageRoot(tasksById, task.id) === root
   )
 }
 
 function createResearchTask(
-  input: Pick<ResearchTask, "topic" | "searchQueries" | "sourceReviewId" | "rerunOfTaskId">,
+  input: Pick<ResearchTask, 'topic' | 'searchQueries' | 'sourceReviewId' | 'rerunOfTaskId'>,
 ): ResearchTask {
   return {
     id: `research-${++counter}`,
@@ -71,9 +73,9 @@ function createResearchTask(
     ...(input.searchQueries?.length ? { searchQueries: input.searchQueries } : {}),
     ...(input.sourceReviewId ? { sourceReviewId: input.sourceReviewId } : {}),
     ...(input.rerunOfTaskId ? { rerunOfTaskId: input.rerunOfTaskId } : {}),
-    status: "queued",
+    status: 'queued',
     webResults: [],
-    synthesis: "",
+    synthesis: '',
     savedPath: null,
     error: null,
     createdAt: Date.now(),
@@ -115,13 +117,11 @@ export const useResearchStore = create<ResearchState>((set, get) => ({
 
   getRunningCount: () => {
     const { tasks } = get()
-    return tasks.filter((t) =>
-      t.status === "searching" || t.status === "synthesizing" || t.status === "saving"
-    ).length
+    return tasks.filter((t) => t.status === 'searching' || t.status === 'synthesizing' || t.status === 'saving').length
   },
 
   getNextQueued: () => {
     const { tasks } = get()
-    return tasks.find((t) => t.status === "queued")
+    return tasks.find((t) => t.status === 'queued')
   },
 }))

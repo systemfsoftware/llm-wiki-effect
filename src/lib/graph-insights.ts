@@ -1,4 +1,4 @@
-import type { GraphNode, GraphEdge, CommunityInfo } from "./wiki-graph"
+import type { CommunityInfo, GraphEdge, GraphNode } from './wiki-graph'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -13,7 +13,7 @@ export interface SurprisingConnection {
 }
 
 export interface KnowledgeGap {
-  type: "isolated-node" | "sparse-community" | "bridge-node"
+  type: 'isolated-node' | 'sparse-community' | 'bridge-node'
   title: string
   description: string
   nodeIds: string[]
@@ -39,7 +39,7 @@ export function findSurprisingConnections(
   const maxDegree = Math.max(...nodes.map((n) => n.linkCount), 1)
 
   // Structural pages that link to everything — exclude from analysis
-  const STRUCTURAL_IDS = new Set(["index", "log", "overview"])
+  const STRUCTURAL_IDS = new Set(['index', 'log', 'overview'])
 
   const scored: SurprisingConnection[] = []
 
@@ -55,15 +55,18 @@ export function findSurprisingConnections(
     // Signal 1: Cross-community edge (+3)
     if (source.community !== target.community) {
       score += 3
-      reasons.push("crosses community boundary")
+      reasons.push('crosses community boundary')
     }
 
     // Signal 2: Cross-type edge (+2 for distant types)
     if (source.type !== target.type) {
       const distantPairs = new Set([
-        "source-concept", "concept-source",
-        "source-synthesis", "synthesis-source",
-        "query-entity", "entity-query",
+        'source-concept',
+        'concept-source',
+        'source-synthesis',
+        'synthesis-source',
+        'query-entity',
+        'entity-query',
       ])
       const pair = `${source.type}-${target.type}`
       if (distantPairs.has(pair)) {
@@ -71,7 +74,7 @@ export function findSurprisingConnections(
         reasons.push(`connects ${source.type} to ${target.type}`)
       } else {
         score += 1
-        reasons.push("different types")
+        reasons.push('different types')
       }
     }
 
@@ -82,17 +85,17 @@ export function findSurprisingConnections(
     const maxDeg = Math.max(sourceDeg, targetDeg)
     if (minDeg <= 2 && maxDeg >= maxDegree * 0.5) {
       score += 2
-      reasons.push("peripheral node links to hub")
+      reasons.push('peripheral node links to hub')
     }
 
     // Signal 4: Low-weight edge between connected nodes (+1)
     if (edge.weight < 2 && edge.weight > 0) {
       score += 1
-      reasons.push("weak but present connection")
+      reasons.push('weak but present connection')
     }
 
     if (score >= 3 && reasons.length > 0) {
-      const key = [source.id, target.id].sort().join(":::")
+      const key = [source.id, target.id].sort().join(':::')
       scored.push({ source, target, score, reasons, key })
     }
   }
@@ -122,17 +125,18 @@ export function detectKnowledgeGaps(
 
   // 1. Isolated nodes (degree ≤ 1, exclude overview/index)
   const isolatedNodes = nodes.filter(
-    (n) => n.linkCount <= 1 && n.type !== "overview" && n.id !== "index" && n.id !== "log",
+    (n) => n.linkCount <= 1 && n.type !== 'overview' && n.id !== 'index' && n.id !== 'log',
   )
   if (isolatedNodes.length > 0) {
     const topIsolated = isolatedNodes.slice(0, 5)
     gaps.push({
-      type: "isolated-node",
-      title: `${isolatedNodes.length} isolated page${isolatedNodes.length > 1 ? "s" : ""}`,
-      description: topIsolated.map((n) => n.label).join(", ") +
-        (isolatedNodes.length > 5 ? ` and ${isolatedNodes.length - 5} more` : ""),
+      type: 'isolated-node',
+      title: `${isolatedNodes.length} isolated page${isolatedNodes.length > 1 ? 's' : ''}`,
+      description: topIsolated.map((n) => n.label).join(', ') +
+        (isolatedNodes.length > 5 ? ` and ${isolatedNodes.length - 5} more` : ''),
       nodeIds: isolatedNodes.map((n) => n.id),
-      suggestion: "These pages have few or no connections. Consider adding [[wikilinks]] to related pages, or research to expand their content.",
+      suggestion:
+        'These pages have few or no connections. Consider adding [[wikilinks]] to related pages, or research to expand their content.',
     })
   }
 
@@ -140,11 +144,14 @@ export function detectKnowledgeGaps(
   for (const comm of communities) {
     if (comm.cohesion < 0.15 && comm.nodeCount >= 3) {
       gaps.push({
-        type: "sparse-community",
+        type: 'sparse-community',
         title: `Sparse cluster: ${comm.topNodes[0] ?? `Community ${comm.id}`}`,
-        description: `${comm.nodeCount} pages with cohesion ${comm.cohesion.toFixed(2)} — internal connections are weak.`,
+        description: `${comm.nodeCount} pages with cohesion ${
+          comm.cohesion.toFixed(2)
+        } — internal connections are weak.`,
         nodeIds: nodes.filter((n) => n.community === comm.id).map((n) => n.id),
-        suggestion: `This knowledge area lacks internal cross-references. Consider adding links between these pages or researching to fill gaps.`,
+        suggestion:
+          `This knowledge area lacks internal cross-references. Consider adding links between these pages or researching to fill gaps.`,
       })
     }
   }
@@ -163,7 +170,7 @@ export function detectKnowledgeGaps(
     }
   }
 
-  const STRUCTURAL_IDS = new Set(["index", "log", "overview"])
+  const STRUCTURAL_IDS = new Set(['index', 'log', 'overview'])
 
   const bridgeNodes = nodes
     .filter((n) => {
@@ -181,11 +188,12 @@ export function detectKnowledgeGaps(
   for (const bridge of bridgeNodes) {
     const commCount = communityNeighbors.get(bridge.id)?.size ?? 0
     gaps.push({
-      type: "bridge-node",
+      type: 'bridge-node',
       title: `Key bridge: ${bridge.label}`,
       description: `Connects ${commCount} different knowledge clusters. This is a critical junction in your wiki.`,
       nodeIds: [bridge.id],
-      suggestion: `This page bridges multiple knowledge areas. Ensure it's well-maintained — if it's thin, expanding it will strengthen your entire wiki.`,
+      suggestion:
+        `This page bridges multiple knowledge areas. Ensure it's well-maintained — if it's thin, expanding it will strengthen your entire wiki.`,
     })
   }
 

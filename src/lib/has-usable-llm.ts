@@ -1,6 +1,6 @@
-import type { LlmConfig } from "@/stores/wiki-store"
+import type { LlmConfig } from '@/stores/wiki-store'
 
-export type LlmProvider = LlmConfig["provider"]
+export type LlmProvider = LlmConfig['provider']
 
 /**
  * Providers that don't need an API key to operate:
@@ -19,10 +19,10 @@ export type LlmProvider = LlmConfig["provider"]
  * key from the user.
  */
 export const PROVIDERS_WITHOUT_KEY: ReadonlySet<LlmProvider> = new Set<LlmProvider>([
-  "ollama",
-  "custom",
-  "claude-code",
-  "codex-cli",
+  'ollama',
+  'custom',
+  'claude-code',
+  'codex-cli',
 ])
 
 /**
@@ -40,8 +40,8 @@ export const PROVIDERS_WITHOUT_KEY: ReadonlySet<LlmProvider> = new Set<LlmProvid
  * land in exactly one bucket and don't slip through.
  */
 export function hasUsableLlm(
-  cfg: Pick<LlmConfig, "provider" | "apiKey">,
+  cfg: Pick<LlmConfig, 'provider' | 'apiKey'>,
 ): boolean {
   if (PROVIDERS_WITHOUT_KEY.has(cfg.provider)) return true
-  return (cfg.apiKey ?? "").trim().length > 0
+  return (cfg.apiKey ?? '').trim().length > 0
 }

@@ -1,11 +1,11 @@
-import { createDirectory, fileExists, writeFile } from "@/commands/fs"
-import { getFileName, normalizePath } from "@/lib/path-utils"
-import { makeQuerySlug } from "@/lib/wiki-filename"
+import { createDirectory, fileExists, writeFile } from '@/commands/fs'
+import { getFileName, normalizePath } from '@/lib/path-utils'
+import { makeQuerySlug } from '@/lib/wiki-filename'
 
 export function lintLinkTarget(target: string): string {
   return normalizePath(target)
-    .replace(/^wiki\//i, "")
-    .replace(/\.md$/i, "")
+    .replace(/^wiki\//i, '')
+    .replace(/\.md$/i, '')
     .trim()
 }
 
@@ -42,7 +42,7 @@ export function rewriteWikilinkTarget(
     /\[\[([^\]|]+?)(\|[^\]]+?)?\]\]/g,
     (match, rawTarget: string, rawAlias?: string) => {
       if (normalizedLintLinkTarget(rawTarget) !== broken) return match
-      return `[[${replacement}${rawAlias ?? ""}]]`
+      return `[[${replacement}${rawAlias ?? ''}]]`
     },
   )
 }
@@ -50,19 +50,19 @@ export function rewriteWikilinkTarget(
 export function stubRelativePathFromBrokenTarget(brokenTarget: string): string {
   const normalized = lintLinkTarget(brokenTarget)
   const parts = normalized
-    .split("/")
+    .split('/')
     .map((part) => makeQuerySlug(part))
     .filter(Boolean)
   const rel = parts.length > 1
-    ? parts.join("/")
-    : `queries/${parts[0] ?? "missing-page"}`
+    ? parts.join('/')
+    : `queries/${parts[0] ?? 'missing-page'}`
   return `${rel}.md`
 }
 
 function stubTitleFromBrokenTarget(brokenTarget: string): string {
   return getFileName(lintLinkTarget(brokenTarget))
-    .replace(/[-_]+/g, " ")
-    .trim() || "Missing Page"
+    .replace(/[-_]+/g, ' ')
+    .trim() || 'Missing Page'
 }
 
 export async function ensureBrokenLinkStub(
@@ -75,26 +75,26 @@ export async function ensureBrokenLinkStub(
     return { fullPath, relativePath, created: false }
   }
 
-  const parent = fullPath.split("/").slice(0, -1).join("/")
+  const parent = fullPath.split('/').slice(0, -1).join('/')
   await createDirectory(parent)
   const title = stubTitleFromBrokenTarget(brokenTarget)
   const date = new Date().toISOString().slice(0, 10)
   const content = [
-    "---",
-    "type: query",
+    '---',
+    'type: query',
     `title: "${title.replace(/"/g, '\\"')}"`,
     `created: ${date}`,
     `updated: ${date}`,
-    "tags: [stub, lint]",
-    "related: []",
-    "sources: []",
-    "---",
-    "",
+    'tags: [stub, lint]',
+    'related: []',
+    'sources: []',
+    '---',
+    '',
     `# ${title}`,
-    "",
-    "Created by Wiki Lint as a placeholder for a missing wikilink target.",
-    "",
-  ].join("\n")
+    '',
+    'Created by Wiki Lint as a placeholder for a missing wikilink target.',
+    '',
+  ].join('\n')
   await writeFile(fullPath, content)
   return { fullPath, relativePath, created: true }
 }

@@ -1,7 +1,13 @@
-import { create } from "zustand"
-import type { ChatMessage, ContentBlock } from "@/lib/llm-client"
-import i18n from "@/i18n"
-import type { ChatAgentFileChange, ChatAgentMode, ChatAgentStep, ChatRetrievalMode, ChatUserInputRequest } from "@/lib/chat-agent-types"
+import i18n from '@/i18n'
+import type {
+  ChatAgentFileChange,
+  ChatAgentMode,
+  ChatAgentStep,
+  ChatRetrievalMode,
+  ChatUserInputRequest,
+} from '@/lib/chat-agent-types'
+import type { ChatMessage, ContentBlock } from '@/lib/llm-client'
+import { create } from 'zustand'
 
 /**
  * An image attached to a user message. Field names mirror the
@@ -27,7 +33,7 @@ export interface Conversation {
 export interface MessageReference {
   title: string
   path: string
-  kind?: "wiki" | "external" | "workspace"
+  kind?: 'wiki' | 'external' | 'workspace'
   source?: string
   url?: string
   snippet?: string
@@ -36,16 +42,16 @@ export interface MessageReference {
 
 export interface DisplayMessage {
   id: string
-  role: "user" | "assistant" | "system"
+  role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: number
   conversationId: string
-  references?: MessageReference[]  // pages cited in this response, saved at creation time
-  agentSteps?: ChatAgentStep[]  // agent tool calls and routing decisions saved with assistant replies
-  agentFileChanges?: ChatAgentFileChange[]  // concrete project files changed by this Agent turn
-  userInputRequest?: ChatUserInputRequest  // dynamic schema-driven form requested by backend Agent
-  images?: MessageImage[]  // images attached to a user message (vision input)
-  contextFiles?: string[]  // absolute project files explicitly attached to this user turn
+  references?: MessageReference[] // pages cited in this response, saved at creation time
+  agentSteps?: ChatAgentStep[] // agent tool calls and routing decisions saved with assistant replies
+  agentFileChanges?: ChatAgentFileChange[] // concrete project files changed by this Agent turn
+  userInputRequest?: ChatUserInputRequest // dynamic schema-driven form requested by backend Agent
+  images?: MessageImage[] // images attached to a user message (vision input)
+  contextFiles?: string[] // absolute project files explicitly attached to this user turn
 }
 
 interface ChatState {
@@ -54,7 +60,7 @@ interface ChatState {
   messages: DisplayMessage[]
   isStreaming: boolean
   streamingContent: string
-  mode: "chat" | "ingest"
+  mode: 'chat' | 'ingest'
   ingestSource: string | null
   maxHistoryMessages: number
   useWebSearch: boolean
@@ -72,15 +78,34 @@ interface ChatState {
   renameConversation: (id: string, title: string) => void
 
   // Message management
-  addMessage: (role: DisplayMessage["role"], content: string, images?: MessageImage[]) => void
-  addMessageToConversation: (conversationId: string, role: DisplayMessage["role"], content: string, images?: MessageImage[], contextFiles?: string[]) => void
+  addMessage: (role: DisplayMessage['role'], content: string, images?: MessageImage[]) => void
+  addMessageToConversation: (
+    conversationId: string,
+    role: DisplayMessage['role'],
+    content: string,
+    images?: MessageImage[],
+    contextFiles?: string[],
+  ) => void
   setMessages: (messages: DisplayMessage[]) => void
   setConversations: (conversations: Conversation[]) => void
   setStreaming: (streaming: boolean) => void
   appendStreamToken: (token: string) => void
-  finalizeStream: (content: string, references?: MessageReference[], agentSteps?: ChatAgentStep[], userInputRequest?: ChatUserInputRequest, agentFileChanges?: ChatAgentFileChange[]) => void
-  finalizeStreamForConversation: (conversationId: string, content: string, references?: MessageReference[], agentSteps?: ChatAgentStep[], userInputRequest?: ChatUserInputRequest, agentFileChanges?: ChatAgentFileChange[]) => void
-  setMode: (mode: ChatState["mode"]) => void
+  finalizeStream: (
+    content: string,
+    references?: MessageReference[],
+    agentSteps?: ChatAgentStep[],
+    userInputRequest?: ChatUserInputRequest,
+    agentFileChanges?: ChatAgentFileChange[],
+  ) => void
+  finalizeStreamForConversation: (
+    conversationId: string,
+    content: string,
+    references?: MessageReference[],
+    agentSteps?: ChatAgentStep[],
+    userInputRequest?: ChatUserInputRequest,
+    agentFileChanges?: ChatAgentFileChange[],
+  ) => void
+  setMode: (mode: ChatState['mode']) => void
   setIngestSource: (path: string | null) => void
   clearMessages: () => void
   setMaxHistoryMessages: (n: number) => void
@@ -91,7 +116,7 @@ interface ChatState {
   setSelectedSkills: (skills: string[]) => void
   setSelectedContextFiles: (paths: string[]) => void
   setDisabledSkills: (skills: string[]) => void
-  removeLastAssistantMessage: () => void  // for regenerate: remove last assistant reply
+  removeLastAssistantMessage: () => void // for regenerate: remove last assistant reply
 
   // Helpers
   getActiveMessages: () => DisplayMessage[]
@@ -113,14 +138,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeConversationId: null,
   messages: [],
   isStreaming: false,
-  streamingContent: "",
-  mode: "chat",
+  streamingContent: '',
+  mode: 'chat',
   ingestSource: null,
   maxHistoryMessages: 10,
   useWebSearch: false,
   useAnyTxtSearch: false,
-  agentMode: "standard",
-  retrievalMode: "standard",
+  agentMode: 'standard',
+  retrievalMode: 'standard',
   selectedSkills: [],
   selectedContextFiles: [],
   disabledSkills: [],
@@ -130,7 +155,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const now = Date.now()
     const newConversation: Conversation = {
       id,
-      title: i18n.t("chat.newConversation"),
+      title: i18n.t('chat.newConversation'),
       createdAt: now,
       updatedAt: now,
       selectedSkills: [],
@@ -140,7 +165,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       conversations: [newConversation, ...state.conversations],
       activeConversationId: id,
       isStreaming: false,
-      streamingContent: "",
+      streamingContent: '',
       selectedSkills: [],
       selectedContextFiles: [],
     }))
@@ -150,10 +175,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   deleteConversation: (id) =>
     set((state) => {
       const remaining = state.conversations.filter((c) => c.id !== id)
-      const newActiveId =
-        state.activeConversationId === id
-          ? (remaining[0]?.id ?? null)
-          : state.activeConversationId
+      const newActiveId = state.activeConversationId === id
+        ? (remaining[0]?.id ?? null)
+        : state.activeConversationId
       return {
         conversations: remaining,
         messages: state.messages.filter((m) => m.conversationId !== id),
@@ -166,16 +190,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setActiveConversation: (id) =>
     set((state) => ({
       activeConversationId: id,
-      streamingContent: "",
+      streamingContent: '',
       selectedSkills: state.conversations.find((conversation) => conversation.id === id)?.selectedSkills ?? [],
       selectedContextFiles: state.conversations.find((conversation) => conversation.id === id)?.contextFiles ?? [],
     })),
 
   renameConversation: (id, title) =>
     set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.id === id ? { ...c, title, updatedAt: Date.now() } : c
-      ),
+      conversations: state.conversations.map((c) => c.id === id ? { ...c, title, updatedAt: Date.now() } : c),
     })),
 
   addMessage: (role, content, images) => {
@@ -201,27 +223,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // Auto-set title from first user message (first 50 chars)
       const convMessages = state.messages.filter(
-        (m) => m.conversationId === conversationId && m.role === "user"
+        (m) => m.conversationId === conversationId && m.role === 'user',
       )
-      const updatedConversations =
-        role === "user" && convMessages.length === 0
-          ? conversations.map((c) =>
-              c.id === conversationId
-                ? {
-                    ...c,
-                    // Image-only first message has empty text; fall
-                    // back to a generic title so the sidebar entry
-                    // isn't blank.
-                    title: content.slice(0, 50) || (images && images.length > 0 ? i18n.t("chat.imageMessage") : c.title),
-                    updatedAt: Date.now(),
-                  }
-                : c
-            )
-          : conversations.map((c) =>
-              c.id === conversationId
-                ? { ...c, updatedAt: Date.now() }
-                : c
-            )
+      const updatedConversations = role === 'user' && convMessages.length === 0
+        ? conversations.map((c) =>
+          c.id === conversationId
+            ? {
+              ...c,
+              // Image-only first message has empty text; fall
+              // back to a generic title so the sidebar entry
+              // isn't blank.
+              title: content.slice(0, 50) || (images && images.length > 0 ? i18n.t('chat.imageMessage') : c.title),
+              updatedAt: Date.now(),
+            }
+            : c
+        )
+        : conversations.map((c) =>
+          c.id === conversationId
+            ? { ...c, updatedAt: Date.now() }
+            : c
+        )
 
       return {
         messages: [...state.messages, newMessage],
@@ -234,17 +255,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setConversations: (conversations) =>
     set((state) => ({
       conversations,
-      selectedSkills: conversations.find((conversation) => conversation.id === state.activeConversationId)?.selectedSkills ?? [],
-      selectedContextFiles: conversations.find((conversation) => conversation.id === state.activeConversationId)?.contextFiles ?? [],
+      selectedSkills:
+        conversations.find((conversation) => conversation.id === state.activeConversationId)?.selectedSkills ?? [],
+      selectedContextFiles:
+        conversations.find((conversation) => conversation.id === state.activeConversationId)?.contextFiles ?? [],
     })),
 
-  setStreaming: (isStreaming) => set((state) => ({
-    isStreaming,
-    // Each new run owns its own stream buffer. Without this reset, a newly
-    // created conversation can briefly render tokens left by another
-    // conversation until the next token arrives.
-    ...(isStreaming ? { streamingContent: "" } : state.streamingContent ? {} : {}),
-  })),
+  setStreaming: (isStreaming) =>
+    set((state) => ({
+      isStreaming,
+      // Each new run owns its own stream buffer. Without this reset, a newly
+      // created conversation can briefly render tokens left by another
+      // conversation until the next token arrives.
+      ...(isStreaming ? { streamingContent: '' } : state.streamingContent ? {} : {}),
+    })),
 
   appendStreamToken: (token) =>
     set((state) => ({
@@ -256,7 +280,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!activeConversationId) {
       set({
         isStreaming: false,
-        streamingContent: "",
+        streamingContent: '',
       })
       return
     }
@@ -270,19 +294,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
     )
   },
 
-  finalizeStreamForConversation: (conversationId, content, references, agentSteps, userInputRequest, agentFileChanges) =>
+  finalizeStreamForConversation: (
+    conversationId,
+    content,
+    references,
+    agentSteps,
+    userInputRequest,
+    agentFileChanges,
+  ) =>
     set((state) => {
       const { conversations } = state
       if (!conversations.some((conversation) => conversation.id === conversationId)) {
         return {
           isStreaming: false,
-          streamingContent: "",
+          streamingContent: '',
         }
       }
 
       const newMessage: DisplayMessage = {
         id: nextId(),
-        role: "assistant" as const,
+        role: 'assistant' as const,
         content,
         timestamp: Date.now(),
         conversationId,
@@ -294,7 +325,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       return {
         isStreaming: false,
-        streamingContent: "",
+        streamingContent: '',
         messages: [...state.messages, newMessage],
         conversations: conversations.map((c) =>
           c.id === conversationId
@@ -311,7 +342,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   clearMessages: () =>
     set((state) => ({
       messages: state.messages.filter(
-        (m) => m.conversationId !== state.activeConversationId
+        (m) => m.conversationId !== state.activeConversationId,
       ),
     })),
 
@@ -330,10 +361,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       selectedSkills,
       conversations: state.activeConversationId
         ? state.conversations.map((conversation) =>
-            conversation.id === state.activeConversationId
-              ? { ...conversation, selectedSkills }
-              : conversation
-          )
+          conversation.id === state.activeConversationId
+            ? { ...conversation, selectedSkills }
+            : conversation
+        )
         : state.conversations,
     })),
 
@@ -342,10 +373,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       selectedContextFiles,
       conversations: state.activeConversationId
         ? state.conversations.map((conversation) =>
-            conversation.id === state.activeConversationId
-              ? { ...conversation, contextFiles: selectedContextFiles }
-              : conversation
-          )
+          conversation.id === state.activeConversationId
+            ? { ...conversation, contextFiles: selectedContextFiles }
+            : conversation
+        )
         : state.conversations,
     })),
 
@@ -357,7 +388,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (!activeId) return state
       const activeMessages = state.messages.filter((m) => m.conversationId === activeId)
       // Find last assistant message
-      const lastAssistantIdx = [...activeMessages].reverse().findIndex((m) => m.role === "assistant")
+      const lastAssistantIdx = [...activeMessages].reverse().findIndex((m) => m.role === 'assistant')
       if (lastAssistantIdx === -1) return state
       const msgToRemove = activeMessages[activeMessages.length - 1 - lastAssistantIdx]
       return {
@@ -386,9 +417,9 @@ export function chatMessagesToLLM(messages: DisplayMessage[]): ChatMessage[] {
     // still gets a text block — harmless, and keeps the shape
     // uniform.
     const blocks: ContentBlock[] = [
-      { type: "text", text: m.content },
+      { type: 'text', text: m.content },
       ...m.images.map((img): ContentBlock => ({
-        type: "image",
+        type: 'image',
         mediaType: img.mediaType,
         dataBase64: img.dataBase64,
       })),

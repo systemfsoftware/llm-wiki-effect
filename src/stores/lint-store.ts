@@ -1,10 +1,10 @@
-import { create } from "zustand"
-import type { LintResult } from "@/lib/lint"
+import type { LintResult } from '@/lib/lint'
+import { create } from 'zustand'
 
 export interface LintItem {
   id: string
-  type: LintResult["type"]
-  severity: LintResult["severity"]
+  type: LintResult['type']
+  severity: LintResult['severity']
   page: string
   detail: string
   affectedPages?: string[]

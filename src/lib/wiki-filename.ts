@@ -31,18 +31,18 @@
  *  to reuse it in places like the index.md wikilink target. */
 export function makeQuerySlug(title: string): string {
   const slug = title
-    .normalize("NFKC")
+    .normalize('NFKC')
     .trim()
-    .replace(/\s+/g, "-")
+    .replace(/\s+/g, '-')
     // Keep Unicode letters, Unicode digits, and the ASCII hyphen.
     // Stripping emoji / punctuation keeps the filename
     // filesystem-safe across Windows / macOS / Linux.
-    .replace(/[^\p{L}\p{N}-]/gu, "")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
+    .replace(/[^\p{L}\p{N}-]/gu, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
     .toLowerCase()
-  const truncated = Array.from(slug).slice(0, 50).join("")
-  return truncated.length > 0 ? truncated : "query"
+  const truncated = Array.from(slug).slice(0, 50).join('')
+  return truncated.length > 0 ? truncated : 'query'
 }
 
 /** Produce the full wiki filename. Accepts an injected `now` for
@@ -56,7 +56,7 @@ export function makeQueryFileName(
   // the same save produces different filenames on different machines.
   const iso = now.toISOString() // e.g. 2026-04-23T14:30:52.123Z
   const date = iso.slice(0, 10) // 2026-04-23
-  const time = iso.slice(11, 19).replace(/:/g, "") // 143052
+  const time = iso.slice(11, 19).replace(/:/g, '') // 143052
   return {
     slug,
     date,

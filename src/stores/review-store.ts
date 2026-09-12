@@ -1,5 +1,5 @@
-import { create } from "zustand"
-import { normalizeReviewTitle } from "@/lib/review-utils"
+import { normalizeReviewTitle } from '@/lib/review-utils'
+import { create } from 'zustand'
 
 export interface ReviewOption {
   label: string
@@ -8,7 +8,7 @@ export interface ReviewOption {
 
 export interface ReviewItem {
   id: string
-  type: "contradiction" | "duplicate" | "missing-page" | "confirm" | "suggestion"
+  type: 'contradiction' | 'duplicate' | 'missing-page' | 'confirm' | 'suggestion'
   title: string
   description: string
   sourcePath?: string
@@ -22,8 +22,8 @@ export interface ReviewItem {
 
 interface ReviewState {
   items: ReviewItem[]
-  addItem: (item: Omit<ReviewItem, "id" | "resolved" | "createdAt">) => void
-  addItems: (items: Omit<ReviewItem, "id" | "resolved" | "createdAt">[]) => void
+  addItem: (item: Omit<ReviewItem, 'id' | 'resolved' | 'createdAt'>) => void
+  addItems: (items: Omit<ReviewItem, 'id' | 'resolved' | 'createdAt'>[]) => void
   setItems: (items: ReviewItem[]) => void
   resolveItem: (id: string, action: string) => void
   dismissItem: (id: string) => void
@@ -46,7 +46,7 @@ interface ReviewState {
  * `normalizeReviewTitle` across LLM regenerations, the same ceiling the
  * previous dedup already accepted.
  */
-export function reviewIdFor(item: Pick<ReviewItem, "type" | "title">): string {
+export function reviewIdFor(item: Pick<ReviewItem, 'type' | 'title'>): string {
   const key = `${item.type}::${normalizeReviewTitle(item.title)}`
   // FNV-1a (32-bit) — small, deterministic, dependency-free.
   let h = 0x811c9dc5
@@ -54,7 +54,7 @@ export function reviewIdFor(item: Pick<ReviewItem, "type" | "title">): string {
     h ^= key.charCodeAt(i)
     h = Math.imul(h, 0x01000193)
   }
-  return `review-${(h >>> 0).toString(16).padStart(8, "0")}`
+  return `review-${(h >>> 0).toString(16).padStart(8, '0')}`
 }
 
 /** Union two optional string arrays, dropping the field when empty. */
@@ -165,9 +165,7 @@ export const useReviewStore = create<ReviewState>((set) => ({
 
   resolveItem: (id, action) =>
     set((state) => ({
-      items: state.items.map((item) =>
-        item.id === id ? { ...item, resolved: true, resolvedAction: action } : item
-      ),
+      items: state.items.map((item) => item.id === id ? { ...item, resolved: true, resolvedAction: action } : item),
     })),
 
   dismissItem: (id) =>

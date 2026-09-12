@@ -1,0 +1,10 @@
+name: Install workspace dependencies
+description: Set up Node + pnpm + Corepack, then install the workspace from the lockfile
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-node-runtime
+    - name: Install dependencies
+      shell: bash
+      run: corepack pnpm install --frozen-lockfile

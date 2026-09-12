@@ -323,7 +323,7 @@ fn mcp_server_entry_path(app: tauri::AppHandle) -> Result<String, String> {
             }
         }
 
-        Err("MCP server entry was not found. Run `npm run mcp:build` from the LLM Wiki repository, then reopen Settings.".to_string())
+        Err("MCP server entry was not found. Run `pnpm mcp:build` from the LLM Wiki repository, then reopen Settings.".to_string())
     })
 }
 

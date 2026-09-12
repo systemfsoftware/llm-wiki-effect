@@ -41,21 +41,19 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install frontend dependencies
-        run: npm install
+      - name: Install workspace dependencies
+        uses: ./.github/actions/install-deps
 
       - name: Check frontend build
-        run: npx vite build
+        run: corepack pnpm build
 
-      - name: Prepare MCP server resources
-        run: |
-          npm --prefix mcp-server ci
-          npm run mcp:build
+      # ci.yml does not run tauri-action, so nothing else would produce the
+      # mcp-server/dist resource that cargo build expects.
+      - name: Build MCP server bundle
+        run: corepack pnpm mcp:build
+
+      - name: Test MCP server
+        run: corepack pnpm mcp:test
 
       - name: Check Rust build
         working-directory: src-tauri

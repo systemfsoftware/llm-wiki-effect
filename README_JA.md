@@ -414,16 +414,16 @@ LLM Wiki は、手元の文書を整理された相互リンク付きの知識�
 ### ソースからビルド
 
 ```bash
-# 前提条件: Node.js 20+, Rust 1.88+, protoc
+# 前提条件: Node.js 22.13+, pnpm 11+, Rust 1.88+, protoc
 #   macOS:   brew install protobuf
 #   Linux:   sudo apt install protobuf-compiler
 #   Windows: choco install protoc
 git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
-npm install
-npm --prefix mcp-server ci && npm run mcp:build   # mcp-server/dist は Tauri リソースとして同梱されます
-npm run tauri dev      # 開発モード
-npm run tauri build    # 本番ビルド
+pnpm install
+pnpm mcp:build         # mcp-server/dist は Tauri リソースとして同梱されます
+pnpm tauri dev         # 開発モード
+pnpm tauri build       # 本番ビルド
 ```
 
 ### Chrome 拡張
@@ -461,7 +461,7 @@ LLM Wiki は組み込みのローカル HTTP API（`http://127.0.0.1:19828` で�
 
 **設定 → API + MCP** から API を有効化し、Token を発行できます。必要に応じて、ローカルからの認証なしアクセスも切り替えられます。
 
-MCP 互換クライアント向けに、LLM Wiki には `mcp-server/` も同梱されています。`npm run mcp:build` でビルドしたあと、**設定 → API + MCP** に現在のマシンに合ったパス入りの MCP クライアント設定が表示され、そのままコピーできます。MCP ツールは同じ API を利用するため、エージェントはプロジェクト一覧、ファイル読み取り、ハイブリッド検索、グラフ参照、ソース再スキャン、同じ Rust バックエンド Agent chat エンドポイントの呼び出しをカスタム HTTP 実装なしで実行できます。
+MCP 互換クライアント向けに、LLM Wiki には `mcp-server/` も同梱されています。`pnpm mcp:build` でビルドしたあと、**設定 → API + MCP** に現在のマシンに合ったパス入りの MCP クライアント設定が表示され、そのままコピーできます。MCP ツールは同じ API を利用するため、エージェントはプロジェクト一覧、ファイル読み取り、ハイブリッド検索、グラフ参照、ソース再スキャン、同じ Rust バックエンド Agent chat エンドポイントの呼び出しをカスタム HTTP 実装なしで実行できます。
 
 ### ワンコマンドで AI エージェントを接続
 

@@ -95,19 +95,12 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Install workspace dependencies
+        uses: ./.github/actions/install-deps
 
-      - name: Install frontend dependencies
-        run: npm install
-
-      - name: Prepare MCP server resources
-        run: |
-          npm --prefix mcp-server ci
-          npm run mcp:build
-
+      # No separate MCP build step: tauri-action runs beforeBuildCommand
+      # (pnpm build:desktop, which starts with pnpm mcp:build) before it
+      # collects the mcp-server/dist resource.
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:

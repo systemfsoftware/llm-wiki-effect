@@ -21,11 +21,10 @@ if (!(Test-Path $PdfiumPath)) {
 }
 foreach ($Path in @(
   (Join-Path $McpRoot "package.json"),
-  (Join-Path $McpRoot "dist"),
-  (Join-Path $McpRoot "node_modules")
+  (Join-Path $McpRoot "dist/src/index.js")
 )) {
   if (!(Test-Path $Path)) {
-    throw "Required MCP resource was not found at $Path. Run npm --prefix mcp-server ci and npm run mcp:build first."
+    throw "Required MCP resource was not found at $Path. Run pnpm install and pnpm mcp:build first."
   }
 }
 
@@ -46,7 +45,6 @@ $PortableMcpRoot = Join-Path $PortableRoot "mcp-server"
 New-Item -ItemType Directory -Force $PortableMcpRoot | Out-Null
 Copy-Item (Join-Path $McpRoot "package.json") (Join-Path $PortableMcpRoot "package.json")
 Copy-Item -Recurse (Join-Path $McpRoot "dist") (Join-Path $PortableMcpRoot "dist")
-Copy-Item -Recurse (Join-Path $McpRoot "node_modules") (Join-Path $PortableMcpRoot "node_modules")
 
 @"
 LLM Wiki Windows Portable

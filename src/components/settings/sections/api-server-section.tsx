@@ -656,7 +656,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             {t("settings.sections.apiServer.mcpUsageHint", {
               defaultValue:
-                "Build once with `npm run mcp:build`, then configure your MCP client to run the server below. Use LLM_WIKI_API_TOKEN unless unauthenticated access is enabled.",
+                "Build once with `pnpm mcp:build`, then configure your MCP client to run the server below. Use LLM_WIKI_API_TOKEN unless unauthenticated access is enabled.",
             })}
           </p>
           {mcpPathError && (
@@ -672,7 +672,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
               : !mcpEntryPath
                 ? t("settings.sections.apiServer.mcpPathUnavailable", {
                     defaultValue:
-                      "MCP server entry was not found. Run `npm run mcp:build` from the LLM Wiki repository, then reopen Settings.",
+                      "MCP server entry was not found. Run `pnpm mcp:build` from the LLM Wiki repository, then reopen Settings.",
                   })
               : sampleMcpConfig}
           </pre>

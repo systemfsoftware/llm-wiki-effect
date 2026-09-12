@@ -4,6 +4,8 @@ node_modules/
 # Build outputs
 dist/
 dist-ssr/
+# Compiled mcp-server tests (the bundled runtime entry lives in dist/)
+dist-test/
 # RC artifacts pulled from CI for local Windows / Intel Mac verification.
 # These are pre-release binaries downloaded via `gh run download`, never
 # meant for the repo.

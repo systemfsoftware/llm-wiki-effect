@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
 const ROOT = process.cwd()
-const DPRINT = join(ROOT, 'bin/dprint')
+const DPRINT = `node ${join(ROOT, 'bin/dprint.mjs')}`
 const OXLINT = join(ROOT, 'node_modules/.bin/oxlint')
 const NO_MATCH_OK = '--no-error-on-unmatched-pattern'
 

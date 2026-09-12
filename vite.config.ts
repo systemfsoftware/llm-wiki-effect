@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { readFileSync } from 'fs'
 import path from 'path'
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 
 const host = process.env.TAURI_DEV_HOST
 
@@ -46,6 +47,10 @@ export default defineConfig(async () => ({
 
   test: {
     environment: 'node',
+    // The suites the default run leaves out live here rather than in quoted CLI
+    // flags: cmd.exe passes quotes through, so those exclusions silently stopped
+    // matching on Windows. `vitest.llm.config.ts` owns the keyed suite.
+    exclude: [...configDefaults.exclude, '**/*.real-llm.test.ts', '**/mcp-server/**'],
     // Loads .env.test.local into process.env for real-LLM tests.
     // The loader itself is a no-op if the file is absent, so this is
     // safe to keep on for every test run.

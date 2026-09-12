@@ -4,9 +4,9 @@
   "version": "0.6.11",
   "identifier": "com.llmwiki.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build:desktop",
+    "beforeBuildCommand": "pnpm build:desktop",
     "frontendDist": "../dist"
   },
   "app": {

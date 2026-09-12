@@ -405,16 +405,16 @@ Download from [Releases](https://github.com/nashsu/llm_wiki/releases):
 ### Build from Source
 
 ```bash
-# Prerequisites: Node.js 20+, Rust 1.88+, protoc
+# Prerequisites: Node.js 20+, pnpm 11+, Rust 1.88+, protoc
 #   macOS:  brew install protobuf
 #   Linux:  sudo apt install protobuf-compiler
 #   Windows: choco install protoc
 git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
-npm install
-npm --prefix mcp-server ci && npm run mcp:build   # mcp-server/dist is bundled as a Tauri resource
-npm run tauri dev      # Development
-npm run tauri build    # Production build
+pnpm install
+pnpm mcp:build         # mcp-server/dist is bundled as a Tauri resource
+pnpm tauri dev         # Development
+pnpm tauri build       # Production build
 ```
 
 ### Chrome Extension
@@ -455,7 +455,7 @@ LLM Wiki ships a built-in local HTTP API at `http://127.0.0.1:19828` (token-prot
 
 Enable the API, generate a token, and choose whether local unauthenticated access is allowed in **Settings → API + MCP**.
 
-For MCP-compatible clients, LLM Wiki also includes a local MCP server in `mcp-server/`. After building it with `npm run mcp:build`, **Settings → API + MCP** shows a copyable MCP client configuration with the correct local path for your machine. The MCP tools call the same API surface, so agent clients can list projects, read files, export unresolved Review items, run hybrid search, inspect the graph, trigger source rescans, and call the same Rust backend Agent chat endpoint without custom HTTP glue code.
+For MCP-compatible clients, LLM Wiki also includes a local MCP server in `mcp-server/`. After building it with `pnpm mcp:build`, **Settings → API + MCP** shows a copyable MCP client configuration with the correct local path for your machine. The MCP tools call the same API surface, so agent clients can list projects, read files, export unresolved Review items, run hybrid search, inspect the graph, trigger source rescans, and call the same Rust backend Agent chat endpoint without custom HTTP glue code.
 
 ### Plug your AI agent in with one command
 

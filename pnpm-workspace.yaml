@@ -1,0 +1,20 @@
+packages:
+  - mcp-server
+
+# Versions shared by more than one package live here so the root app and the
+# MCP server cannot drift apart. `rolldown` is pinned to the same range vite
+# resolves so the MCP server is bundled by exactly one copy of the bundler.
+catalog:
+  rolldown: ~1.2.6
+  typescript: ^5.7.3
+
+catalogMode: prefer
+
+# Supply-chain quarantine: pnpm refuses any version published less than 24h
+# ago, so a freshly hijacked release cannot reach the lockfile on install.
+minimumReleaseAge: 1440
+
+# Dependency install scripts stay blocked (pnpm's default). No package in the
+# current tree declares a preinstall/install/postinstall hook, so there is
+# nothing to allow; add an `allowBuilds:` entry here only with a written
+# reason, and never widen it to a wildcard.

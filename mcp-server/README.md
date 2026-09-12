@@ -21,9 +21,8 @@ Optional:
 ## Build
 
 ```bash
-cd mcp-server
-npm install
-npm run build
+pnpm install
+pnpm mcp:build        # from the repo root
 ```
 
 ## Run

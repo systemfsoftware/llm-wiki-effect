@@ -41,21 +41,14 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install frontend dependencies
-        run: npm install
+      - name: Install workspace dependencies
+        uses: ./.github/actions/install-deps
 
       - name: Check frontend build
-        run: npx vite build
+        run: corepack pnpm exec vite build
 
-      - name: Prepare MCP server resources
-        run: |
-          npm --prefix mcp-server ci
-          npm run mcp:build
+      - name: Build MCP server bundle
+        run: corepack pnpm mcp:build
 
       - name: Check Rust build
         working-directory: src-tauri

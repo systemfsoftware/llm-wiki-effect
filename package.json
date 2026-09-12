@@ -14,7 +14,16 @@
     "test:mocks": "vitest run --exclude='**/*.real-llm.test.ts' --exclude='**/mcp-server/**'",
     "test:llm": "vitest run real-llm --no-file-parallelism --reporter=verbose",
     "mcp:build": "pnpm --filter llm-wiki-mcp-server build",
+    "mcp:typecheck": "pnpm --filter llm-wiki-mcp-server typecheck",
     "mcp:test": "pnpm --filter llm-wiki-mcp-server test",
+    "format": "./bin/dprint fmt",
+    "format:check": "./bin/dprint check",
+    "lint": "oxlint . --type-aware --type-check --format=${OXLINT_FORMAT:-default}",
+    "precommit": "pnpm exec lint-staged --no-revert --config .lintstagedrc.js",
+    "prepare": "husky",
+    "gate:tasks": "pnpm format:check && pnpm lint && pnpm mcp:typecheck && pnpm test:mocks",
+    "gate:dist": "pnpm build",
+    "check:ci": "s=0; pnpm format:check || s=1; pnpm lint || s=1; pnpm build || s=1; pnpm test:mocks || s=1; pnpm mcp:test || s=1; exit $s",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -61,12 +70,20 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@commitlint/cli": "catalog:",
+    "@commitlint/config-conventional": "catalog:",
+    "@commitlint/types": "catalog:",
     "@tauri-apps/cli": "^2.11.1",
     "@types/node": "^25.5.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "dprint": "catalog:",
     "fast-check": "^4.7.0",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "typescript": "catalog:",
     "vite": "^8.0.0",
     "vitest": "^4.1.4"

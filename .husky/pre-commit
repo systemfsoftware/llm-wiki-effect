@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+if [ -e "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+  exit 0
+fi
+
+pnpm precommit

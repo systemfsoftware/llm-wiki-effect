@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TOOL="dprint"
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SELF="$ROOT/bin/$TOOL"
+
+if [ -x "$ROOT/node_modules/.bin/$TOOL" ]; then
+  exec "$ROOT/node_modules/.bin/$TOOL" "$@"
+fi
+
+while IFS= read -r candidate; do
+  [ "$candidate" = "$SELF" ] && continue
+  exec "$candidate" "$@"
+done < <(type -aP "$TOOL" || true)
+
+if [ -f "$ROOT/flake.nix" ] && command -v nix >/dev/null 2>&1; then
+  exec nix run --no-write-lock-file "$ROOT#$TOOL" -- "$@"
+fi
+
+echo "error: $TOOL is not installed — run 'pnpm install' first" >&2
+exit 1

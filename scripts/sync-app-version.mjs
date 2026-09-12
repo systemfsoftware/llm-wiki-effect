@@ -6,6 +6,10 @@
  * `src/lib/changelog.test.ts` checks the copies against it. Run this after
  * `changeset version` - it is what `pnpm release:version` calls second - and
  * before committing the release.
+ *
+ * Every rewrite is verified after the fact. A pattern that stops matching (a
+ * manifest reformatted, a key renamed) would otherwise leave one artifact at the
+ * old version while this script reports success.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -24,22 +28,44 @@ const readAppVersion = () => {
 }
 
 const version = readAppVersion()
-const written = []
 
-const edit = (relativePath, pattern, replacement) => {
-  const path = join(root, relativePath)
-  const before = readFileSync(path, 'utf8')
-  const after = before.replace(pattern, replacement)
-  if (after === before) return
-  writeFileSync(path, after)
-  written.push(relativePath)
+/** Each target: the file, the single line to rewrite, and the text that proves it. */
+const targets = [
+  {
+    path: 'src-tauri/tauri.conf.json',
+    // Bundle version: CFBundleShortVersionString, installer and artifact names.
+    pattern: /"version": "[^"]+"/,
+    replacement: `"version": "${version}"`,
+    proof: `"version": "${version}"`,
+  },
+  {
+    path: 'src-tauri/Cargo.toml',
+    // The crate's own version, which cargo records in the lockfile below.
+    pattern: /^version = "[^"]+"$/m,
+    replacement: `version = "${version}"`,
+    proof: `version = "${version}"`,
+  },
+  {
+    path: 'src-tauri/Cargo.lock',
+    pattern: /(name = "llm-wiki"\nversion = ")[^"]+(")/,
+    replacement: `$1${version}$2`,
+    proof: `name = "llm-wiki"\nversion = "${version}"`,
+  },
+]
+
+const reads = targets.map((target) => ({ ...target, before: readFileSync(join(root, target.path), 'utf8') }))
+
+for (const { path, proof, before } of reads) {
+  if (!before.includes(proof)) throw new Error(`${path} does not carry ${version} (expected ${proof})`)
 }
 
-// Bundle version: CFBundleShortVersionString, installer and artifact names.
-edit('src-tauri/tauri.conf.json', /"version": "[^"]+"/, `"version": "${version}"`)
-// The crate's own version, which cargo records in the lockfile below.
-edit('src-tauri/Cargo.toml', /^version = "[^"]+"$/m, `version = "${version}"`)
-edit('src-tauri/Cargo.lock', /(name = "llm-wiki"\nversion = ")[^"]+(")/, `$1${version}$2`)
+const written = []
+for (const { path, pattern, replacement, before } of reads) {
+  const after = before.replace(pattern, replacement)
+  if (after === before) continue
+  writeFileSync(join(root, path), after)
+  written.push(path)
+}
 
 console.log(
   written.length > 0 ? `synced ${version} into ${written.join(', ')}` : `already at ${version}`,

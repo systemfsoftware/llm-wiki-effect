@@ -2036,6 +2036,15 @@ function ContextDetailsPanel({
         onPointerMove={resize}
         onPointerUp={stopResize}
         onPointerCancel={stopResize}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft') {
+            event.preventDefault()
+            onResize(clampReferencePreviewWidth(width + 32))
+          } else if (event.key === 'ArrowRight') {
+            event.preventDefault()
+            onResize(clampReferencePreviewWidth(width - 32))
+          }
+        }}
       />
       <div className='flex min-h-10 items-center gap-2 border-b px-3 py-2'>
         <ListTree className='h-4 w-4 text-primary' />

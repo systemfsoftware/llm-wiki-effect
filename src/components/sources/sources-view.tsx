@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { errorMessage } from '@/lib/error-message'
 import { sortFileNodes } from '@/lib/file-tree-order'
 import { listIngestedSourceIdentities } from '@/lib/ingest-cache'
 import { getQueue, type IngestTask } from '@/lib/ingest-queue'
@@ -54,12 +55,6 @@ const SOURCE_TREE_INITIAL_ROWS = 160
 const SOURCE_TREE_LOAD_BATCH = 160
 const IMPORT_SKIP_INITIAL_ROWS = 100
 type SourceIngestStatus = 'not-ingested' | 'ingested' | IngestTask['status']
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  return JSON.stringify(error) ?? 'Unknown error'
-}
 
 export function SourcesView() {
   const { t } = useTranslation()

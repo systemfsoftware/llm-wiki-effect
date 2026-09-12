@@ -7,7 +7,12 @@ if [ "$branch" != "main" ]; then
   exit 0
 fi
 
-main_sha=$(git ls-remote --heads "$remote" main 2>/dev/null | cut -f1)
+if ! remote_main=$(git ls-remote --heads "$remote" main 2>/dev/null); then
+  echo "pre-push: could not reach $remote to check main." >&2
+  echo "Refusing to push main without verifying it is up to date." >&2
+  exit 1
+fi
+main_sha=$(printf '%s\n' "$remote_main" | cut -f1)
 if [ -z "$main_sha" ]; then
   exit 0
 fi

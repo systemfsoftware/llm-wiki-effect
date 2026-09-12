@@ -2,6 +2,7 @@ import { deleteFile, readFile, writeFile } from '@/commands/fs'
 import { Button } from '@/components/ui/button'
 import { cleanAssistantContentForWikiSave, titleFromCleanAssistantContent } from '@/lib/chat-save-to-wiki'
 import { queueResearch, queueResearchBatch } from '@/lib/deep-research'
+import { errorMessage } from '@/lib/error-message'
 import { normalizePath } from '@/lib/path-utils'
 import { refreshProjectFileTree } from '@/lib/project-file-tree-refresh'
 import { reviewResearchTopic, selectedResearchReviews } from '@/lib/review-batch-research'
@@ -35,12 +36,6 @@ const typeConfig: Record<ReviewItem['type'], { icon: typeof AlertTriangle; color
   suggestion: { icon: Lightbulb, color: 'text-emerald-500' },
 }
 
-function describeError(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  return JSON.stringify(error) ?? 'Unknown error'
-}
-
 export function ReviewView() {
   const { t } = useTranslation()
   const appDialog = useAppDialog()
@@ -69,7 +64,7 @@ export function ReviewView() {
     setReviewErrors((current) => {
       const next = { ...current }
       if (error === null) delete next[id]
-      else next[id] = describeError(error)
+      else next[id] = errorMessage(error)
       return next
     })
   }, [])

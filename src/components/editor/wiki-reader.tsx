@@ -1,17 +1,17 @@
-import { useMemo } from "react"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
-import remarkMath from "remark-math"
-import rehypeKatex from "rehype-katex"
-import "katex/dist/katex.min.css"
-import { transformImageEmbeds, transformWikilinks } from "@/lib/wikilink-transform"
-import { resolveRelatedSlug } from "@/lib/wiki-page-resolver"
-import { resolveMarkdownImageSrc } from "@/lib/markdown-image-resolver"
-import { normalizePath } from "@/lib/path-utils"
-import { detectLanguage } from "@/lib/detect-language"
-import { getHtmlLang, getTextDirection } from "@/lib/language-metadata"
-import { useWikiStore } from "@/stores/wiki-store"
-import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
+import { MermaidDiagram, unwrapMermaidPre } from '@/components/mermaid-diagram'
+import { detectLanguage } from '@/lib/detect-language'
+import { getHtmlLang, getTextDirection } from '@/lib/language-metadata'
+import { resolveMarkdownImageSrc } from '@/lib/markdown-image-resolver'
+import { normalizePath } from '@/lib/path-utils'
+import { resolveRelatedSlug } from '@/lib/wiki-page-resolver'
+import { transformImageEmbeds, transformWikilinks } from '@/lib/wikilink-transform'
+import { useWikiStore } from '@/stores/wiki-store'
+import 'katex/dist/katex.min.css'
+import { createContext, useContext, useMemo } from 'react'
+import ReactMarkdown, { type Components } from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 
 interface WikiReaderProps {
   body: string
@@ -27,6 +27,168 @@ interface WikiReaderProps {
    * resolution.
    */
   filePath?: string
+}
+
+interface WikiReaderContextValue {
+  sourceAttrs: (node: unknown) => Record<string, number>
+  onAnchorClick: (event: React.MouseEvent<HTMLAnchorElement>, href: string) => void
+  projectPath: string | null
+  currentFileDir: string | null
+}
+
+const WikiReaderContext = createContext<WikiReaderContextValue | null>(null)
+
+function useWikiReaderContext(): WikiReaderContextValue {
+  const value = useContext(WikiReaderContext)
+  if (!value) throw new Error('WikiReader markdown components must render inside WikiReader')
+  return value
+}
+
+/**
+ * Extract the start and end source line numbers react-markdown attaches
+ * to a node's `position`, without trusting the shape of that node.
+ */
+function getSourceLineRange(node: unknown): { startLine: number; endLine: number } | null {
+  if (typeof node !== 'object' || node === null) return null
+  if (!('position' in node)) return null
+  const position = node.position
+  if (typeof position !== 'object' || position === null) return null
+  if (!('start' in position) || !('end' in position)) return null
+  const start = position.start
+  const end = position.end
+  if (typeof start !== 'object' || start === null || !('line' in start)) return null
+  if (typeof end !== 'object' || end === null || !('line' in end)) return null
+  const startLine = start.line
+  const endLine = end.line
+  if (typeof startLine !== 'number' || typeof endLine !== 'number') return null
+  if (!startLine || !endLine) return null
+  return { startLine, endLine }
+}
+
+const markdownComponents: Components = {
+  p: ({ node, children, ...props }) => {
+    const { sourceAttrs } = useWikiReaderContext()
+    return <p {...sourceAttrs(node)} {...props}>{children}</p>
+  },
+  li: ({ node, children, ...props }) => {
+    const { sourceAttrs } = useWikiReaderContext()
+    return <li {...sourceAttrs(node)} {...props}>{children}</li>
+  },
+  blockquote: ({ node, children, ...props }) => {
+    const { sourceAttrs } = useWikiReaderContext()
+    return <blockquote {...sourceAttrs(node)} {...props}>{children}</blockquote>
+  },
+  a: ({ href, children, ...props }) => {
+    const { onAnchorClick } = useWikiReaderContext()
+    const h = typeof href === 'string' ? href : ''
+    const isWikilink = h.startsWith('#')
+    return (
+      <a
+        href={h || undefined}
+        onClick={(e) => isWikilink && onAnchorClick(e, h)}
+        className={isWikilink
+          ? 'cursor-pointer text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary'
+          : 'text-primary underline underline-offset-2'}
+        {...props}
+      >
+        {children}
+      </a>
+    )
+  },
+  h1: ({ node, children, ...props }) => {
+    const { sourceAttrs } = useWikiReaderContext()
+    return (
+      <h1
+        {...sourceAttrs(node)}
+        className='mb-4 mt-0 border-b border-border/60 pb-3 text-3xl font-semibold leading-tight tracking-normal text-foreground'
+        {...props}
+      >
+        {children}
+      </h1>
+    )
+  },
+  h2: ({ node, children, ...props }) => {
+    const { sourceAttrs } = useWikiReaderContext()
+    return (
+      <h2
+        {...sourceAttrs(node)}
+        className='mb-3 mt-8 border-b border-border/40 pb-2 text-2xl font-semibold leading-tight tracking-normal text-foreground'
+        {...props}
+      >
+        {children}
+      </h2>
+    )
+  },
+  h3: ({ node, children, ...props }) => {
+    const { sourceAttrs } = useWikiReaderContext()
+    return (
+      <h3
+        {...sourceAttrs(node)}
+        className='mb-2 mt-6 text-xl font-semibold leading-snug tracking-normal text-foreground'
+        {...props}
+      >
+        {children}
+      </h3>
+    )
+  },
+  img: ({ src, alt, ...props }) => {
+    const { projectPath, currentFileDir } = useWikiReaderContext()
+    return (
+      <img
+        src={typeof src === 'string'
+          ? resolveMarkdownImageSrc(src, projectPath, currentFileDir)
+          : undefined}
+        data-mdsrc={typeof src === 'string' ? src : undefined}
+        alt={alt ?? ''}
+        className='max-w-full rounded border border-border/40'
+        loading='lazy'
+        {...props}
+      />
+    )
+  },
+  table: ({ children, ...props }) => (
+    <div className='my-2 overflow-x-auto rounded border border-border'>
+      <table className='w-full border-collapse text-xs' {...props}>
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children, ...props }) => (
+    <thead className='bg-muted' {...props}>
+      {children}
+    </thead>
+  ),
+  th: ({ node, children, ...props }) => {
+    const { sourceAttrs } = useWikiReaderContext()
+    return (
+      <th
+        {...sourceAttrs(node)}
+        className='border border-border/80 bg-muted px-3 py-1.5 text-start font-semibold'
+        {...props}
+      >
+        {children}
+      </th>
+    )
+  },
+  td: ({ node, children, ...props }) => {
+    const { sourceAttrs } = useWikiReaderContext()
+    return (
+      <td {...sourceAttrs(node)} className='border border-border/60 px-3 py-1.5' {...props}>
+        {children}
+      </td>
+    )
+  },
+  pre: ({ children, ...props }) => {
+    const mermaid = unwrapMermaidPre(children)
+    if (mermaid) return <>{mermaid}</>
+    return <pre dir='ltr' style={{ textAlign: 'left' }} {...props}>{children}</pre>
+  },
+  code: ({ className, children, ...props }) => {
+    const lang = className?.replace('language-', '')
+    const codeText = typeof children === 'string' ? children.replace(/\n$/, '') : ''
+    if (lang === 'mermaid') return <MermaidDiagram code={codeText} />
+    return <code dir='ltr' className={className} {...props}>{children}</code>
+  },
 }
 
 /**
@@ -64,14 +226,12 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
 
   const sourceAttrs = (node: unknown): Record<string, number> => {
     if (!sourceLineStarts) return {}
-    const position = (node as { position?: { start?: { line?: number }; end?: { line?: number } } } | undefined)?.position
-    const startLine = position?.start?.line
-    const endLine = position?.end?.line
-    if (!startLine || !endLine) return {}
-    const start = sourceLineStarts[startLine - 1]
-    const end = sourceLineStarts[endLine] ?? sourceBody?.length
+    const range = getSourceLineRange(node)
+    if (!range) return {}
+    const start = sourceLineStarts[range.startLine - 1]
+    const end = sourceLineStarts[range.endLine] ?? sourceBody?.length
     if (start === undefined || end === undefined) return {}
-    return { "data-source-start": sourceOffset + start, "data-source-end": sourceOffset + end }
+    return { 'data-source-start': sourceOffset + start, 'data-source-end': sourceOffset + end }
   }
   const renderLanguage = detectLanguage(body)
   const direction = getTextDirection(renderLanguage)
@@ -83,12 +243,12 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
   const currentFileDir = useMemo(() => {
     if (!filePath) return null
     const norm = normalizePath(filePath)
-    const dir = norm.slice(0, norm.lastIndexOf("/"))
+    const dir = norm.slice(0, norm.lastIndexOf('/'))
     return dir || null
   }, [filePath])
 
   function handleAnchorClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
-    if (!href.startsWith("#")) return
+    if (!href.startsWith('#')) return
     e.preventDefault()
     if (!wikiRoot) return
     const slug = (() => {
@@ -103,119 +263,23 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
   }
 
   return (
-    <div
-      className="prose prose-invert min-w-0 max-w-none"
-      dir={direction}
-      lang={htmlLang}
-      style={{ textAlign: "start" }}
+    <WikiReaderContext.Provider
+      value={{ sourceAttrs, onAnchorClick: handleAnchorClick, projectPath, currentFileDir }}
     >
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
-        components={{
-          p: ({ node, children, ...props }) => <p {...sourceAttrs(node)} {...props}>{children}</p>,
-          li: ({ node, children, ...props }) => <li {...sourceAttrs(node)} {...props}>{children}</li>,
-          blockquote: ({ node, children, ...props }) => <blockquote {...sourceAttrs(node)} {...props}>{children}</blockquote>,
-          a: ({ href, children, ...props }) => {
-            const h = typeof href === "string" ? href : ""
-            const isWikilink = h.startsWith("#")
-            return (
-              <a
-                href={h || undefined}
-                onClick={(e) => isWikilink && handleAnchorClick(e, h)}
-                className={
-                  isWikilink
-                    ? "cursor-pointer text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
-                    : "text-primary underline underline-offset-2"
-                }
-                {...props}
-              >
-                {children}
-              </a>
-            )
-          },
-          h1: ({ node, children, ...props }) => (
-            <h1
-              {...sourceAttrs(node)}
-              className="mb-4 mt-0 border-b border-border/60 pb-3 text-3xl font-semibold leading-tight tracking-normal text-foreground"
-              {...props}
-            >
-              {children}
-            </h1>
-          ),
-          h2: ({ node, children, ...props }) => (
-            <h2
-              {...sourceAttrs(node)}
-              className="mb-3 mt-8 border-b border-border/40 pb-2 text-2xl font-semibold leading-tight tracking-normal text-foreground"
-              {...props}
-            >
-              {children}
-            </h2>
-          ),
-          h3: ({ node, children, ...props }) => (
-            <h3
-              {...sourceAttrs(node)}
-              className="mb-2 mt-6 text-xl font-semibold leading-snug tracking-normal text-foreground"
-              {...props}
-            >
-              {children}
-            </h3>
-          ),
-          img: ({ src, alt, ...props }) => (
-            <img
-              src={
-                typeof src === "string"
-                  ? resolveMarkdownImageSrc(src, projectPath, currentFileDir)
-                  : undefined
-              }
-              data-mdsrc={typeof src === "string" ? src : undefined}
-              alt={alt ?? ""}
-              className="max-w-full rounded border border-border/40"
-              loading="lazy"
-              {...props}
-            />
-          ),
-          table: ({ children, ...props }) => (
-            <div className="my-2 overflow-x-auto rounded border border-border">
-              <table className="w-full border-collapse text-xs" {...props}>
-                {children}
-              </table>
-            </div>
-          ),
-          thead: ({ children, ...props }) => (
-            <thead className="bg-muted" {...props}>
-              {children}
-            </thead>
-          ),
-          th: ({ node, children, ...props }) => (
-            <th
-              {...sourceAttrs(node)}
-              className="border border-border/80 bg-muted px-3 py-1.5 text-start font-semibold"
-              {...props}
-            >
-              {children}
-            </th>
-          ),
-          td: ({ node, children, ...props }) => (
-            <td {...sourceAttrs(node)} className="border border-border/60 px-3 py-1.5" {...props}>
-              {children}
-            </td>
-          ),
-          pre: ({ children, ...props }) => {
-            const mermaid = unwrapMermaidPre(children)
-            if (mermaid) return <>{mermaid}</>
-            return <pre dir="ltr" style={{ textAlign: "left" }} {...props}>{children}</pre>
-          },
-          code: ({ className, children, ...props }) => {
-            const lang = className?.replace("language-", "")
-            const codeText = String(children).replace(/\n$/, "")
-            if (lang === "mermaid") return <MermaidDiagram code={codeText} />
-            return <code dir="ltr" className={className} {...props}>{children}</code>
-          },
-        }}
+      <div
+        className='prose prose-invert min-w-0 max-w-none'
+        dir={direction}
+        lang={htmlLang}
+        style={{ textAlign: 'start' }}
       >
-        {transformed}
-      </ReactMarkdown>
-    </div>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeKatex]}
+          components={markdownComponents}
+        >
+          {transformed}
+        </ReactMarkdown>
+      </div>
+    </WikiReaderContext.Provider>
   )
 }

@@ -7,8 +7,8 @@
  *
  * Uses real fetchEmbedding() from ./embedding (raw text → vector API).
  */
-import { fetchEmbedding } from "./embedding"
-import type { EmbeddingConfig } from "@/stores/wiki-store"
+import type { EmbeddingConfig } from '@/stores/wiki-store'
+import { fetchEmbedding } from './embedding'
 
 export interface Page {
   id: string
@@ -38,11 +38,11 @@ export interface CandidateOptions {
 export type CandidatePair = readonly [string, string]
 
 export class DuplicatePrefilterCancelledError extends Error {
-  name = "AbortError"
+  name = 'AbortError'
 }
 
 function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw new DuplicatePrefilterCancelledError("Duplicate scan cancelled")
+  if (signal?.aborted) throw new DuplicatePrefilterCancelledError('Duplicate scan cancelled')
 }
 
 /**
@@ -68,15 +68,15 @@ export function cosineSimilarity(a: number[] | null | undefined, b: number[] | n
  * Mirrors embedPage's chunker input but keeps it short for similarity comparison.
  */
 export function pageToEmbeddingText(page: Page, budget = 1500): string {
-  const tagPart = (page.tags ?? []).join(" ")
-  const idPart = page.id.split("/").pop()?.replace(/\.md$/i, "") ?? page.id
+  const tagPart = (page.tags ?? []).join(' ')
+  const idPart = page.id.split('/').pop()?.replace(/\.md$/i, '') ?? page.id
   const parts = [
     idPart,
     page.title,
     tagPart,
-    (page.body ?? "").slice(0, budget),
+    (page.body ?? '').slice(0, budget),
   ]
-  return parts.filter(Boolean).join("\n")
+  return parts.filter(Boolean).join('\n')
 }
 
 /**
@@ -132,7 +132,7 @@ export async function candidatePairs(
 
   const embeddedCount = [...embeddings.values()].filter((v) => v && v.length > 0).length
   if (subset.length >= 2 && embeddedCount < 2) {
-    throw new Error("Duplicate prefilter could not embed enough pages")
+    throw new Error('Duplicate prefilter could not embed enough pages')
   }
   if (subset.length > 0 && embeddedCount / subset.length < minSuccessRatio) {
     throw new Error(
@@ -182,13 +182,18 @@ export function clusterByPairs(
 
   const find = (x: string): string => {
     let root = x
-    while (parent.get(root) !== root) root = parent.get(root)!
+    let next = parent.get(root)
+    while (next !== undefined && next !== root) {
+      root = next
+      next = parent.get(root)
+    }
     // path compression
     let cur = x
-    while (parent.get(cur) !== root) {
-      const next = parent.get(cur)!
+    let parentOfCur = parent.get(cur)
+    while (parentOfCur !== undefined && parentOfCur !== root) {
       parent.set(cur, root)
-      cur = next
+      cur = parentOfCur
+      parentOfCur = parent.get(cur)
     }
     return root
   }
@@ -202,8 +207,9 @@ export function clusterByPairs(
   const groups = new Map<string, string[]>()
   for (const id of pageIds) {
     const root = find(id)
-    if (!groups.has(root)) groups.set(root, [])
-    groups.get(root)!.push(id)
+    const group = groups.get(root)
+    if (group) group.push(id)
+    else groups.set(root, [id])
   }
 
   return [...groups.values()].filter((g) => g.length > 1)

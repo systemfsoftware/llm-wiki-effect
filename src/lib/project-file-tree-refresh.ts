@@ -1,8 +1,8 @@
-import { listDirectory } from "@/commands/fs"
-import { useWikiStore } from "@/stores/wiki-store"
-import { normalizePath } from "@/lib/path-utils"
-import { filterRawSourceTree } from "@/lib/source-filter"
-import type { FileNode } from "@/types/wiki"
+import { listDirectory } from '@/commands/fs'
+import { normalizePath } from '@/lib/path-utils'
+import { filterRawSourceTree } from '@/lib/source-filter'
+import { useWikiStore } from '@/stores/wiki-store'
+import type { FileNode } from '@/types/wiki'
 
 export interface RefreshProjectFileTreeOptions {
   projectId?: string
@@ -73,7 +73,7 @@ export async function refreshProjectFileTree(
         useWikiStore.getState().setFileTree(displayTree, { syncPathIndex: false })
       }
     } catch (err) {
-      console.error("Failed to refresh project file tree:", err)
+      console.error('Failed to refresh project file tree:', err)
     }
   }
 
@@ -87,23 +87,24 @@ export async function refreshProjectFileTree(
     // sources resolve instead of rendering as "not found". The
     // raw/sources scan is best-effort — a project without sources
     // must still get a full index.
-    Promise.all([
-      listDirectoryWithRetry(normalizedProjectPath, undefined, 3),
-      listDirectoryWithRetry(
-        `${normalizedProjectPath}/raw/sources`,
-        { includeHidden: true },
-        3,
-      ).catch(() => [] as FileNode[]),
-    ])
-      .then(([fullTree, rawSourcesTree]) => {
+    void (async () => {
+      try {
+        const [fullTree, rawSourcesTree] = await Promise.all([
+          listDirectoryWithRetry(normalizedProjectPath, undefined, 3),
+          listDirectoryWithRetry(
+            `${normalizedProjectPath}/raw/sources`,
+            { includeHidden: true },
+            3,
+          ).catch(() => [] as FileNode[]),
+        ])
         if (!isStillCurrentProject(currentProjectId, normalizedProjectPath)) return
         useWikiStore
           .getState()
           .setProjectPathIndexFromTree([...fullTree, ...filterRawSourceTree(rawSourcesTree)])
-      })
-      .catch((err) => {
-        console.error("Failed to refresh project path index:", err)
-      })
+      } catch (err) {
+        console.error('Failed to refresh project path index:', err)
+      }
+    })()
   }
 
   if (options.bumpDataVersion && isStillCurrentProject(currentProjectId, normalizedProjectPath)) {

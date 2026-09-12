@@ -19,7 +19,7 @@
  *         (b) paragraph boundaries   (\n\n)
  *         (c) line breaks            (\n)
  *         (d) sentence terminators   (`. ` / `。` / `! ` / `！` / `? ` / `？` / `; ` / `；`)
- *         (e) whitespace            (` ` / `　` / `\t`)
+ *         (e) whitespace            (` ` / U+3000 / `\t`)
  *         (f) hard char slice       (last resort)
  *      Each level only kicks in when the level above produces a piece that
  *      still exceeds `maxChars`.
@@ -134,7 +134,7 @@ export function chunkMarkdown(
  * can attribute `charStart`/`charEnd` back to the original document.
  */
 export function stripFrontmatter(content: string): { body: string; bodyOffset: number } {
-  if (!content.startsWith("---\n") && !content.startsWith("---\r\n")) {
+  if (!content.startsWith('---\n') && !content.startsWith('---\r\n')) {
     return { body: content, bodyOffset: 0 }
   }
   // Look for closing `---` on its own line.
@@ -166,7 +166,7 @@ interface Section {
 }
 
 function splitIntoSections(body: string, bodyOffset: number): Section[] {
-  const lines = body.split("\n")
+  const lines = body.split('\n')
   const sections: Section[] = []
 
   // heading stack keyed by level: headings[lvl] = text of last heading at that lvl
@@ -175,14 +175,14 @@ function splitIntoSections(body: string, bodyOffset: number): Section[] {
   let current: { lines: string[]; start: number; headingPath: string } = {
     lines: [],
     start: bodyOffset,
-    headingPath: "",
+    headingPath: '',
   }
   let inFence = false
-  let fenceMarker = ""
+  let fenceMarker = ''
   let charCursor = bodyOffset
 
   const flush = () => {
-    const text = current.lines.join("\n")
+    const text = current.lines.join('\n')
     if (text.trim().length > 0) {
       sections.push({
         text,
@@ -222,13 +222,13 @@ function splitIntoSections(body: string, bodyOffset: number): Section[] {
 
       const pathParts: string[] = []
       for (let lvl = 1; lvl <= 6; lvl++) {
-        if (headings[lvl]) pathParts.push(`${"#".repeat(lvl)} ${headings[lvl]}`)
+        if (headings[lvl]) pathParts.push(`${'#'.repeat(lvl)} ${headings[lvl]}`)
       }
 
       current = {
         lines: [line],
         start: charCursor,
-        headingPath: pathParts.join(" > "),
+        headingPath: pathParts.join(' > '),
       }
       charCursor += lineLen
       continue
@@ -244,7 +244,7 @@ function splitIntoSections(body: string, bodyOffset: number): Section[] {
 
 // ── Section → chunks ─────────────────────────────────────────────────────
 
-function chunkSection(section: Section, opts: ChunkingOptions): Omit<Chunk, "index">[] {
+function chunkSection(section: Section, opts: ChunkingOptions): Omit<Chunk, 'index'>[] {
   const { text, bodyStart, headingPath } = section
 
   if (text.length <= opts.targetChars) {
@@ -269,7 +269,7 @@ function chunkSection(section: Section, opts: ChunkingOptions): Omit<Chunk, "ind
   const withOverlap = applyOverlap(merged, opts)
 
   // Compute charStart/charEnd for each emitted chunk, marking oversized.
-  const out: Omit<Chunk, "index">[] = []
+  const out: Omit<Chunk, 'index'>[] = []
   for (const piece of withOverlap) {
     out.push({
       text: piece.text,
@@ -286,16 +286,16 @@ function chunkSection(section: Section, opts: ChunkingOptions): Omit<Chunk, "ind
 
 interface Atom {
   text: string
-  offset: number  // offset in the containing section
+  offset: number // offset in the containing section
   /** True for atoms that must NEVER be split further (fenced code, tables). */
   indivisible: boolean
   /** Kind label purely for debugging / test clarity. */
-  kind: "code" | "table" | "paragraph" | "blank"
+  kind: 'code' | 'table' | 'paragraph' | 'blank'
 }
 
 function tokenizeAtoms(text: string): Atom[] {
   const atoms: Atom[] = []
-  const lines = text.split("\n")
+  const lines = text.split('\n')
 
   let cursor = 0
   let i = 0
@@ -319,23 +319,23 @@ function tokenizeAtoms(text: string): Atom[] {
         }
         j++
       }
-      const content = bodyLines.join("\n")
-      atoms.push({ text: content, offset: start, indivisible: true, kind: "code" })
+      const content = bodyLines.join('\n')
+      atoms.push({ text: content, offset: start, indivisible: true, kind: 'code' })
       i = j
       continue
     }
 
     // Table: consecutive lines starting with `|`. Must be at least 2
     // such lines (one header row + one separator / data row) to count.
-    if (line.startsWith("|")) {
+    if (line.startsWith('|')) {
       let j = i
-      while (j < lines.length && lines[j].startsWith("|")) j++
+      while (j < lines.length && lines[j].startsWith('|')) j++
       if (j - i >= 2) {
         const start = cursor
         const bodyLines = lines.slice(i, j)
-        const content = bodyLines.join("\n")
+        const content = bodyLines.join('\n')
         cursor += content.length + (j < lines.length ? 1 : 0)
-        atoms.push({ text: content, offset: start, indivisible: true, kind: "table" })
+        atoms.push({ text: content, offset: start, indivisible: true, kind: 'table' })
         i = j
         continue
       }
@@ -344,8 +344,8 @@ function tokenizeAtoms(text: string): Atom[] {
 
     // Blank line: preserves paragraph boundaries but doesn't emit as an
     // atom on its own (rolled into cursor).
-    if (line.trim() === "") {
-      atoms.push({ text: "", offset: cursor, indivisible: false, kind: "blank" })
+    if (line.trim() === '') {
+      atoms.push({ text: '', offset: cursor, indivisible: false, kind: 'blank' })
       cursor += line.length + 1
       i++
       continue
@@ -359,18 +359,18 @@ function tokenizeAtoms(text: string): Atom[] {
     const bodyLines: string[] = []
     while (
       i < lines.length &&
-      lines[i].trim() !== "" &&
+      lines[i].trim() !== '' &&
       !/^(`{3,}|~{3,})/.test(lines[i])
     ) {
       bodyLines.push(lines[i])
       cursor += lines[i].length + 1
       i++
     }
-    const content = bodyLines.join("\n")
-    atoms.push({ text: content, offset: start, indivisible: false, kind: "paragraph" })
+    const content = bodyLines.join('\n')
+    atoms.push({ text: content, offset: start, indivisible: false, kind: 'paragraph' })
   }
 
-  return atoms.filter((a) => a.kind !== "blank" || a.text.length > 0)
+  return atoms.filter((a) => a.kind !== 'blank' || a.text.length > 0)
 }
 
 // ── Splittable atom → pieces ─────────────────────────────────────────────
@@ -393,7 +393,7 @@ function splitAtomsToPieces(atoms: Atom[], opts: ChunkingOptions): Piece[] {
       pieces.push({ text: atom.text, offset: atom.offset })
       continue
     }
-    if (atom.kind === "blank") continue
+    if (atom.kind === 'blank') continue
     if (atom.text.length <= opts.targetChars) {
       pieces.push({ text: atom.text, offset: atom.offset })
       continue
@@ -404,12 +404,12 @@ function splitAtomsToPieces(atoms: Atom[], opts: ChunkingOptions): Piece[] {
 }
 
 const SENTENCE_SPLITTERS: Array<[string, (t: string) => string[]]> = [
-  ["lines", (t: string) => splitKeepingSep(t, /(\n+)/)],
+  ['lines', (t: string) => splitKeepingSep(t, /(\n+)/)],
   [
-    "sentences",
+    'sentences',
     (t: string) => splitKeepingSep(t, /([。！？!?；;]+\s*|(?:\.\s+))/),
   ],
-  ["spaces", (t: string) => splitKeepingSep(t, /(\s+)/)],
+  ['spaces', (t: string) => splitKeepingSep(t, /(\s+)/)],
 ]
 
 /**
@@ -482,7 +482,7 @@ function recursiveSplit(text: string, baseOffset: number, targetChars: number): 
 function splitKeepingSep(text: string, sep: RegExp): string[] {
   const out: string[] = []
   let last = 0
-  const globalRe = new RegExp(sep.source, "g")
+  const globalRe = new RegExp(sep.source, 'g')
   let m: RegExpExecArray | null
   while ((m = globalRe.exec(text)) !== null) {
     const end = m.index + m[0].length
@@ -504,7 +504,7 @@ function splitKeepingSep(text: string, sep: RegExp): string[] {
  */
 function sizePieces(pieces: Piece[], opts: ChunkingOptions): Piece[] {
   const out: Piece[] = []
-  let buf = ""
+  let buf = ''
   let bufOffset: number | null = null
   for (const p of pieces) {
     if (p.text.length === 0) continue
@@ -514,7 +514,7 @@ function sizePieces(pieces: Piece[], opts: ChunkingOptions): Piece[] {
         out.push({ text: buf, offset: bufOffset })
       }
       out.push({ text: p.text, offset: p.offset })
-      buf = ""
+      buf = ''
       bufOffset = null
       continue
     }

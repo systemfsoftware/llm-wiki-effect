@@ -4,12 +4,26 @@
     "subtitle": "Build and maintain your personal knowledge base with LLMs"
   },
   "common": {
-    "retry": "Retry", "cancel": "Cancel", "ignore": "Ignore", "close": "Close", "ok": "OK", "confirm": "Confirm", "notice": "Notice",
-    "dismiss": "Dismiss", "loading": "Loading...", "optional": "optional"
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "ignore": "Ignore",
+    "close": "Close",
+    "ok": "OK",
+    "confirm": "Confirm",
+    "notice": "Notice",
+    "dismiss": "Dismiss",
+    "loading": "Loading...",
+    "optional": "optional"
   },
-  "layout": { "showSidebar": "Show sidebar", "hideSidebar": "Hide sidebar" },
+  "layout": {
+    "resizeSidebar": "Resize sidebar",
+    "resizeResearchPanel": "Resize research panel",
+    "showSidebar": "Show sidebar",
+    "hideSidebar": "Hide sidebar"
+  },
   "errors": { "generic": "Something went wrong" },
   "mermaid": {
+    "close": "Close diagram",
     "renderFailed": "Mermaid diagram could not be rendered",
     "showDetails": "Show parser details",
     "enlarge": "Enlarge diagram",
@@ -37,6 +51,7 @@
     "dismiss": "Dismiss"
   },
   "welcome": {
+    "removeRecent": "Remove recent project",
     "newProject": "New Project",
     "openProject": "Open Project",
     "recentProjects": "Recent Projects"
@@ -49,10 +64,16 @@
     "allSources": "All sources",
     "noWikiPages": "No wiki pages yet. Import sources to get started.",
     "typeLabels": {
-      "overview": "Overview", "entity": "Entities", "concept": "Concepts",
-      "source": "Sources", "synthesis": "Synthesis", "finding": "Findings",
-      "thesis": "Theses", "methodology": "Methodologies",
-      "comparison": "Comparisons", "query": "Queries"
+      "overview": "Overview",
+      "entity": "Entities",
+      "concept": "Concepts",
+      "source": "Sources",
+      "synthesis": "Synthesis",
+      "finding": "Findings",
+      "thesis": "Theses",
+      "methodology": "Methodologies",
+      "comparison": "Comparisons",
+      "query": "Queries"
     }
   },
   "editor": {
@@ -533,7 +554,7 @@
           "activeDefault": "Use active model",
           "hint": "Choose separate models for interactive chat and document ingest. The active model remains the fallback."
         },
-      "projectOverride": {
+        "projectOverride": {
           "enabled": "Use a project-specific model",
           "provider": "Project provider",
           "selectProvider": "Select a provider",
@@ -1079,10 +1100,19 @@
     "rescanTitle": "Scan project files for external changes",
     "changeKinds": { "created": "Created", "modified": "Modified", "deleted": "Deleted" },
     "fileTypes": {
-      "entity": "Entity", "concept": "Concept", "source": "Source", "query": "Query",
-      "synthesis": "Synthesis", "comparison": "Comparison", "finding": "Finding",
-      "thesis": "Thesis", "methodology": "Methodology", "overview": "Overview",
-      "index": "Index", "log": "Log", "file": "File"
+      "entity": "Entity",
+      "concept": "Concept",
+      "source": "Source",
+      "query": "Query",
+      "synthesis": "Synthesis",
+      "comparison": "Comparison",
+      "finding": "Finding",
+      "thesis": "Thesis",
+      "methodology": "Methodology",
+      "overview": "Overview",
+      "index": "Index",
+      "log": "Log",
+      "file": "File"
     }
   },
   "fileTree": {

@@ -1,33 +1,39 @@
-import { useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronRight, AlertCircle, CheckCircle2, Loader2, XCircle, Plus, Trash2 } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { invoke } from "@tauri-apps/api/core"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { useWikiStore, type LlmConfig, type ProviderOverride, type ReasoningConfig, type ReasoningMode } from "@/stores/wiki-store"
-import { availableLlmPresets, findLlmPreset, type LlmPreset } from "../llm-presets"
-import { ContextSizeSelector } from "../context-size-selector"
-import { disabledLlmConfig, resolveConfig } from "../preset-resolver"
-import { normalizeEndpoint } from "@/lib/endpoint-normalizer"
-import { AZURE_OPENAI_API_VERSION } from "@/lib/azure-openai"
-import { testLlmConnection, testLlmFunction, type ProviderTestResult } from "@/lib/connection-tests"
-import { projectLlmProfile, resolveProjectLlmConfig } from "@/lib/llm-task-routing"
-import { saveProjectLlmOverride } from "@/lib/project-store"
-import { normalizeReasoningForProvider, resolveReasoningCapabilities } from "@/lib/reasoning-capabilities"
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { AZURE_OPENAI_API_VERSION } from '@/lib/azure-openai'
+import { type ProviderTestResult, testLlmConnection, testLlmFunction } from '@/lib/connection-tests'
+import { normalizeEndpoint } from '@/lib/endpoint-normalizer'
+import { projectLlmProfile, resolveProjectLlmConfig } from '@/lib/llm-task-routing'
+import { saveProjectLlmOverride } from '@/lib/project-store'
+import { normalizeReasoningForProvider, resolveReasoningCapabilities } from '@/lib/reasoning-capabilities'
+import {
+  type LlmConfig,
+  type ProviderOverride,
+  type ReasoningConfig,
+  type ReasoningMode,
+  useWikiStore,
+} from '@/stores/wiki-store'
+import { invoke } from '@tauri-apps/api/core'
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Loader2, Plus, Trash2, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { ContextSizeSelector } from '../context-size-selector'
+import { availableLlmPresets, findLlmPreset, type LlmPreset } from '../llm-presets'
+import { disabledLlmConfig, resolveConfig } from '../preset-resolver'
 
 const HTTP_HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 
 export function llmHeadersToText(headers: Record<string, string> | undefined): string {
-  return Object.entries(headers ?? {}).map(([name, value]) => `${name}: ${value}`).join("\n")
+  return Object.entries(headers ?? {}).map(([name, value]) => `${name}: ${value}`).join('\n')
 }
 
 export function parseLlmHeadersText(text: string): Record<string, string> {
   const headers: Record<string, string> = {}
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim()
-    if (!line || line.startsWith("#")) continue
-    const separator = line.indexOf(":")
+    if (!line || line.startsWith('#')) continue
+    const separator = line.indexOf(':')
     if (separator <= 0) continue
     const name = line.slice(0, separator).trim()
     const value = line.slice(separator + 1).trim()
@@ -63,7 +69,7 @@ export function LlmProviderSection() {
 
   async function persist(newConfigs: typeof providerConfigs, newActive: string | null) {
     const { saveProviderConfigs, saveActivePresetId, saveLlmConfig } = await import(
-      "@/lib/project-store"
+      '@/lib/project-store'
     )
     await saveProviderConfigs(newConfigs)
     await saveActivePresetId(newActive)
@@ -115,13 +121,13 @@ export function LlmProviderSection() {
     persist(state.providerConfigs, next).catch(() => {})
   }
 
-  async function updateTaskRouting(task: "chat" | "ingest", value: string) {
+  async function updateTaskRouting(task: 'chat' | 'ingest', value: string) {
     const next = {
       ...taskModelRouting,
-      [task === "chat" ? "chatPresetId" : "ingestPresetId"]: value || null,
+      [task === 'chat' ? 'chatPresetId' : 'ingestPresetId']: value || null,
     }
     setTaskModelRouting(next)
-    const { saveTaskModelRouting } = await import("@/lib/project-store")
+    const { saveTaskModelRouting } = await import('@/lib/project-store')
     await saveTaskModelRouting(next)
   }
 
@@ -131,13 +137,13 @@ export function LlmProviderSection() {
     const id = `custom-${crypto.randomUUID()}`
     const next = [...current, {
       id,
-      label: t("settings.sections.llm.customProfiles.defaultName", {
+      label: t('settings.sections.llm.customProfiles.defaultName', {
         number: current.length + 1,
       }),
     }]
     setCustomLlmPresets(next)
-    setExpanded((current) => ({ ...current, [id]: true }))
-    const { saveCustomLlmPresets } = await import("@/lib/project-store")
+    setExpanded((expandedState) => ({ ...expandedState, [id]: true }))
+    const { saveCustomLlmPresets } = await import('@/lib/project-store')
     await saveCustomLlmPresets(next)
   }
 
@@ -147,7 +153,7 @@ export function LlmProviderSection() {
     const next = useWikiStore.getState().customLlmPresets
       .map((preset) => preset.id === id ? { ...preset, label: trimmed.slice(0, 80) } : preset)
     setCustomLlmPresets(next)
-    const { saveCustomLlmPresets } = await import("@/lib/project-store")
+    const { saveCustomLlmPresets } = await import('@/lib/project-store')
     await saveCustomLlmPresets(next)
   }
 
@@ -163,14 +169,14 @@ export function LlmProviderSection() {
     setCustomLlmPresets(nextPresets)
     setProviderConfigs(nextConfigs)
     setTaskModelRouting(nextRouting)
-    const { saveCustomLlmPresets, saveProviderConfigs, saveTaskModelRouting } = await import("@/lib/project-store")
+    const { saveCustomLlmPresets, saveProviderConfigs, saveTaskModelRouting } = await import('@/lib/project-store')
     await Promise.all([
       saveCustomLlmPresets(nextPresets),
       saveProviderConfigs(nextConfigs),
       saveTaskModelRouting(nextRouting),
     ])
     if (project && state.projectLlmOverride.presetId === id) {
-      await updateProjectOverride({ enabled: false, presetId: null, model: "" })
+      await updateProjectOverride({ enabled: false, presetId: null, model: '' })
     }
   }
 
@@ -195,93 +201,98 @@ export function LlmProviderSection() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className='space-y-4'>
       <div>
-        <h2 className="text-xl font-semibold">{t("settings.sections.llm.title")}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("settings.sections.llm.description")}
+        <h2 className='text-xl font-semibold'>{t('settings.sections.llm.title')}</h2>
+        <p className='mt-1 text-sm text-muted-foreground'>
+          {t('settings.sections.llm.description')}
         </p>
       </div>
 
       {project && (
-        <div className="space-y-3 rounded-md border bg-muted/20 p-3">
-          <label className="flex items-center gap-2 text-sm font-medium">
+        <div className='space-y-3 rounded-md border bg-muted/20 p-3'>
+          <label className='flex items-center gap-2 text-sm font-medium'>
             <input
-              type="checkbox"
+              type='checkbox'
               checked={projectLlmOverride.enabled}
-              onChange={(event) => void updateProjectOverride({ enabled: event.target.checked }).catch((error) => {
-                console.error("Failed to save project model override:", error)
-              })}
+              onChange={(event) =>
+                void updateProjectOverride({ enabled: event.target.checked }).catch((error) => {
+                  console.error('Failed to save project model override:', error)
+                })}
             />
-            {t("settings.sections.llm.projectOverride.enabled")}
+            {t('settings.sections.llm.projectOverride.enabled')}
           </label>
           {projectLlmOverride.enabled && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className='grid gap-3 sm:grid-cols-2'>
               <TaskModelSelect
-                id="project-llm-preset"
-                label={t("settings.sections.llm.projectOverride.provider")}
-                value={projectLlmOverride.presetId ?? ""}
-                onChange={(value) => void updateProjectOverride({ presetId: value || null }).catch((error) => {
-                  console.error("Failed to save project provider:", error)
-                })}
-                fallbackLabel={t("settings.sections.llm.projectOverride.selectProvider")}
+                id='project-llm-preset'
+                label={t('settings.sections.llm.projectOverride.provider')}
+                value={projectLlmOverride.presetId ?? ''}
+                onChange={(value) =>
+                  void updateProjectOverride({ presetId: value || null }).catch((error) => {
+                    console.error('Failed to save project provider:', error)
+                  })}
+                fallbackLabel={t('settings.sections.llm.projectOverride.selectProvider')}
                 presets={presets}
               />
-              <div className="space-y-1.5">
-                <Label htmlFor="project-llm-model">{t("settings.sections.llm.projectOverride.model")}</Label>
+              <div className='space-y-1.5'>
+                <Label htmlFor='project-llm-model'>{t('settings.sections.llm.projectOverride.model')}</Label>
                 <Input
-                  id="project-llm-model"
+                  id='project-llm-model'
                   value={projectLlmOverride.model}
-                  placeholder={t("settings.sections.llm.projectOverride.modelPlaceholder")}
-                  onChange={(event) => void updateProjectOverride({ model: event.target.value }).catch((error) => {
-                    console.error("Failed to save project model:", error)
-                  })}
+                  placeholder={t('settings.sections.llm.projectOverride.modelPlaceholder')}
+                  onChange={(event) =>
+                    void updateProjectOverride({ model: event.target.value }).catch((error) => {
+                      console.error('Failed to save project model:', error)
+                    })}
                 />
               </div>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
-            {t("settings.sections.llm.projectOverride.hint")}
+          <p className='text-xs text-muted-foreground'>
+            {t('settings.sections.llm.projectOverride.hint')}
           </p>
         </div>
       )}
 
-      <div className="grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-2">
+      <div className='grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-2'>
         <TaskModelSelect
-          id="chat-task-model"
-          label={t("settings.sections.llm.taskRouting.chat")}
-          value={taskModelRouting.chatPresetId ?? ""}
-          onChange={(value) => void updateTaskRouting("chat", value).catch((error) => {
-            console.error("Failed to save chat model routing:", error)
-          })}
-          fallbackLabel={t("settings.sections.llm.taskRouting.activeDefault")}
+          id='chat-task-model'
+          label={t('settings.sections.llm.taskRouting.chat')}
+          value={taskModelRouting.chatPresetId ?? ''}
+          onChange={(value) =>
+            void updateTaskRouting('chat', value).catch((error) => {
+              console.error('Failed to save chat model routing:', error)
+            })}
+          fallbackLabel={t('settings.sections.llm.taskRouting.activeDefault')}
           presets={presets}
         />
         <TaskModelSelect
-          id="ingest-task-model"
-          label={t("settings.sections.llm.taskRouting.ingest")}
-          value={taskModelRouting.ingestPresetId ?? ""}
-          onChange={(value) => void updateTaskRouting("ingest", value).catch((error) => {
-            console.error("Failed to save ingest model routing:", error)
-          })}
-          fallbackLabel={t("settings.sections.llm.taskRouting.activeDefault")}
+          id='ingest-task-model'
+          label={t('settings.sections.llm.taskRouting.ingest')}
+          value={taskModelRouting.ingestPresetId ?? ''}
+          onChange={(value) =>
+            void updateTaskRouting('ingest', value).catch((error) => {
+              console.error('Failed to save ingest model routing:', error)
+            })}
+          fallbackLabel={t('settings.sections.llm.taskRouting.activeDefault')}
           presets={presets}
         />
-        <p className="text-xs text-muted-foreground sm:col-span-2">
-          {t("settings.sections.llm.taskRouting.hint")}
+        <p className='text-xs text-muted-foreground sm:col-span-2'>
+          {t('settings.sections.llm.taskRouting.hint')}
         </p>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex justify-end">
+      <div className='space-y-2'>
+        <div className='flex justify-end'>
           <Button
-            variant="outline"
-            size="sm"
+            variant='outline'
+            size='sm'
             onClick={() => void addCustomPreset()}
             disabled={customLlmPresets.length >= 50}
           >
-            <Plus className="mr-1 h-4 w-4" />
-            {t("settings.sections.llm.customProfiles.add")}
+            <Plus className='mr-1 h-4 w-4' />
+            {t('settings.sections.llm.customProfiles.add')}
           </Button>
         </div>
         {presets.map((preset) => (
@@ -290,12 +301,12 @@ export function LlmProviderSection() {
             preset={preset}
             override={providerConfigs[preset.id]}
             isActive={activePresetId === preset.id}
-            isExpanded={!!expanded[preset.id]}
+            isExpanded={expanded[preset.id]}
             savedHere={savedId === preset.id}
             onToggleActive={() => toggleActive(preset.id)}
             onToggleExpand={() => toggleExpand(preset.id)}
             onChange={(patch) => updateOverride(preset.id, patch)}
-            isUserCustom={preset.id.startsWith("custom-")}
+            isUserCustom={preset.id.startsWith('custom-')}
             onRename={(label) => void renameCustomPreset(preset.id, label)}
             onDelete={() => void deleteCustomPreset(preset.id)}
           />
@@ -321,18 +332,16 @@ function TaskModelSelect({
   presets: LlmPreset[]
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className='space-y-1.5'>
       <Label htmlFor={id}>{label}</Label>
       <select
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+        className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
       >
-        <option value="">{fallbackLabel}</option>
-        {presets.map((preset) => (
-          <option key={preset.id} value={preset.id}>{preset.label}</option>
-        ))}
+        <option value=''>{fallbackLabel}</option>
+        {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
       </select>
     </div>
   )
@@ -353,9 +362,9 @@ interface PresetRowProps {
 }
 
 type ProviderTestState =
-  | { kind: "idle" }
-  | { kind: "running"; label: string }
-  | { kind: "done"; result: ProviderTestResult }
+  | { kind: 'idle' }
+  | { kind: 'running'; label: string }
+  | { kind: 'done'; result: ProviderTestResult }
 
 function PresetRow({
   preset,
@@ -371,96 +380,91 @@ function PresetRow({
   onDelete,
 }: PresetRowProps) {
   const { t } = useTranslation()
-  const ov = override ?? {}
-  const model = ov.model ?? preset.defaultModel ?? ""
-  const apiKey = ov.apiKey ?? ""
-  const apiMode = ov.apiMode ?? preset.apiMode ?? "chat_completions"
-  const baseUrl = ov.baseUrl ?? preset.baseUrl ?? ""
+  const ov = useMemo(() => override ?? {}, [override])
+  const model = ov.model ?? preset.defaultModel ?? ''
+  const apiKey = ov.apiKey ?? ''
+  const apiMode = ov.apiMode ?? preset.apiMode ?? 'chat_completions'
+  const baseUrl = ov.baseUrl ?? preset.baseUrl ?? ''
   const azureApiVersion = ov.azureApiVersion ?? preset.azureApiVersion ?? AZURE_OPENAI_API_VERSION
-  const azureModelFamily = ov.azureModelFamily ?? preset.azureModelFamily ?? "auto"
+  const azureModelFamily = ov.azureModelFamily ?? preset.azureModelFamily ?? 'auto'
   const context = ov.maxContextSize ?? preset.suggestedContextSize ?? 131072
-  const reasoning = ov.reasoning ?? { mode: "auto" as const }
+  const reasoning = ov.reasoning ?? { mode: 'auto' as const }
   // "off" by default: what ingest hardcoded before it was settable.
-  const ingestReasoning = ov.ingestReasoning ?? { mode: "off" as const }
+  const ingestReasoning = ov.ingestReasoning ?? { mode: 'off' as const }
   const localCliIsolation = ov.localCliIsolation === true
   const codexCliTimeoutMinutes = Math.max(1, Math.min(240, ov.codexCliTimeoutMinutes ?? 10))
   const requestTimeoutMinutes = Math.max(1, Math.min(1440, ov.requestTimeoutMinutes ?? 30))
   const streamingEnabled = ov.streamingEnabled !== false
   const [headersText, setHeadersText] = useState(() => llmHeadersToText(ov.customHeaders))
-  const isLocalCliProvider = preset.provider === "claude-code" || preset.provider === "codex-cli"
-  const [testState, setTestState] = useState<ProviderTestState>({ kind: "idle" })
-  const hasConfig = !!apiKey || !!ov.baseUrl || !!ov.model || !!ov.azureApiVersion || !!ov.azureModelFamily
-    || Object.keys(ov.customHeaders ?? {}).length > 0 || ov.streamingEnabled === false
+  const isLocalCliProvider = preset.provider === 'claude-code' || preset.provider === 'codex-cli'
+  const [testState, setTestState] = useState<ProviderTestState>({ kind: 'idle' })
+  const hasConfig = !!apiKey || !!ov.baseUrl || !!ov.model || !!ov.azureApiVersion || !!ov.azureModelFamily ||
+    Object.keys(ov.customHeaders ?? {}).length > 0 || ov.streamingEnabled === false
   // Local CLI providers authenticate via their own existing login state
   // (inherited by the spawned subprocess), so no API key field is shown.
   // Ollama ditto for its local-only model.
-  const needsApiKey =
-    preset.provider !== "ollama" &&
-    preset.provider !== "claude-code" &&
-    preset.provider !== "codex-cli"
+  const needsApiKey = preset.provider !== 'ollama' &&
+    preset.provider !== 'claude-code' &&
+    preset.provider !== 'codex-cli'
+
+  const globalLlmConfig = useWikiStore((s) => s.globalLlmConfig)
 
   const resolvedConfig = useMemo(
-    () => resolveConfig(preset, ov, useWikiStore.getState().globalLlmConfig),
-    [apiKey, apiMode, azureApiVersion, azureModelFamily, baseUrl, context, model, preset, reasoning, ov],
+    () => resolveConfig(preset, ov, globalLlmConfig),
+    [preset, ov, globalLlmConfig],
   )
 
-  async function runProviderTest(kind: "connection" | "function") {
+  async function runProviderTest(kind: 'connection' | 'function') {
     setTestState({
-      kind: "running",
-      label: kind === "connection"
-        ? t("settings.sections.llm.testingConnection")
-        : t("settings.sections.llm.testingFunction"),
+      kind: 'running',
+      label: kind === 'connection'
+        ? t('settings.sections.llm.testingConnection')
+        : t('settings.sections.llm.testingFunction'),
     })
-    const result = kind === "connection"
+    const result = kind === 'connection'
       ? await testLlmConnection(resolvedConfig)
       : await testLlmFunction(resolvedConfig)
-    setTestState({ kind: "done", result })
+    setTestState({ kind: 'done', result })
   }
 
   return (
     <div
-      className={`rounded-lg border transition-colors ${
-        isActive ? "border-primary/60 bg-primary/5" : "border-border"
-      }`}
+      className={`rounded-lg border transition-colors ${isActive ? 'border-primary/60 bg-primary/5' : 'border-border'}`}
     >
       {/* Outer row — always visible */}
-      <div className="flex items-center gap-3 px-3 py-2.5">
+      <div className='flex items-center gap-3 px-3 py-2.5'>
         <button
-          type="button"
+          type='button'
           onClick={onToggleExpand}
-          className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent"
-          title={isExpanded ? t("settings.sections.llm.collapse") : t("settings.sections.llm.expand")}
+          className='shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent'
+          title={isExpanded ? t('settings.sections.llm.collapse') : t('settings.sections.llm.expand')}
         >
-          {isExpanded ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
+          {isExpanded ? <ChevronDown className='h-4 w-4' /> : <ChevronRight className='h-4 w-4' />}
         </button>
 
         <button
-          type="button"
+          type='button'
           onClick={onToggleExpand}
-          className="min-w-0 flex-1 text-left"
+          className='min-w-0 flex-1 text-left'
         >
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium">{preset.label}</span>
+          <div className='flex items-center gap-2'>
+            <span className='truncate text-sm font-medium'>{preset.label}</span>
             {hasConfig && !isActive && (
-              <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                {t("settings.sections.llm.configuredBadge")}
+              <span className='shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground'>
+                {t('settings.sections.llm.configuredBadge')}
               </span>
             )}
             {isActive && (
-              <span className="shrink-0 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                {t("settings.sections.llm.activeBadge")}
+              <span className='shrink-0 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary'>
+                {t('settings.sections.llm.activeBadge')}
               </span>
             )}
             {savedHere && (
-              <span className="shrink-0 text-[10px] text-emerald-600">{t("settings.sections.llm.savedBadge")}</span>
+              <span className='shrink-0 text-[10px] text-emerald-600'>{t('settings.sections.llm.savedBadge')}</span>
             )}
           </div>
           {preset.hint && (
-            <div className="mt-0.5 truncate text-xs text-muted-foreground">
+            <div className='mt-0.5 truncate text-xs text-muted-foreground'>
               {preset.hint}
             </div>
           )}
@@ -468,19 +472,19 @@ function PresetRow({
 
         {/* Toggle switch */}
         <button
-          type="button"
+          type='button'
           onClick={onToggleActive}
           className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors ${
             isActive
-              ? "border-primary bg-primary"
-              : "border-muted-foreground/30 bg-muted-foreground/20 hover:bg-muted-foreground/30"
+              ? 'border-primary bg-primary'
+              : 'border-muted-foreground/30 bg-muted-foreground/20 hover:bg-muted-foreground/30'
           }`}
-          title={isActive ? t("settings.sections.llm.toggleOff") : t("settings.sections.llm.toggleOn")}
-          aria-label={isActive ? t("settings.sections.llm.deactivate") : t("settings.sections.llm.activate")}
+          title={isActive ? t('settings.sections.llm.toggleOff') : t('settings.sections.llm.toggleOn')}
+          aria-label={isActive ? t('settings.sections.llm.deactivate') : t('settings.sections.llm.activate')}
         >
           <span
             className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm ring-1 ring-black/10 transition-transform ${
-              isActive ? "translate-x-4" : "translate-x-0.5"
+              isActive ? 'translate-x-4' : 'translate-x-0.5'
             }`}
           />
         </button>
@@ -488,10 +492,10 @@ function PresetRow({
 
       {/* Expanded config panel */}
       {isExpanded && (
-        <div className="space-y-4 border-t bg-background/50 px-4 py-3">
+        <div className='space-y-4 border-t bg-background/50 px-4 py-3'>
           {isUserCustom && (
-            <div className="space-y-2">
-              <Label>{t("settings.sections.llm.customProfiles.name")}</Label>
+            <div className='space-y-2'>
+              <Label>{t('settings.sections.llm.customProfiles.name')}</Label>
               <Input
                 defaultValue={preset.label}
                 maxLength={80}
@@ -502,21 +506,21 @@ function PresetRow({
               />
             </div>
           )}
-          {preset.provider === "custom" && (
-            <div className="space-y-2">
-              <Label>{t("settings.sections.llm.apiMode")}</Label>
-              <div className="flex flex-wrap gap-2">
+          {preset.provider === 'custom' && (
+            <div className='space-y-2'>
+              <Label>{t('settings.sections.llm.apiMode')}</Label>
+              <div className='flex flex-wrap gap-2'>
                 {(
                   [
-                    { value: "chat_completions", labelKey: "settings.sections.llm.wireOpenAi" },
-                    { value: "anthropic_messages", labelKey: "settings.sections.llm.wireAnthropic" },
+                    { value: 'chat_completions', labelKey: 'settings.sections.llm.wireOpenAi' },
+                    { value: 'anthropic_messages', labelKey: 'settings.sections.llm.wireAnthropic' },
                   ] as const
                 ).map((m) => {
                   const active = apiMode === m.value
                   return (
                     <button
                       key={m.value}
-                      type="button"
+                      type='button'
                       onClick={() => {
                         // When a preset declares different base URLs for
                         // each wire (e.g. Bailian Coding Plan: /v1 for
@@ -530,8 +534,8 @@ function PresetRow({
                       }}
                       className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
                         active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border hover:bg-accent"
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border hover:bg-accent'
                       }`}
                     >
                       {t(m.labelKey)}
@@ -542,98 +546,99 @@ function PresetRow({
             </div>
           )}
 
-          {(preset.provider === "custom" || preset.provider === "ollama" || preset.provider === "azure") && (
+          {(preset.provider === 'custom' || preset.provider === 'ollama' || preset.provider === 'azure') && (
             <EndpointField
               value={baseUrl}
-              mode={preset.provider === "azure" ? "azure" : apiMode}
-              placeholder={preset.baseUrl ?? "https://your-api.example.com/v1"}
+              mode={preset.provider === 'azure' ? 'azure' : apiMode}
+              placeholder={preset.baseUrl ?? 'https://your-api.example.com/v1'}
               onChange={(v) => onChange({ baseUrl: v })}
             />
           )}
 
-          {preset.provider === "azure" && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>{t("settings.sections.llm.azureApiVersion")}</Label>
+          {preset.provider === 'azure' && (
+            <div className='grid gap-4 md:grid-cols-2'>
+              <div className='space-y-2'>
+                <Label>{t('settings.sections.llm.azureApiVersion')}</Label>
                 <Input
                   value={azureApiVersion}
                   onChange={(e) => onChange({ azureApiVersion: e.target.value })}
-                  placeholder="2024-10-21"
+                  placeholder='2024-10-21'
                 />
-                <p className="text-xs text-muted-foreground">
-                  {t("settings.sections.llm.azureApiVersionHint")}
+                <p className='text-xs text-muted-foreground'>
+                  {t('settings.sections.llm.azureApiVersionHint')}
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label>{t("settings.sections.llm.azureModelFamily")}</Label>
+              <div className='space-y-2'>
+                <Label>{t('settings.sections.llm.azureModelFamily')}</Label>
                 <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className='w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
                   value={azureModelFamily}
-                  onChange={(e) => onChange({ azureModelFamily: e.target.value as typeof azureModelFamily })}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === 'auto' || value === 'gpt5') onChange({ azureModelFamily: value })
+                  }}
                 >
-                  <option value="auto">{t("settings.sections.llm.azureModelFamilyAuto")}</option>
-                  <option value="gpt5">{t("settings.sections.llm.azureModelFamilyGpt5")}</option>
+                  <option value='auto'>{t('settings.sections.llm.azureModelFamilyAuto')}</option>
+                  <option value='gpt5'>{t('settings.sections.llm.azureModelFamilyGpt5')}</option>
                 </select>
-                <p className="text-xs text-muted-foreground">
-                  {t("settings.sections.llm.azureModelFamilyHint")}
+                <p className='text-xs text-muted-foreground'>
+                  {t('settings.sections.llm.azureModelFamilyHint')}
                 </p>
               </div>
             </div>
           )}
 
-          {preset.provider === "claude-code" && <ClaudeCliStatusPill />}
-          {preset.provider === "codex-cli" && <CodexCliStatusPill />}
+          {preset.provider === 'claude-code' && <ClaudeCliStatusPill />}
+          {preset.provider === 'codex-cli' && <CodexCliStatusPill />}
 
           {isLocalCliProvider && (
-            <div className="space-y-2 rounded-md border p-3">
-              <div className="flex items-start justify-between gap-3">
+            <div className='space-y-2 rounded-md border p-3'>
+              <div className='flex items-start justify-between gap-3'>
                 <div>
-                  <div className="text-sm font-medium">
-                    {t("settings.sections.llm.localCliIsolation")}
+                  <div className='text-sm font-medium'>
+                    {t('settings.sections.llm.localCliIsolation')}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {t("settings.sections.llm.localCliIsolationHint")}
+                  <p className='mt-1 text-xs text-muted-foreground'>
+                    {t('settings.sections.llm.localCliIsolationHint')}
                   </p>
                 </div>
                 <button
-                  type="button"
+                  type='button'
                   onClick={() => onChange({ localCliIsolation: !localCliIsolation })}
                   className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors ${
                     localCliIsolation
-                      ? "border-primary bg-primary"
-                      : "border-muted-foreground/30 bg-muted-foreground/20 hover:bg-muted-foreground/30"
+                      ? 'border-primary bg-primary'
+                      : 'border-muted-foreground/30 bg-muted-foreground/20 hover:bg-muted-foreground/30'
                   }`}
-                  title={
-                    localCliIsolation
-                      ? t("settings.sections.llm.localCliIsolationOn")
-                      : t("settings.sections.llm.localCliIsolationOff")
-                  }
-                  aria-label={t("settings.sections.llm.localCliIsolation")}
+                  title={localCliIsolation
+                    ? t('settings.sections.llm.localCliIsolationOn')
+                    : t('settings.sections.llm.localCliIsolationOff')}
+                  aria-label={t('settings.sections.llm.localCliIsolation')}
                 >
                   <span
                     className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm ring-1 ring-black/10 transition-transform ${
-                      localCliIsolation ? "translate-x-4" : "translate-x-0.5"
+                      localCliIsolation ? 'translate-x-4' : 'translate-x-0.5'
                     }`}
                   />
                 </button>
               </div>
-              <div className="rounded-md bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground">
+              <div className='rounded-md bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground'>
                 {localCliIsolation
-                  ? t("settings.sections.llm.localCliIsolationOn")
-                  : t("settings.sections.llm.localCliIsolationOff")}
+                  ? t('settings.sections.llm.localCliIsolationOn')
+                  : t('settings.sections.llm.localCliIsolationOff')}
               </div>
             </div>
           )}
 
-          {preset.provider === "codex-cli" && (
-            <div className="space-y-2 rounded-md border p-3">
-              <Label>{t("settings.sections.llm.codexCliTimeout")}</Label>
-              <div className="flex items-center gap-2">
+          {preset.provider === 'codex-cli' && (
+            <div className='space-y-2 rounded-md border p-3'>
+              <Label>{t('settings.sections.llm.codexCliTimeout')}</Label>
+              <div className='flex items-center gap-2'>
                 <Input
-                  type="number"
+                  type='number'
                   min={1}
                   max={240}
-                  className="w-28"
+                  className='w-28'
                   value={codexCliTimeoutMinutes}
                   onChange={(e) => {
                     const n = Number(e.target.value)
@@ -644,178 +649,178 @@ function PresetRow({
                     })
                   }}
                 />
-                <span className="text-xs text-muted-foreground">
-                  {t("settings.sections.llm.codexCliTimeoutUnit")}
+                <span className='text-xs text-muted-foreground'>
+                  {t('settings.sections.llm.codexCliTimeoutUnit')}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {t("settings.sections.llm.codexCliTimeoutHint")}
+              <p className='text-xs text-muted-foreground'>
+                {t('settings.sections.llm.codexCliTimeoutHint')}
               </p>
             </div>
           )}
 
           {needsApiKey && (
-            <div className="space-y-2">
-              <Label>{t("settings.apiKey")}</Label>
+            <div className='space-y-2'>
+              <Label>{t('settings.apiKey')}</Label>
               <Input
-                type="password"
+                type='password'
                 value={apiKey}
                 onChange={(e) => onChange({ apiKey: e.target.value })}
-                placeholder={
-                  preset.provider === "custom"
-                    ? t("settings.sections.llm.apiKeyPlaceholderCustom")
-                    : t("settings.sections.llm.apiKeyPlaceholder")
-                }
+                placeholder={preset.provider === 'custom'
+                  ? t('settings.sections.llm.apiKeyPlaceholderCustom')
+                  : t('settings.sections.llm.apiKeyPlaceholder')}
               />
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className='space-y-2'>
             <Label>
-              {preset.provider === "azure"
-                ? t("settings.sections.llm.deploymentName", "Deployment name")
-                : t("settings.model")}
+              {preset.provider === 'azure'
+                ? t('settings.sections.llm.deploymentName', 'Deployment name')
+                : t('settings.model')}
             </Label>
             <ModelPicker
               value={model}
               suggestions={preset.suggestedModels ?? []}
-              placeholder={preset.defaultModel ?? "e.g. gpt-4o"}
+              placeholder={preset.defaultModel ?? 'e.g. gpt-4o'}
               onChange={(v) => onChange({ model: v })}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>{t("settings.sections.llm.contextWindow")}</Label>
+          <div className='space-y-2'>
+            <Label>{t('settings.sections.llm.contextWindow')}</Label>
             <ContextSizeSelector
               value={context}
               onChange={(v) => onChange({ maxContextSize: v })}
             />
           </div>
 
-          <div className="space-y-2 rounded-md border p-3">
-            <div className="flex items-start justify-between gap-3">
+          <div className='space-y-2 rounded-md border p-3'>
+            <div className='flex items-start justify-between gap-3'>
               <div>
-                <div className="text-sm font-medium">
-                  {t("settings.sections.llm.streamingOutput")}
+                <div className='text-sm font-medium'>
+                  {t('settings.sections.llm.streamingOutput')}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("settings.sections.llm.streamingOutputHint")}
+                <p className='mt-1 text-xs text-muted-foreground'>
+                  {t('settings.sections.llm.streamingOutputHint')}
                 </p>
               </div>
               <button
-                type="button"
-                role="switch"
+                type='button'
+                role='switch'
                 aria-checked={streamingEnabled}
                 onClick={() => onChange({ streamingEnabled: !streamingEnabled })}
                 className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors ${
                   streamingEnabled
-                    ? "border-primary bg-primary"
-                    : "border-muted-foreground/30 bg-muted-foreground/20 hover:bg-muted-foreground/30"
+                    ? 'border-primary bg-primary'
+                    : 'border-muted-foreground/30 bg-muted-foreground/20 hover:bg-muted-foreground/30'
                 }`}
                 title={streamingEnabled
-                  ? t("settings.sections.llm.streamingOutputOn")
-                  : t("settings.sections.llm.streamingOutputOff")}
-                aria-label={t("settings.sections.llm.streamingOutput")}
+                  ? t('settings.sections.llm.streamingOutputOn')
+                  : t('settings.sections.llm.streamingOutputOff')}
+                aria-label={t('settings.sections.llm.streamingOutput')}
               >
                 <span
                   className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm ring-1 ring-black/10 transition-transform ${
-                    streamingEnabled ? "translate-x-4" : "translate-x-0.5"
+                    streamingEnabled ? 'translate-x-4' : 'translate-x-0.5'
                   }`}
                 />
               </button>
             </div>
-            <div className="rounded-md bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground">
+            <div className='rounded-md bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground'>
               {streamingEnabled
-                ? t("settings.sections.llm.streamingOutputOn")
-                : t("settings.sections.llm.streamingOutputOff")}
+                ? t('settings.sections.llm.streamingOutputOn')
+                : t('settings.sections.llm.streamingOutputOff')}
             </div>
           </div>
 
           {!isLocalCliProvider && (
             <>
-            <div className="space-y-2">
-              <Label>{t("settings.sections.llm.customHeaders")}</Label>
-              <textarea
-                value={headersText}
-                onChange={(event) => setHeadersText(event.target.value)}
-                onBlur={() => onChange({ customHeaders: parseLlmHeadersText(headersText) })}
-                rows={3}
-                spellCheck={false}
-                placeholder="X-Tenant-ID: team-a"
-                className="w-full resize-y rounded-md border bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <p className="text-xs text-muted-foreground">
-                {t("settings.sections.llm.customHeadersHint")}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>{t("settings.sections.llm.requestTimeout", "Request timeout (minutes)")}</Label>
-              <Input
-                type="number"
-                min={1}
-                max={1440}
-                value={requestTimeoutMinutes}
-                onChange={(e) => onChange({
-                  requestTimeoutMinutes: Math.max(1, Math.min(1440, Number(e.target.value) || 30)),
-                })}
-              />
-              <p className="text-xs text-muted-foreground">
-                {t("settings.sections.llm.requestTimeoutHint", "Increase this for slow local CPU models. The default is 30 minutes.")}
-              </p>
-            </div>
+              <div className='space-y-2'>
+                <Label>{t('settings.sections.llm.customHeaders')}</Label>
+                <textarea
+                  value={headersText}
+                  onChange={(event) => setHeadersText(event.target.value)}
+                  onBlur={() => onChange({ customHeaders: parseLlmHeadersText(headersText) })}
+                  rows={3}
+                  spellCheck={false}
+                  placeholder='X-Tenant-ID: team-a'
+                  className='w-full resize-y rounded-md border bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+                />
+                <p className='text-xs text-muted-foreground'>
+                  {t('settings.sections.llm.customHeadersHint')}
+                </p>
+              </div>
+              <div className='space-y-2'>
+                <Label>{t('settings.sections.llm.requestTimeout', 'Request timeout (minutes)')}</Label>
+                <Input
+                  type='number'
+                  min={1}
+                  max={1440}
+                  value={requestTimeoutMinutes}
+                  onChange={(e) =>
+                    onChange({
+                      requestTimeoutMinutes: Math.max(1, Math.min(1440, Number(e.target.value) || 30)),
+                    })}
+                />
+                <p className='text-xs text-muted-foreground'>
+                  {t(
+                    'settings.sections.llm.requestTimeoutHint',
+                    'Increase this for slow local CPU models. The default is 30 minutes.',
+                  )}
+                </p>
+              </div>
             </>
           )}
 
           <ReasoningControls
             value={reasoning}
             config={resolvedConfig}
-            onChange={(reasoning) => onChange({ reasoning })}
+            onChange={(next) => onChange({ reasoning: next })}
           />
 
           <ReasoningControls
             value={ingestReasoning}
             config={resolvedConfig}
-            onChange={(ingestReasoning) => onChange({ ingestReasoning })}
-            title={t("settings.sections.llm.reasoning.ingestTitle")}
-            hint={t("settings.sections.llm.reasoning.ingestHint")}
+            onChange={(next) => onChange({ ingestReasoning: next })}
+            title={t('settings.sections.llm.reasoning.ingestTitle')}
+            hint={t('settings.sections.llm.reasoning.ingestHint')}
           />
 
-          <div className="space-y-2 rounded-md border p-3">
+          <div className='space-y-2 rounded-md border p-3'>
             <div>
-              <div className="text-sm font-medium">
-                {t("settings.sections.llm.providerTests")}
+              <div className='text-sm font-medium'>
+                {t('settings.sections.llm.providerTests')}
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t("settings.sections.llm.providerTestsHint")}
+              <p className='mt-1 text-xs text-muted-foreground'>
+                {t('settings.sections.llm.providerTestsHint')}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className='flex flex-wrap gap-2'>
               <button
-                type="button"
-                onClick={() => void runProviderTest("connection")}
-                disabled={testState.kind === "running"}
-                className="rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                type='button'
+                onClick={() => void runProviderTest('connection')}
+                disabled={testState.kind === 'running'}
+                className='rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60'
               >
-                {t("settings.sections.llm.testConnection")}
+                {t('settings.sections.llm.testConnection')}
               </button>
               <button
-                type="button"
-                onClick={() => void runProviderTest("function")}
-                disabled={testState.kind === "running"}
-                className="rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                type='button'
+                onClick={() => void runProviderTest('function')}
+                disabled={testState.kind === 'running'}
+                className='rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60'
               >
-                {t("settings.sections.llm.testFunction")}
+                {t('settings.sections.llm.testFunction')}
               </button>
             </div>
-            {testState.kind === "running" && (
-              <p className="text-xs text-muted-foreground">{testState.label}</p>
-            )}
-            {testState.kind === "done" && (
+            {testState.kind === 'running' && <p className='text-xs text-muted-foreground'>{testState.label}</p>}
+            {testState.kind === 'done' && (
               <div
                 className={`rounded-md border px-3 py-2 text-xs ${
                   testState.result.ok
-                    ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
-                    : "border-destructive/40 bg-destructive/5 text-destructive"
+                    ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400'
+                    : 'border-destructive/40 bg-destructive/5 text-destructive'
                 }`}
               >
                 {testState.result.message}
@@ -823,10 +828,10 @@ function PresetRow({
             )}
           </div>
           {isUserCustom && (
-            <div className="flex justify-end border-t pt-3">
-              <Button variant="outline" size="sm" onClick={onDelete} disabled={isActive}>
-                <Trash2 className="mr-1 h-4 w-4" />
-                {t("settings.sections.llm.customProfiles.delete")}
+            <div className='flex justify-end border-t pt-3'>
+              <Button variant='outline' size='sm' onClick={onDelete} disabled={isActive}>
+                <Trash2 className='mr-1 h-4 w-4' />
+                {t('settings.sections.llm.customProfiles.delete')}
               </Button>
             </div>
           )}
@@ -855,32 +860,32 @@ function ReasoningControls({
   const supportedModes = capabilities.modes
   const normalizedValue = normalizeReasoningForProvider(config, value)
   const allModes: { value: ReasoningMode; label: string }[] = [
-    { value: "auto", label: t("settings.sections.llm.reasoning.auto") },
-    { value: "off", label: t("settings.sections.llm.reasoning.off") },
-    { value: "low", label: t("settings.sections.llm.reasoning.low") },
-    { value: "medium", label: t("settings.sections.llm.reasoning.medium") },
-    { value: "high", label: t("settings.sections.llm.reasoning.high") },
-    { value: "max", label: t("settings.sections.llm.reasoning.max") },
-    { value: "custom", label: t("settings.sections.llm.reasoning.custom") },
+    { value: 'auto', label: t('settings.sections.llm.reasoning.auto') },
+    { value: 'off', label: t('settings.sections.llm.reasoning.off') },
+    { value: 'low', label: t('settings.sections.llm.reasoning.low') },
+    { value: 'medium', label: t('settings.sections.llm.reasoning.medium') },
+    { value: 'high', label: t('settings.sections.llm.reasoning.high') },
+    { value: 'max', label: t('settings.sections.llm.reasoning.max') },
+    { value: 'custom', label: t('settings.sections.llm.reasoning.custom') },
   ]
   const modes = allModes.filter((mode) => supportedModes.includes(mode.value))
 
   return (
-    <div className="space-y-2">
-      <Label>{title ?? t("settings.sections.llm.reasoning.title")}</Label>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      <div className="flex flex-wrap gap-1.5">
+    <div className='space-y-2'>
+      <Label>{title ?? t('settings.sections.llm.reasoning.title')}</Label>
+      {hint && <p className='text-xs text-muted-foreground'>{hint}</p>}
+      <div className='flex flex-wrap gap-1.5'>
         {modes.map((m) => {
           const active = normalizedValue.mode === m.value
           return (
             <button
               key={m.value}
-              type="button"
+              type='button'
               onClick={() => onChange({ ...value, mode: m.value })}
               className={`rounded-md border px-2.5 py-1 text-xs transition-colors ${
                 active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border hover:bg-accent"
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border hover:bg-accent'
               }`}
             >
               {m.label}
@@ -888,38 +893,38 @@ function ReasoningControls({
           )
         })}
       </div>
-      {normalizedValue.mode === "custom" && (
-        <div className="flex items-center gap-2">
+      {normalizedValue.mode === 'custom' && (
+        <div className='flex items-center gap-2'>
           <Input
-            type="number"
+            type='number'
             min={capabilities.customBudgetRange.min}
             max={capabilities.customBudgetRange.max}
             step={1}
-            className="w-28"
-            value={value.budgetTokens ?? ""}
+            className='w-28'
+            value={value.budgetTokens ?? ''}
             onChange={(e) => {
               const raw = e.target.value.trim()
               const n = Number(raw)
               onChange({
                 ...value,
-                budgetTokens: raw === "" || !Number.isFinite(n)
+                budgetTokens: raw === '' || !Number.isFinite(n)
                   ? undefined
                   : Math.max(
-                      capabilities.customBudgetRange.min,
-                      Math.min(capabilities.customBudgetRange.max, Math.floor(n)),
-                    ),
+                    capabilities.customBudgetRange.min,
+                    Math.min(capabilities.customBudgetRange.max, Math.floor(n)),
+                  ),
               })
             }}
-            placeholder="1024"
+            placeholder='1024'
           />
-          <span className="text-xs text-muted-foreground">
-            {t("settings.sections.llm.reasoning.budgetTokens")}
+          <span className='text-xs text-muted-foreground'>
+            {t('settings.sections.llm.reasoning.budgetTokens')}
           </span>
         </div>
       )}
       {!hint && (
-        <p className="text-xs text-muted-foreground">
-          {t("settings.sections.llm.reasoning.hint")}
+        <p className='text-xs text-muted-foreground'>
+          {t('settings.sections.llm.reasoning.hint')}
         </p>
       )}
     </div>
@@ -928,7 +933,7 @@ function ReasoningControls({
 
 interface EndpointFieldProps {
   value: string
-  mode: "chat_completions" | "anthropic_messages" | "azure"
+  mode: 'chat_completions' | 'anthropic_messages' | 'azure'
   placeholder: string
   onChange: (value: string) => void
 }
@@ -952,8 +957,8 @@ function EndpointField({ value, mode, placeholder, onChange }: EndpointFieldProp
   const showHint = value.trim().length > 0 && (preview.changed || preview.warning)
 
   return (
-    <div className="space-y-1.5">
-      <Label>{t("settings.sections.llm.endpoint")}</Label>
+    <div className='space-y-1.5'>
+      <Label>{t('settings.sections.llm.endpoint')}</Label>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -964,24 +969,22 @@ function EndpointField({ value, mode, placeholder, onChange }: EndpointFieldProp
         <div
           className={`flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
             preview.changed
-              ? "border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400"
-              : "border-blue-500/40 bg-blue-500/5 text-blue-700 dark:text-blue-400"
+              ? 'border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400'
+              : 'border-blue-500/40 bg-blue-500/5 text-blue-700 dark:text-blue-400'
           }`}
         >
-          {preview.changed ? (
-            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          )}
-          <div className="min-w-0 flex-1 space-y-0.5">
+          {preview.changed
+            ? <AlertCircle className='mt-0.5 h-3.5 w-3.5 shrink-0' />
+            : <CheckCircle2 className='mt-0.5 h-3.5 w-3.5 shrink-0' />}
+          <div className='min-w-0 flex-1 space-y-0.5'>
             {preview.changed && (
               <div>
-                {t("settings.sections.llm.endpointPreviewWillUse")}{" "}
-                <code className="break-all rounded bg-background/60 px-1 py-0.5 font-mono">
-                  {preview.normalized || "(empty)"}
+                {t('settings.sections.llm.endpointPreviewWillUse')}{' '}
+                <code className='break-all rounded bg-background/60 px-1 py-0.5 font-mono'>
+                  {preview.normalized || '(empty)'}
                 </code>
-                <span className="ml-1 text-muted-foreground">
-                  {t("settings.sections.llm.endpointPreviewAutoApply")}
+                <span className='ml-1 text-muted-foreground'>
+                  {t('settings.sections.llm.endpointPreviewAutoApply')}
                 </span>
               </div>
             )}
@@ -1016,40 +1019,40 @@ function ModelPicker({ value, suggestions, placeholder, onChange }: ModelPickerP
   const isCustom = hasSuggestions && value.length > 0 && !suggestions.includes(value)
 
   return (
-    <div className="space-y-2">
+    <div className='space-y-2'>
       {hasSuggestions && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className='flex flex-wrap gap-1.5'>
           {suggestions.map((m) => {
             const active = m === value
             return (
               <button
                 key={m}
-                type="button"
+                type='button'
                 onClick={() => onChange(m)}
                 className={`rounded-md border px-2 py-0.5 text-xs font-mono transition-colors ${
                   active
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background hover:bg-accent hover:text-accent-foreground"
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background hover:bg-accent hover:text-accent-foreground'
                 }`}
-                title={t("settings.sections.llm.useModel", { model: m })}
+                title={t('settings.sections.llm.useModel', { model: m })}
               >
                 {m}
               </button>
             )
           })}
           <button
-            type="button"
-            onClick={() => onChange("")}
+            type='button'
+            onClick={() => onChange('')}
             className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${
               isCustom
-                ? "border-primary/60 bg-primary/10 text-primary"
-                : "border-dashed border-muted-foreground/40 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                ? 'border-primary/60 bg-primary/10 text-primary'
+                : 'border-dashed border-muted-foreground/40 text-muted-foreground hover:bg-accent hover:text-accent-foreground'
             }`}
-            title={t("settings.sections.llm.typeCustomModel")}
+            title={t('settings.sections.llm.typeCustomModel')}
           >
             {isCustom
-              ? t("settings.sections.llm.customModelBadge", { model: value })
-              : t("settings.sections.llm.customModel")}
+              ? t('settings.sections.llm.customModelBadge', { model: value })
+              : t('settings.sections.llm.customModel')}
           </button>
         </div>
       )}
@@ -1078,15 +1081,15 @@ interface DetectResult {
  */
 function ClaudeCliStatusPill() {
   const { t } = useTranslation()
-  const [state, setState] = useState<"loading" | "ok" | "err">("loading")
+  const [state, setState] = useState<'loading' | 'ok' | 'err'>('loading')
   const [result, setResult] = useState<DetectResult | null>(null)
 
-  async function detect() {
-    setState("loading")
+  const detect = useCallback(async () => {
+    setState('loading')
     try {
-      const r = await invoke<DetectResult>("claude_cli_detect")
+      const r = await invoke<DetectResult>('claude_cli_detect')
       setResult(r)
-      setState(r.installed ? "ok" : "err")
+      setState(r.installed ? 'ok' : 'err')
     } catch (e) {
       setResult({
         installed: false,
@@ -1094,74 +1097,81 @@ function ClaudeCliStatusPill() {
         path: null,
         error: e instanceof Error ? e.message : String(e),
       })
-      setState("err")
+      setState('err')
     }
-  }
-
-  useEffect(() => {
-    void detect()
   }, [])
 
+  useEffect(() => {
+    void (async () => {
+      await detect()
+    })()
+  }, [detect])
+
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <Label className="m-0">{t("settings.sections.llm.cliStatus")}</Label>
+    <div className='space-y-1.5'>
+      <div className='flex items-center gap-2'>
+        <Label className='m-0'>{t('settings.sections.llm.cliStatus')}</Label>
         <button
-          type="button"
+          type='button'
           onClick={() => void detect()}
-          className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          disabled={state === "loading"}
+          className='rounded border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+          disabled={state === 'loading'}
         >
-          {state === "loading" ? t("settings.sections.llm.checkingCli") : t("settings.sections.llm.recheckCli")}
+          {state === 'loading' ? t('settings.sections.llm.checkingCli') : t('settings.sections.llm.recheckCli')}
         </button>
       </div>
       <div
         className={`flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
-          state === "ok"
-            ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
-            : state === "err"
-              ? "border-rose-500/40 bg-rose-500/5 text-rose-700 dark:text-rose-400"
-              : "border-border bg-background/50 text-muted-foreground"
+          state === 'ok'
+            ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400'
+            : state === 'err'
+            ? 'border-rose-500/40 bg-rose-500/5 text-rose-700 dark:text-rose-400'
+            : 'border-border bg-background/50 text-muted-foreground'
         }`}
       >
-        {state === "loading" && <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />}
-        {state === "ok" && <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-        {state === "err" && <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-        <div className="min-w-0 flex-1 space-y-0.5">
-          {state === "loading" && <div>{t("settings.sections.llm.detectingCli", { name: "Claude" })}</div>}
-          {state === "ok" && (
+        {state === 'loading' && <Loader2 className='mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin' />}
+        {state === 'ok' && <CheckCircle2 className='mt-0.5 h-3.5 w-3.5 shrink-0' />}
+        {state === 'err' && <XCircle className='mt-0.5 h-3.5 w-3.5 shrink-0' />}
+        <div className='min-w-0 flex-1 space-y-0.5'>
+          {state === 'loading' && <div>{t('settings.sections.llm.detectingCli', { name: 'Claude' })}</div>}
+          {state === 'ok' && (
             <>
               <div>
-                {t("settings.sections.llm.cliDetected", { version: result?.version ? ` ${result.version}` : "", login: t("settings.sections.llm.claudeSubscription") })}
+                {t('settings.sections.llm.cliDetected', {
+                  version: result?.version ? ` ${result.version}` : '',
+                  login: t('settings.sections.llm.claudeSubscription'),
+                })}
               </div>
               {result?.path && (
-                <div className="truncate font-mono text-[10px] text-muted-foreground">
+                <div className='truncate font-mono text-[10px] text-muted-foreground'>
                   {result.path}
                 </div>
               )}
-              {/* `claude --version` doesn't validate OAuth, so even a
+              {
+                /* `claude --version` doesn't validate OAuth, so even a
                   green pill can hide an expired login. Surface the
                   remediation up front so users don't mis-diagnose
                   the resulting "Unauthenticated" exit-1 as a LLM
-                  Wiki bug. */}
-              <div className="text-muted-foreground">
-                {t("settings.sections.llm.cliAuthBefore")}{" "}
-                <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-[10px]">
+                  Wiki bug. */
+              }
+              <div className='text-muted-foreground'>
+                {t('settings.sections.llm.cliAuthBefore')}{' '}
+                <code className='rounded bg-background/60 px-1 py-0.5 font-mono text-[10px]'>
                   claude
-                </code>{" "}
-                {" "}{t("settings.sections.llm.cliAuthAfter")}
+                </code>{'  '}
+                {t('settings.sections.llm.cliAuthAfter')}
               </div>
             </>
           )}
-          {state === "err" && (
+          {state === 'err' && (
             <>
-              <div>{result?.error ?? t("settings.sections.llm.cliUnavailable", { name: "Claude" })}</div>
-              <div className="text-muted-foreground">
-                {t("settings.sections.llm.cliInstallBefore")}{" "}
-                <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-[10px]">
+              <div>{result?.error ?? t('settings.sections.llm.cliUnavailable', { name: 'Claude' })}</div>
+              <div className='text-muted-foreground'>
+                {t('settings.sections.llm.cliInstallBefore')}{' '}
+                <code className='rounded bg-background/60 px-1 py-0.5 font-mono text-[10px]'>
                   npm i -g @anthropic-ai/claude-code
-                </code>{" "}
-                {" "}{t("settings.sections.llm.cliInstallAfter")}
+                </code>{'  '}
+                {t('settings.sections.llm.cliInstallAfter')}
               </div>
             </>
           )}
@@ -1173,15 +1183,15 @@ function ClaudeCliStatusPill() {
 
 function CodexCliStatusPill() {
   const { t } = useTranslation()
-  const [state, setState] = useState<"loading" | "ok" | "err">("loading")
+  const [state, setState] = useState<'loading' | 'ok' | 'err'>('loading')
   const [result, setResult] = useState<DetectResult | null>(null)
 
-  async function detect() {
-    setState("loading")
+  const detect = useCallback(async () => {
+    setState('loading')
     try {
-      const r = await invoke<DetectResult>("codex_cli_detect")
+      const r = await invoke<DetectResult>('codex_cli_detect')
       setResult(r)
-      setState(r.installed ? "ok" : "err")
+      setState(r.installed ? 'ok' : 'err')
     } catch (e) {
       setResult({
         installed: false,
@@ -1189,69 +1199,74 @@ function CodexCliStatusPill() {
         path: null,
         error: e instanceof Error ? e.message : String(e),
       })
-      setState("err")
+      setState('err')
     }
-  }
-
-  useEffect(() => {
-    void detect()
   }, [])
 
+  useEffect(() => {
+    void (async () => {
+      await detect()
+    })()
+  }, [detect])
+
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <Label className="m-0">{t("settings.sections.llm.cliStatus")}</Label>
+    <div className='space-y-1.5'>
+      <div className='flex items-center gap-2'>
+        <Label className='m-0'>{t('settings.sections.llm.cliStatus')}</Label>
         <button
-          type="button"
+          type='button'
           onClick={() => void detect()}
-          className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          disabled={state === "loading"}
+          className='rounded border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+          disabled={state === 'loading'}
         >
-          {state === "loading" ? t("settings.sections.llm.checkingCli") : t("settings.sections.llm.recheckCli")}
+          {state === 'loading' ? t('settings.sections.llm.checkingCli') : t('settings.sections.llm.recheckCli')}
         </button>
       </div>
       <div
         className={`flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
-          state === "ok"
-            ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
-            : state === "err"
-              ? "border-rose-500/40 bg-rose-500/5 text-rose-700 dark:text-rose-400"
-              : "border-border bg-background/50 text-muted-foreground"
+          state === 'ok'
+            ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400'
+            : state === 'err'
+            ? 'border-rose-500/40 bg-rose-500/5 text-rose-700 dark:text-rose-400'
+            : 'border-border bg-background/50 text-muted-foreground'
         }`}
       >
-        {state === "loading" && <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />}
-        {state === "ok" && <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-        {state === "err" && <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-        <div className="min-w-0 flex-1 space-y-0.5">
-          {state === "loading" && <div>{t("settings.sections.llm.detectingCli", { name: "Codex" })}</div>}
-          {state === "ok" && (
+        {state === 'loading' && <Loader2 className='mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin' />}
+        {state === 'ok' && <CheckCircle2 className='mt-0.5 h-3.5 w-3.5 shrink-0' />}
+        {state === 'err' && <XCircle className='mt-0.5 h-3.5 w-3.5 shrink-0' />}
+        <div className='min-w-0 flex-1 space-y-0.5'>
+          {state === 'loading' && <div>{t('settings.sections.llm.detectingCli', { name: 'Codex' })}</div>}
+          {state === 'ok' && (
             <>
               <div>
-                {t("settings.sections.llm.cliDetected", { version: result?.version ? ` ${result.version}` : "", login: t("settings.sections.llm.codexLogin") })}
+                {t('settings.sections.llm.cliDetected', {
+                  version: result?.version ? ` ${result.version}` : '',
+                  login: t('settings.sections.llm.codexLogin'),
+                })}
               </div>
               {result?.path && (
-                <div className="truncate font-mono text-[10px] text-muted-foreground">
+                <div className='truncate font-mono text-[10px] text-muted-foreground'>
                   {result.path}
                 </div>
               )}
-              <div className="text-muted-foreground">
-                {t("settings.sections.llm.cliAuthBefore")}{" "}
-                <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-[10px]">
+              <div className='text-muted-foreground'>
+                {t('settings.sections.llm.cliAuthBefore')}{' '}
+                <code className='rounded bg-background/60 px-1 py-0.5 font-mono text-[10px]'>
                   codex
-                </code>{" "}
-                {" "}{t("settings.sections.llm.cliAuthAfter")}
+                </code>{'  '}
+                {t('settings.sections.llm.cliAuthAfter')}
               </div>
             </>
           )}
-          {state === "err" && (
+          {state === 'err' && (
             <>
-              <div>{result?.error ?? t("settings.sections.llm.cliUnavailable", { name: "Codex" })}</div>
-              <div className="text-muted-foreground">
-                {t("settings.sections.llm.cliInstallBefore")}{" "}
-                <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-[10px]">
+              <div>{result?.error ?? t('settings.sections.llm.cliUnavailable', { name: 'Codex' })}</div>
+              <div className='text-muted-foreground'>
+                {t('settings.sections.llm.cliInstallBefore')}{' '}
+                <code className='rounded bg-background/60 px-1 py-0.5 font-mono text-[10px]'>
                   npm install -g @openai/codex
-                </code>{" "}
-                {" "}{t("settings.sections.llm.cliInstallAfter")}
+                </code>{'  '}
+                {t('settings.sections.llm.cliInstallAfter')}
               </div>
             </>
           )}

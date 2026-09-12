@@ -1,25 +1,25 @@
-import path from "path"
-import { readFileSync } from "fs"
-import { defineConfig } from "vite"
-import react from "@vitejs/plugin-react"
-import tailwindcss from "@tailwindcss/vite"
+import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
+import { readFileSync } from 'fs'
+import path from 'path'
+import { defineConfig } from 'vite'
 
 const host = process.env.TAURI_DEV_HOST
 
 // Read version from package.json at config-load time so the Settings
 // UI can show the running app version without duplicating the string.
-const pkgJson = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf-8"))
+const pkgJson = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'))
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
 
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: { '@': path.resolve(__dirname, './src') },
   },
 
   define: {
-    __APP_VERSION__: JSON.stringify(pkgJson.version),
+    APP_VERSION: JSON.stringify(pkgJson.version),
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
@@ -33,22 +33,22 @@ export default defineConfig(async () => ({
     host: host || false,
     hmr: host
       ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
+        protocol: 'ws',
+        host,
+        port: 1421,
+      }
       : undefined,
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      ignored: ['**/src-tauri/**'],
     },
   },
 
   test: {
-    environment: "node",
+    environment: 'node',
     // Loads .env.test.local into process.env for real-LLM tests.
     // The loader itself is a no-op if the file is absent, so this is
     // safe to keep on for every test run.
-    setupFiles: ["./src/test-helpers/load-test-env.ts"],
+    setupFiles: ['./src/test-helpers/load-test-env.ts'],
   },
 }))

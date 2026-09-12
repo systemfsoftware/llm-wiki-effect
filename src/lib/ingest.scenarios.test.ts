@@ -9,15 +9,16 @@
  *   - expected files exist on disk with expected substrings
  *   - expected review items were injected into the review store
  */
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest"
-import path from "node:path"
-import fs from "node:fs/promises"
-import { realFs, createTempProject, readFileRaw, writeFileRaw, fileExists } from "@/test-helpers/fs-temp"
-import { materializeScenario, copyDir } from "@/test-helpers/scenarios/materialize"
-import { ingestScenarios } from "@/test-helpers/scenarios/ingest-scenarios"
-import type { IngestScenario } from "@/test-helpers/scenarios/types"
+import { createTempProject, fileExists, readFileRaw, realFs, writeFileRaw } from '@/test-helpers/fs-temp'
+import { ingestScenarios } from '@/test-helpers/scenarios/ingest-scenarios'
+import { copyDir, materializeScenario } from '@/test-helpers/scenarios/materialize'
+import type { IngestScenario } from '@/test-helpers/scenarios/types'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { streamChat } from './llm-client'
 
-vi.mock("@/commands/fs", () => realFs)
+vi.mock('@/commands/fs', () => realFs)
 
 // Sequenced streamChat: stage-1 returns analysisResponse, stage-2 returns
 // generationResponse. Any further calls return empty (shouldn't happen in a
@@ -25,28 +26,28 @@ vi.mock("@/commands/fs", () => realFs)
 let pendingResponses: string[] = []
 let streamCallCount = 0
 let afterStreamToken: ((callIndex: number, token: string) => void) | null = null
-vi.mock("./llm-client", () => ({
-  streamChat: vi.fn(async (_cfg, _msgs, cb) => {
+vi.mock('./llm-client', () => ({
+  streamChat: vi.fn<typeof streamChat>(async (_cfg, _msgs, cb) => {
     streamCallCount += 1
     const callIndex = streamCallCount
-    const resp = pendingResponses.shift() ?? ""
+    const resp = pendingResponses.shift() ?? ''
     cb.onToken(resp)
     afterStreamToken?.(callIndex, resp)
     cb.onDone()
   }),
 }))
 
-import { autoIngest } from "./ingest"
-import { useWikiStore } from "@/stores/wiki-store"
-import { useReviewStore } from "@/stores/review-store"
-import { useActivityStore } from "@/stores/activity-store"
-import { useChatStore } from "@/stores/chat-store"
+import { useActivityStore } from '@/stores/activity-store'
+import { useChatStore } from '@/stores/chat-store'
+import { useReviewStore } from '@/stores/review-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import { autoIngest } from './ingest'
 
 const FIXTURES_ROOT = path.join(
   process.cwd(),
-  "tests",
-  "fixtures",
-  "scenarios-ingest",
+  'tests',
+  'fixtures',
+  'scenarios-ingest',
 )
 
 beforeAll(async () => {
@@ -67,10 +68,10 @@ beforeEach(() => {
     conversations: [],
     messages: [],
     activeConversationId: null,
-    mode: "chat",
+    mode: 'chat',
     ingestSource: null,
     isStreaming: false,
-    streamingContent: "",
+    streamingContent: '',
   })
 })
 
@@ -81,37 +82,35 @@ let ctx: Ctx | undefined
 
 async function setup(scenario: IngestScenario): Promise<Ctx> {
   const tmp = await createTempProject(
-    `ingest-${scenario.name.replace(/\//g, "-")}`,
+    `ingest-${scenario.name.replace(/\//g, '-')}`,
   )
-  const initialWikiDir = path.join(FIXTURES_ROOT, scenario.name, "initial-wiki")
+  const initialWikiDir = path.join(FIXTURES_ROOT, scenario.name, 'initial-wiki')
   await copyDir(initialWikiDir, tmp.path)
 
   useWikiStore.setState({
     project: {
-      name: "t",
+      id: 'test-project',
+      name: 't',
       path: tmp.path,
-      createdAt: 0,
-      purposeText: "",
-      fileTree: [],
-    } as unknown as ReturnType<typeof useWikiStore.getState>["project"],
+    },
   })
   useWikiStore.getState().setLlmConfig({
-    provider: "openai",
-    apiKey: "test-key",
-    model: "gpt-4",
-    ollamaUrl: "",
-    customEndpoint: "",
+    provider: 'openai',
+    apiKey: 'test-key',
+    model: 'gpt-4',
+    ollamaUrl: '',
+    customEndpoint: '',
     maxContextSize: 128000,
   })
 
   // Queue up the two sequenced LLM responses
   const analysis = await fs.readFile(
-    path.join(FIXTURES_ROOT, scenario.name, "llm-analysis.txt"),
-    "utf-8",
+    path.join(FIXTURES_ROOT, scenario.name, 'llm-analysis.txt'),
+    'utf-8',
   )
   const generation = await fs.readFile(
-    path.join(FIXTURES_ROOT, scenario.name, "llm-generation.txt"),
-    "utf-8",
+    path.join(FIXTURES_ROOT, scenario.name, 'llm-generation.txt'),
+    'utf-8',
   )
   pendingResponses = [analysis, generation]
 
@@ -147,13 +146,11 @@ async function assertOutcome(
   }
 
   // 2. File contents contain expected substrings
-  if (expected.fileContains) {
-    for (const [relPath, substrs] of Object.entries(expected.fileContains)) {
-      const full = path.join(tmpPath, relPath)
-      const content = await readFileRaw(full)
-      for (const sub of substrs) {
-        expect(content, `${relPath} missing substring "${sub}"`).toContain(sub)
-      }
+  for (const [relPath, substrs] of Object.entries(expected.fileContains ?? {})) {
+    const full = path.join(tmpPath, relPath)
+    const content = await readFileRaw(full)
+    for (const sub of substrs) {
+      expect(content, `${relPath} missing substring "${sub}"`).toContain(sub)
     }
   }
 
@@ -179,16 +176,15 @@ async function assertOutcome(
   }
 
   // 4. If the scenario declared no reviews, store must be empty.
-  if (expectedReviews.length === 0) {
-    expect(actualReviews).toHaveLength(0)
-  }
+  const unexpectedReviews = expectedReviews.length === 0 ? actualReviews : []
+  expect(unexpectedReviews, `unexpected reviews in ${scenario.name}`).toHaveLength(0)
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
-describe("ingest scenarios (fixture-driven)", () => {
+describe('ingest scenarios (fixture-driven)', () => {
   it.each(ingestScenarios.map((s) => [s.name, s]))(
-    "%s",
+    '%s',
     async (_name, scenario) => {
       ctx = await setup(scenario)
 
@@ -199,11 +195,12 @@ describe("ingest scenarios (fixture-driven)", () => {
         useWikiStore.getState().llmConfig,
       )
 
+      expect.hasAssertions()
       await assertOutcome(scenario, ctx.tmp.path)
     },
   )
 
-  it("routes project mutations through the injected commit runner", async () => {
+  it('routes project mutations through the injected commit runner', async () => {
     const scenario = ingestScenarios[0]
     ctx = await setup(scenario)
     const sourceFullPath = path.join(ctx.tmp.path, scenario.source.path)
@@ -239,7 +236,7 @@ describe("ingest scenarios (fixture-driven)", () => {
     expect(writeCallbacks).toBeGreaterThan(0)
   })
 
-  it("routes cache-hit mutations through the injected commit runner", async () => {
+  it('routes cache-hit mutations through the injected commit runner', async () => {
     const scenario = ingestScenarios[0]
     ctx = await setup(scenario)
     const sourceFullPath = path.join(ctx.tmp.path, scenario.source.path)
@@ -268,10 +265,10 @@ describe("ingest scenarios (fixture-driven)", () => {
     expect(commitCalls).toBe(1)
     expect(cachedWritten).toEqual(firstWritten)
     const activities = useActivityStore.getState().items
-    expect(activities.some((item) => item.detail.includes("Skipped (unchanged)"))).toBe(true)
+    expect(activities.some((item) => item.detail.includes('Skipped (unchanged)'))).toBe(true)
   })
 
-  it("serializes concurrent ingestion of the same source and reuses its cache", async () => {
+  it('serializes concurrent ingestion of the same source and reuses its cache', async () => {
     const scenario = ingestScenarios[0]
     ctx = await setup(scenario)
     const sourceFullPath = path.join(ctx.tmp.path, scenario.source.path)
@@ -284,76 +281,74 @@ describe("ingest scenarios (fixture-driven)", () => {
     expect(streamCallCount).toBe(2)
     expect(secondWritten).toEqual(firstWritten)
     const activities = useActivityStore.getState().items
-    expect(activities.some((item) => item.detail.includes("Skipped (unchanged)"))).toBe(true)
+    expect(activities.some((item) => item.detail.includes('Skipped (unchanged)'))).toBe(true)
   })
 
-  it("drops generated pages whose frontmatter type disagrees with schema routing", async () => {
-    ctx = { tmp: await createTempProject("ingest-schema-routing") }
+  it('drops generated pages whose frontmatter type disagrees with schema routing', async () => {
+    ctx = { tmp: await createTempProject('ingest-schema-routing') }
     const projectPath = ctx.tmp.path
 
     await writeFileRaw(
       `${projectPath}/schema.md`,
       [
-        "# Wiki Schema",
-        "",
-        "## Page Types",
-        "",
-        "| Type | Directory | Purpose |",
-        "| ---- | --------- | ------- |",
-        "| source | wiki/sources/ | Source summaries |",
-        "| concept | wiki/concepts/ | Ideas |",
-      ].join("\n"),
+        '# Wiki Schema',
+        '',
+        '## Page Types',
+        '',
+        '| Type | Directory | Purpose |',
+        '| ---- | --------- | ------- |',
+        '| source | wiki/sources/ | Source summaries |',
+        '| concept | wiki/concepts/ | Ideas |',
+      ].join('\n'),
     )
-    await writeFileRaw(`${projectPath}/purpose.md`, "")
-    await writeFileRaw(`${projectPath}/wiki/index.md`, "# Index\n")
-    await writeFileRaw(`${projectPath}/wiki/overview.md`, "# Overview\n")
-    await writeFileRaw(`${projectPath}/raw/sources/schema-routing.md`, "source\n")
+    await writeFileRaw(`${projectPath}/purpose.md`, '')
+    await writeFileRaw(`${projectPath}/wiki/index.md`, '# Index\n')
+    await writeFileRaw(`${projectPath}/wiki/overview.md`, '# Overview\n')
+    await writeFileRaw(`${projectPath}/raw/sources/schema-routing.md`, 'source\n')
 
     useWikiStore.setState({
       project: {
-        name: "t",
+        id: 'test-project',
+        name: 't',
         path: projectPath,
-        createdAt: 0,
-        purposeText: "",
-        fileTree: [],
-      } as unknown as ReturnType<typeof useWikiStore.getState>["project"],
+      },
     })
     useWikiStore.getState().setLlmConfig({
-      provider: "openai",
-      apiKey: "test-key",
-      model: "gpt-4",
-      ollamaUrl: "",
-      customEndpoint: "",
+      provider: 'openai',
+      apiKey: 'test-key',
+      model: 'gpt-4',
+      ollamaUrl: '',
+      customEndpoint: '',
       maxContextSize: 128000,
     })
 
     pendingResponses = [
-      "analysis",
+      'analysis',
       [
-        "---FILE: wiki/sources/schema-routing.md---",
-        "---",
-        "type: source",
-        "title: Source: schema-routing.md",
-        "sources: [schema-routing.md]",
-        "tags: []",
-        "related: []",
-        "---",
-        "",
-        "# Source: schema-routing.md",
-        "---END FILE---",
-        "",
-        "---FILE: wiki/concepts/wrong-place.md---",
-        "---",
-        "type: source",
-        "title: Wrong Place",
-        "sources: [schema-routing.md]",
-        "tags: []",
-        "related: []",
-        "---",
-        "",
-        "# Wrong Place",
-        "---END FILE---",
-      ].join("\n"),
+        '---FILE: wiki/sources/schema-routing.md---',
+        '---',
+        'type: source',
+        'title: Source: schema-routing.md',
+        'sources: [schema-routing.md]',
+        'tags: []',
+        'related: []',
+        '---',
+        '',
+        '# Source: schema-routing.md',
+        '---END FILE---',
+        '',
+        '---FILE: wiki/concepts/wrong-place.md---',
+        '---',
+        'type: source',
+        'title: Wrong Place',
+        'sources: [schema-routing.md]',
+        'tags: []',
+        'related: []',
+        '---',
+        '',
+        '# Wrong Place',
+        '---END FILE---',
+      ].join('\n'),
     ]
 
     const written = await autoIngest(
@@ -362,72 +357,70 @@ describe("ingest scenarios (fixture-driven)", () => {
       useWikiStore.getState().llmConfig,
     )
 
-    expect(written).not.toContain("wiki/concepts/wrong-place.md")
+    expect(written).not.toContain('wiki/concepts/wrong-place.md')
     expect(await fileExists(`${projectPath}/wiki/concepts/wrong-place.md`)).toBe(false)
   })
 
-  it("keeps source summaries distinct for same basenames in different source folders", async () => {
-    ctx = { tmp: await createTempProject("ingest-duplicate-source-basenames") }
+  it('keeps source summaries distinct for same basenames in different source folders', async () => {
+    ctx = { tmp: await createTempProject('ingest-duplicate-source-basenames') }
     const projectPath = ctx.tmp.path
 
-    await writeFileRaw(`${projectPath}/schema.md`, "")
-    await writeFileRaw(`${projectPath}/purpose.md`, "")
-    await writeFileRaw(`${projectPath}/wiki/index.md`, "# Index\n")
-    await writeFileRaw(`${projectPath}/wiki/overview.md`, "")
-    await writeFileRaw(`${projectPath}/raw/sources/project-a/config.yaml`, "name: project-a\n")
-    await writeFileRaw(`${projectPath}/raw/sources/project-b/config.yaml`, "name: project-b\n")
+    await writeFileRaw(`${projectPath}/schema.md`, '')
+    await writeFileRaw(`${projectPath}/purpose.md`, '')
+    await writeFileRaw(`${projectPath}/wiki/index.md`, '# Index\n')
+    await writeFileRaw(`${projectPath}/wiki/overview.md`, '')
+    await writeFileRaw(`${projectPath}/raw/sources/project-a/config.yaml`, 'name: project-a\n')
+    await writeFileRaw(`${projectPath}/raw/sources/project-b/config.yaml`, 'name: project-b\n')
 
     useWikiStore.setState({
       project: {
-        name: "t",
+        id: 'test-project',
+        name: 't',
         path: projectPath,
-        createdAt: 0,
-        purposeText: "",
-        fileTree: [],
-      } as unknown as ReturnType<typeof useWikiStore.getState>["project"],
+      },
     })
     useWikiStore.getState().setLlmConfig({
-      provider: "openai",
-      apiKey: "test-key",
-      model: "gpt-4",
-      ollamaUrl: "",
-      customEndpoint: "",
+      provider: 'openai',
+      apiKey: 'test-key',
+      model: 'gpt-4',
+      ollamaUrl: '',
+      customEndpoint: '',
       maxContextSize: 128000,
     })
 
     pendingResponses = [
-      "analysis for project A",
+      'analysis for project A',
       [
-        "---FILE: wiki/sources/config.md---",
-        "---",
+        '---FILE: wiki/sources/config.md---',
+        '---',
         'type: "source"',
         'title: "Source: config.yaml"',
         'sources: ["config.yaml"]',
-        "tags: []",
-        "related: []",
-        "---",
-        "",
-        "# Project A",
-        "",
-        "analysis for project A",
-        "---END FILE---",
-      ].join("\n"),
-      "analysis for project B",
+        'tags: []',
+        'related: []',
+        '---',
+        '',
+        '# Project A',
+        '',
+        'analysis for project A',
+        '---END FILE---',
+      ].join('\n'),
+      'analysis for project B',
       [
-        "---FILE: wiki/sources/config.md---",
-        "---",
+        '---FILE: wiki/sources/config.md---',
+        '---',
         'type: "source"',
         'title: "Source: config.yaml"',
         'sources: ["config.yaml"]',
-        "tags: []",
-        "related: []",
-        "---",
-        "",
-        "# Project B",
-        "",
-        "analysis for project B",
-        "---END FILE---",
-      ].join("\n"),
+        'tags: []',
+        'related: []',
+        '---',
+        '',
+        '# Project B',
+        '',
+        'analysis for project B',
+        '---END FILE---',
+      ].join('\n'),
     ]
 
     const cfg = useWikiStore.getState().llmConfig
@@ -442,69 +435,67 @@ describe("ingest scenarios (fixture-driven)", () => {
       cfg,
     )
 
-    expect(firstWritten).toContain("wiki/sources/9-project-a--6-config--3eym4.md")
-    expect(secondWritten).toContain("wiki/sources/9-project-b--6-config--177z4nx.md")
+    expect(firstWritten).toContain('wiki/sources/9-project-a--6-config--3eym4.md')
+    expect(secondWritten).toContain('wiki/sources/9-project-b--6-config--177z4nx.md')
     expect(await fileExists(`${projectPath}/wiki/sources/config.md`)).toBe(false)
 
     const projectA = await readFileRaw(`${projectPath}/wiki/sources/9-project-a--6-config--3eym4.md`)
     const projectB = await readFileRaw(`${projectPath}/wiki/sources/9-project-b--6-config--177z4nx.md`)
     expect(projectA).toContain('sources: ["project-a/config.yaml"]')
-    expect(projectA).toContain("analysis for project A")
+    expect(projectA).toContain('analysis for project A')
     expect(projectB).toContain('sources: ["project-b/config.yaml"]')
-    expect(projectB).toContain("analysis for project B")
+    expect(projectB).toContain('analysis for project B')
   })
 
-  it("does not write partial generation output after cancellation", async () => {
-    ctx = { tmp: await createTempProject("ingest-cancel-generation") }
+  it('does not write partial generation output after cancellation', async () => {
+    ctx = { tmp: await createTempProject('ingest-cancel-generation') }
     const projectPath = ctx.tmp.path
 
-    await writeFileRaw(`${projectPath}/schema.md`, "")
-    await writeFileRaw(`${projectPath}/purpose.md`, "")
-    await writeFileRaw(`${projectPath}/wiki/index.md`, "# Index\n")
-    await writeFileRaw(`${projectPath}/wiki/overview.md`, "# Overview\n")
-    await writeFileRaw(`${projectPath}/raw/sources/cancel.md`, "source")
+    await writeFileRaw(`${projectPath}/schema.md`, '')
+    await writeFileRaw(`${projectPath}/purpose.md`, '')
+    await writeFileRaw(`${projectPath}/wiki/index.md`, '# Index\n')
+    await writeFileRaw(`${projectPath}/wiki/overview.md`, '# Overview\n')
+    await writeFileRaw(`${projectPath}/raw/sources/cancel.md`, 'source')
 
     useWikiStore.setState({
       project: {
-        name: "t",
+        id: 'test-project',
+        name: 't',
         path: projectPath,
-        createdAt: 0,
-        purposeText: "",
-        fileTree: [],
-      } as unknown as ReturnType<typeof useWikiStore.getState>["project"],
+      },
     })
     useWikiStore.getState().setLlmConfig({
-      provider: "openai",
-      apiKey: "test-key",
-      model: "gpt-4",
-      ollamaUrl: "",
-      customEndpoint: "",
+      provider: 'openai',
+      apiKey: 'test-key',
+      model: 'gpt-4',
+      ollamaUrl: '',
+      customEndpoint: '',
       maxContextSize: 128000,
     })
 
     const controller = new AbortController()
     pendingResponses = [
-      "analysis",
+      'analysis',
       [
-        "---FILE: wiki/concepts/partial.md---",
-        "---",
-        "type: concept",
-        "title: Partial",
-        "sources: [cancel.md]",
-        "tags: []",
-        "related: []",
-        "---",
-        "",
-        "# Partial",
-        "---END FILE---",
-        "",
-        "---REVIEW: missing-page | Partial follow-up---",
-        "This should not be parsed.",
-        "---END REVIEW---",
-      ].join("\n"),
+        '---FILE: wiki/concepts/partial.md---',
+        '---',
+        'type: concept',
+        'title: Partial',
+        'sources: [cancel.md]',
+        'tags: []',
+        'related: []',
+        '---',
+        '',
+        '# Partial',
+        '---END FILE---',
+        '',
+        '---REVIEW: missing-page | Partial follow-up---',
+        'This should not be parsed.',
+        '---END REVIEW---',
+      ].join('\n'),
     ]
     afterStreamToken = (_callIndex, token) => {
-      if (token.includes("---FILE:")) controller.abort()
+      if (token.includes('---FILE:')) controller.abort()
     }
 
     await expect(
@@ -520,8 +511,8 @@ describe("ingest scenarios (fixture-driven)", () => {
     expect(await fileExists(`${projectPath}/wiki/sources/cancel.md`)).toBe(false)
     expect(useReviewStore.getState().items).toHaveLength(0)
     expect(useActivityStore.getState().items[0]).toMatchObject({
-      status: "error",
-      detail: "Ingest cancelled",
+      status: 'error',
+      detail: 'Ingest cancelled',
     })
   })
 })

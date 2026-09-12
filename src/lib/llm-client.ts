@@ -1,11 +1,11 @@
-import type { LlmConfig } from "@/stores/wiki-store"
-import { isAzureOpenAiEndpoint } from "@/lib/azure-openai"
-import { getProviderConfig, type RequestOverrides } from "./llm-providers"
-import { getHttpFetch, isFetchNetworkError } from "./tauri-fetch"
-import { countReasoningCharsInLine, extractReasoningTextFromLine } from "./reasoning-detector"
+import { isAzureOpenAiEndpoint } from '@/lib/azure-openai'
+import type { LlmConfig } from '@/stores/wiki-store'
+import { getProviderConfig, type RequestOverrides } from './llm-providers'
+import { countReasoningCharsInLine, extractReasoningTextFromLine } from './reasoning-detector'
+import { getHttpFetch, isFetchNetworkError } from './tauri-fetch'
 
-export type { ChatMessage, ContentBlock, RequestOverrides } from "./llm-providers"
-export { isFetchNetworkError } from "./tauri-fetch"
+export type { ChatMessage, ContentBlock, RequestOverrides } from './llm-providers'
+export { isFetchNetworkError } from './tauri-fetch'
 
 export interface StreamCallbacks {
   onToken: (token: string) => void
@@ -15,11 +15,15 @@ export interface StreamCallbacks {
 }
 
 function bufferedStreamCallbacks(callbacks: StreamCallbacks): StreamCallbacks {
-  let content = ""
-  let reasoning = ""
+  let content = ''
+  let reasoning = ''
   return {
-    onToken: (token) => { content += token },
-    onReasoningToken: (token) => { reasoning += token },
+    onToken: (token) => {
+      content += token
+    },
+    onReasoningToken: (token) => {
+      reasoning += token
+    },
     onDone: () => {
       if (reasoning) callbacks.onReasoningToken?.(reasoning)
       if (content) callbacks.onToken(content)
@@ -33,23 +37,23 @@ function bufferedStreamCallbacks(callbacks: StreamCallbacks): StreamCallbacks {
 // never touch the subprocess provider (e.g. vitest with a fetch mock).
 async function streamViaClaudeCodeCli(
   config: LlmConfig,
-  messages: import("./llm-providers").ChatMessage[],
+  messages: import('./llm-providers').ChatMessage[],
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
   requestOverrides?: RequestOverrides,
 ) {
-  const mod = await import("./claude-cli-transport")
+  const mod = await import('./claude-cli-transport')
   return mod.streamClaudeCodeCli(config, messages, callbacks, signal, requestOverrides)
 }
 
 async function streamViaCodexCli(
   config: LlmConfig,
-  messages: import("./llm-providers").ChatMessage[],
+  messages: import('./llm-providers').ChatMessage[],
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
   requestOverrides?: RequestOverrides,
 ) {
-  const mod = await import("./codex-cli-transport")
+  const mod = await import('./codex-cli-transport')
   return mod.streamCodexCli(config, messages, callbacks, signal, requestOverrides)
 }
 
@@ -59,8 +63,8 @@ function parseLines(
   buffer: string,
 ): [string[], string] {
   const text = buffer + decoder.decode(chunk, { stream: true })
-  const lines = text.split("\n")
-  const remaining = lines.pop() ?? ""
+  const lines = text.split('\n')
+  const remaining = lines.pop() ?? ''
   return [lines, remaining]
 }
 
@@ -72,22 +76,22 @@ interface EndpointErrorEnvelope {
 }
 
 function parseEndpointErrorEnvelope(record: string): Error | null {
-  const payload = record.startsWith("data:")
+  const payload = record.startsWith('data:')
     ? record.slice(5).trim()
     : record
 
-  if (!payload.startsWith("{")) return null
+  if (!payload.startsWith('{')) return null
 
   try {
-    const parsed = JSON.parse(payload) as EndpointErrorEnvelope
-    const message = typeof parsed.error === "string"
+    const parsed: EndpointErrorEnvelope = JSON.parse(payload)
+    const message = typeof parsed.error === 'string'
       ? parsed.error
       : parsed.error?.message
     if (!message) return null
 
-    const code = typeof parsed.error === "object" && parsed.error?.code !== undefined
+    const code = typeof parsed.error === 'object' && parsed.error?.code !== undefined
       ? ` ${parsed.error.code}`
-      : ""
+      : ''
     return new Error(`LLM endpoint error${code}: ${message}`)
   } catch {
     return null
@@ -110,11 +114,11 @@ function splitFinalStreamRecords(text: string): string[] {
 
   while ((match = separator.exec(text)) !== null) {
     const candidate = text.slice(recordStart, match.index).trim()
-    const payload = candidate.startsWith("data:")
+    const payload = candidate.startsWith('data:')
       ? candidate.slice(5).trim()
-      : ""
-    let complete = payload === "[DONE]"
-    if (!complete && payload.startsWith("{")) {
+      : ''
+    let complete = payload === '[DONE]'
+    if (!complete && payload.startsWith('{')) {
       try {
         JSON.parse(payload)
         complete = true
@@ -139,7 +143,9 @@ function isRequestCancelledError(err: unknown): boolean {
 
 export function isReasoningOnlyResponseError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err)
-  return /^Model produced [\d,]+ characters of reasoning \/ chain-of-thought, but no actual response content\./.test(message)
+  return /^Model produced [\d,]+ characters of reasoning \/ chain-of-thought, but no actual response content\./.test(
+    message,
+  )
 }
 
 function shouldRetryWithoutTemperature(
@@ -148,22 +154,22 @@ function shouldRetryWithoutTemperature(
   errorDetail: string,
   requestOverrides?: RequestOverrides,
 ): boolean {
-  if (config.provider !== "custom" || requestOverrides?.temperature === undefined) return false
+  if (config.provider !== 'custom' || requestOverrides?.temperature === undefined) return false
   if (status !== 400 && status !== 422) return false
   const detail = errorDetail.toLowerCase()
-  return detail.includes("temperature") && (
-    detail.includes("unsupported") ||
-    detail.includes("not support") ||
-    detail.includes("unknown") ||
-    detail.includes("not allowed") ||
-    detail.includes("only") ||
-    detail.includes("invalid")
+  return detail.includes('temperature') && (
+    detail.includes('unsupported') ||
+    detail.includes('not support') ||
+    detail.includes('unknown') ||
+    detail.includes('not allowed') ||
+    detail.includes('only') ||
+    detail.includes('invalid')
   )
 }
 
 export async function streamChat(
   config: LlmConfig,
-  messages: import("./llm-providers").ChatMessage[],
+  messages: import('./llm-providers').ChatMessage[],
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
   /**
@@ -181,7 +187,7 @@ export async function streamChat(
   // Claude Code CLI uses a subprocess transport (stdin/stdout), not
   // HTTP. Dispatch before getProviderConfig — that function throws for
   // this provider because it has no URL/headers.
-  if (config.provider === "claude-code") {
+  if (config.provider === 'claude-code') {
     return streamViaClaudeCodeCli(
       config,
       messages,
@@ -191,7 +197,7 @@ export async function streamChat(
     )
   }
 
-  if (config.provider === "codex-cli") {
+  if (config.provider === 'codex-cli') {
     return streamViaCodexCli(
       config,
       messages,
@@ -215,7 +221,7 @@ export async function streamChat(
   let timeoutController: AbortController | undefined
   let timeoutFired = false
 
-  if (typeof AbortSignal.timeout === "function") {
+  if (typeof AbortSignal.timeout === 'function') {
     timeoutController = new AbortController()
     const timeoutId = setTimeout(() => {
       timeoutFired = true
@@ -223,7 +229,7 @@ export async function streamChat(
     }, timeoutMs)
 
     if (signal) {
-      signal.addEventListener("abort", () => {
+      signal.addEventListener('abort', () => {
         clearTimeout(timeoutId)
         timeoutController?.abort()
       })
@@ -236,7 +242,7 @@ export async function streamChat(
     const body = providerConfig.buildBody(messages, requestOverrides)
     const httpFetch = await getHttpFetch()
     response = await httpFetch(providerConfig.url, {
-      method: "POST",
+      method: 'POST',
       headers: providerConfig.headers,
       body: JSON.stringify(body),
       signal: combinedSignal,
@@ -246,11 +252,15 @@ export async function streamChat(
       onDone()
       return
     }
-    if ((err instanceof Error && err.name === "AbortError") || isRequestCancelledError(err)) {
+    if ((err instanceof Error && err.name === 'AbortError') || isRequestCancelledError(err)) {
       // Backstop timeout aborted the request (we tracked this via
       // timeoutFired); treat it as a real timeout rather than a cancel.
       if (timeoutFired) {
-        onError(new Error(`Request timed out after ${Math.round(timeoutMs / 60000)} min. Try a faster model or a smaller context.`))
+        onError(
+          new Error(
+            `Request timed out after ${Math.round(timeoutMs / 60000)} min. Try a faster model or a smaller context.`,
+          ),
+        )
         return
       }
       onDone()
@@ -258,7 +268,11 @@ export async function streamChat(
     }
     if (isFetchNetworkError(err)) {
       if (timeoutFired) {
-        onError(new Error(`Request timed out after ${Math.round(timeoutMs / 60000)} min. Try a faster model or a smaller context.`))
+        onError(
+          new Error(
+            `Request timed out after ${Math.round(timeoutMs / 60000)} min. Try a faster model or a smaller context.`,
+          ),
+        )
         return
       }
       // Fast fetch failure: DNS, TLS handshake, connection refused,
@@ -286,8 +300,8 @@ export async function streamChat(
     }
     if (
       response.status === 404 &&
-      (config.provider === "azure" ||
-        (config.provider === "custom" && isAzureOpenAiEndpoint(config.customEndpoint)))
+      (config.provider === 'azure' ||
+        (config.provider === 'custom' && isAzureOpenAiEndpoint(config.customEndpoint)))
     ) {
       onError(
         new Error(
@@ -308,26 +322,30 @@ export async function streamChat(
       const payload: unknown = await response.json()
       const content = providerConfig.parseResponse(payload)
       if (!content) {
-        onError(new Error("Model returned an empty non-streaming response"))
+        onError(new Error('Model returned an empty non-streaming response'))
         return
       }
       onToken(content)
       onDone()
     } catch (err) {
       if (timeoutFired) {
-        onError(new Error(`Request timed out after ${Math.round(timeoutMs / 60000)} min. Try a faster model or a smaller context.`))
+        onError(
+          new Error(
+            `Request timed out after ${Math.round(timeoutMs / 60000)} min. Try a faster model or a smaller context.`,
+          ),
+        )
         return
       }
       if (
         signal?.aborted ||
-        (err instanceof Error && err.name === "AbortError") ||
+        (err instanceof Error && err.name === 'AbortError') ||
         isRequestCancelledError(err)
       ) {
         onDone()
         return
       }
       if (isFetchNetworkError(err)) {
-        onError(new Error("Connection lost while reading the complete response. Try again."))
+        onError(new Error('Connection lost while reading the complete response. Try again.'))
         return
       }
       onError(err instanceof Error ? err : new Error(String(err)))
@@ -336,7 +354,7 @@ export async function streamChat(
   }
 
   if (!response.body) {
-    onError(new Error("Response body is null"))
+    onError(new Error('Response body is null'))
     return
   }
 
@@ -344,7 +362,7 @@ export async function streamChat(
   // TextDecoder keeps partial multi-byte state, so it must be scoped to this
   // response rather than shared across concurrent research requests.
   const decoder = new TextDecoder()
-  let lineBuffer = ""
+  let lineBuffer = ''
 
   // Diagnostic counters. Some OpenAI-compatible endpoints stream
   // chain-of-thought through a `reasoning_content` (DeepSeek-R1,
@@ -436,9 +454,9 @@ export async function streamChat(
       onError(
         new Error(
           `Model produced ${reasoningCharsObserved.toLocaleString()} characters of reasoning / chain-of-thought, but no actual response content. ` +
-          `This usually means the endpoint hit a thinking-token limit, the model didn't transition from thinking to answering, ` +
-          `or the endpoint is misbehaving (the official Anthropic / OpenAI APIs don't have this issue). ` +
-          `Try a shorter input, increase max_tokens, or switch to a different model in Settings.`,
+            `This usually means the endpoint hit a thinking-token limit, the model didn't transition from thinking to answering, ` +
+            `or the endpoint is misbehaving (the official Anthropic / OpenAI APIs don't have this issue). ` +
+            `Try a shorter input, increase max_tokens, or switch to a different model in Settings.`,
         ),
       )
       return
@@ -451,16 +469,19 @@ export async function streamChat(
     // "Request cancelled" passed to controller.error(). The latter is not
     // an Error, so the old `err instanceof Error` guard let it fall through
     // to the generic branch and surface verbatim. Recognize both shapes.
-    const isAbort =
-      signal?.aborted ||
+    const isAbort = signal?.aborted ||
       timeoutFired ||
-      (err instanceof Error && err.name === "AbortError") ||
+      (err instanceof Error && err.name === 'AbortError') ||
       isRequestCancelledError(err)
     if (isAbort) {
       // Mirror the pre-fetch catch: distinguish our long-horizon backstop
       // (an actionable timeout) from a user-initiated cancel (silent).
       if (timeoutFired) {
-        onError(new Error(`Request timed out after ${Math.round(timeoutMs / 60000)} min. Try a faster model or a smaller context.`))
+        onError(
+          new Error(
+            `Request timed out after ${Math.round(timeoutMs / 60000)} min. Try a faster model or a smaller context.`,
+          ),
+        )
         return
       }
       onDone()
@@ -470,7 +491,7 @@ export async function streamChat(
       // Stream reader threw a network error mid-response (connection
       // dropped, server closed early, network blip). Same message
       // regardless of whether the webview is WebKit or Chromium.
-      onError(new Error("Connection lost during streaming. Try again."))
+      onError(new Error('Connection lost during streaming. Try again.'))
       return
     }
     onError(err instanceof Error ? err : new Error(String(err)))

@@ -1,14 +1,14 @@
-import { useEffect, useState, useCallback } from "react"
-import { Download, RefreshCw, CheckCircle2, Sparkles } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { openUrl } from "@tauri-apps/plugin-opener"
-import { apiServerStatus, clipServerStatus } from "@/commands/fs"
-import { Button } from "@/components/ui/button"
-import { API_SERVER_HEALTH_URL, API_SERVER_PORT } from "@/lib/api-server-constants"
-import { useUpdateStore, hasAvailableUpdate } from "@/stores/update-store"
-import { checkForUpdates, toLatestReleaseUrl } from "@/lib/update-check"
-import { saveUpdateCheckState } from "@/lib/project-store"
-import { useAppDialog } from "@/stores/app-dialog-store"
+import { apiServerStatus, clipServerStatus } from '@/commands/fs'
+import { Button } from '@/components/ui/button'
+import { API_SERVER_HEALTH_URL, API_SERVER_PORT } from '@/lib/api-server-constants'
+import { saveUpdateCheckState } from '@/lib/project-store'
+import { checkForUpdates, toLatestReleaseUrl } from '@/lib/update-check'
+import { useAppDialog } from '@/stores/app-dialog-store'
+import { hasAvailableUpdate, useUpdateStore } from '@/stores/update-store'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { CheckCircle2, Download, RefreshCw, Sparkles } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface ApiHealth {
   enabled?: boolean
@@ -16,37 +16,50 @@ interface ApiHealth {
   allowUnauthenticated?: boolean
 }
 
+function readApiHealth(payload: unknown): ApiHealth | null {
+  if (payload === null || typeof payload !== 'object') return null
+  return {
+    enabled: 'enabled' in payload && typeof payload.enabled === 'boolean' ? payload.enabled : undefined,
+    authConfigured: 'authConfigured' in payload && typeof payload.authConfigured === 'boolean'
+      ? payload.authConfigured
+      : undefined,
+    allowUnauthenticated: 'allowUnauthenticated' in payload && typeof payload.allowUnauthenticated === 'boolean'
+      ? payload.allowUnauthenticated
+      : undefined,
+  }
+}
+
 export function AboutSection() {
   const { t } = useTranslation()
-  const [clipStatus, setClipStatus] = useState<string>("...")
-  const [apiStatus, setApiStatus] = useState<string>("...")
+  const [clipStatus, setClipStatus] = useState<string>('...')
+  const [apiStatus, setApiStatus] = useState<string>('...')
   const [apiHealth, setApiHealth] = useState<ApiHealth | null>(null)
   const updateStore = useUpdateStore()
 
   useEffect(() => {
     let alive = true
-    clipServerStatus()
-      .then((s) => {
-        if (alive) setClipStatus(s)
-      })
-      .catch(() => {
-        if (alive) setClipStatus("unknown")
-      })
-    apiServerStatus()
-      .then((s) => {
-        if (alive) setApiStatus(s)
-      })
-      .catch(() => {
-        if (alive) setApiStatus("unknown")
-      })
-    fetch(API_SERVER_HEALTH_URL)
-      .then((res) => res.json() as Promise<ApiHealth>)
-      .then((value) => {
-        if (alive) setApiHealth(value)
-      })
-      .catch(() => {
+    const loadStatuses = async () => {
+      try {
+        const status = await clipServerStatus()
+        if (alive) setClipStatus(status)
+      } catch {
+        if (alive) setClipStatus('unknown')
+      }
+      try {
+        const status = await apiServerStatus()
+        if (alive) setApiStatus(status)
+      } catch {
+        if (alive) setApiStatus('unknown')
+      }
+      try {
+        const response = await fetch(API_SERVER_HEALTH_URL)
+        const payload: unknown = await response.json()
+        if (alive) setApiHealth(readApiHealth(payload))
+      } catch {
         if (alive) setApiHealth(null)
-      })
+      }
+    }
+    void loadStatuses()
     return () => {
       alive = false
     }
@@ -55,8 +68,8 @@ export function AboutSection() {
   const handleCheckNow = useCallback(async () => {
     useUpdateStore.getState().setChecking(true)
     const result = await checkForUpdates({
-      currentVersion: __APP_VERSION__,
-      repo: "nashsu/llm_wiki",
+      currentVersion: APP_VERSION,
+      repo: 'nashsu/llm_wiki',
     })
     const now = Date.now()
     useUpdateStore.getState().setResult(result, now)
@@ -73,7 +86,7 @@ export function AboutSection() {
 
   const handleDismiss = useCallback(async () => {
     const result = useUpdateStore.getState().lastResult
-    if (result?.kind !== "available") return
+    if (result?.kind !== 'available') return
     useUpdateStore.getState().setDismissed(result.remote)
     await saveUpdateCheckState({
       enabled: useUpdateStore.getState().enabled,
@@ -93,21 +106,25 @@ export function AboutSection() {
   }, [])
 
   const apiStatusDisplay = (() => {
-    if (apiStatus === "running" && apiHealth?.enabled === false) {
-      return t("settings.sections.about.apiDisabled")
+    if (apiStatus === 'running' && apiHealth?.enabled === false) {
+      return t('settings.sections.about.apiDisabled')
     }
-    if (apiStatus === "running" && apiHealth?.allowUnauthenticated) {
-      return t("settings.sections.about.apiOpen")
+    if (apiStatus === 'running' && apiHealth?.allowUnauthenticated) {
+      return t('settings.sections.about.apiOpen')
     }
-    if (apiStatus === "running" && apiHealth?.authConfigured === false) {
-      return t("settings.sections.about.apiNoToken")
+    if (apiStatus === 'running' && apiHealth?.authConfigured === false) {
+      return t('settings.sections.about.apiNoToken')
     }
     return apiStatus
   })()
   const rows: Array<{ label: string; value: string; mono?: boolean }> = [
-    { label: t("settings.sections.about.version"), value: `v${__APP_VERSION__}`, mono: true },
-    { label: t("settings.sections.about.clipServer"), value: `${clipStatus}  @  127.0.0.1:19827`, mono: true },
-    { label: t("settings.sections.about.apiServer"), value: `${apiStatusDisplay}  @  127.0.0.1:${API_SERVER_PORT}`, mono: true },
+    { label: t('settings.sections.about.version'), value: `v${APP_VERSION}`, mono: true },
+    { label: t('settings.sections.about.clipServer'), value: `${clipStatus}  @  127.0.0.1:19827`, mono: true },
+    {
+      label: t('settings.sections.about.apiServer'),
+      value: `${apiStatusDisplay}  @  127.0.0.1:${API_SERVER_PORT}`,
+      mono: true,
+    },
   ]
 
   // About panel = user-initiated navigation. They came here on
@@ -117,61 +134,61 @@ export function AboutSection() {
   // the unrequested TOP banner. Within Settings, an available
   // update is always shown in detail.
   const showAvailable = hasAvailableUpdate(updateStore)
-  const lastCheckFailed = updateStore.lastResult?.kind === "error"
+  const lastCheckFailed = updateStore.lastResult?.kind === 'error'
   const lastCheckedLabel = updateStore.lastCheckedAt
     ? lastCheckFailed
       // Failed checks are overwhelmingly "GitHub unreachable from the
       // user's network" (common in mainland China). Not actionable,
       // so don't display a colored warning — keep the status in the
       // same muted timestamp line and move on.
-      ? `${formatRelative(updateStore.lastCheckedAt, t)} · ${t("settings.sections.about.unreachable")}`
+      ? `${formatRelative(updateStore.lastCheckedAt, t)} · ${t('settings.sections.about.unreachable')}`
       : formatRelative(updateStore.lastCheckedAt, t)
-    : t("settings.sections.about.lastCheckedNever")
+    : t('settings.sections.about.lastCheckedNever')
 
   return (
-    <div className="space-y-6">
+    <div className='space-y-6'>
       <div>
-        <h2 className="text-xl font-semibold">{t("settings.sections.about.title")}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("settings.sections.about.description")}
+        <h2 className='text-xl font-semibold'>{t('settings.sections.about.title')}</h2>
+        <p className='mt-1 text-sm text-muted-foreground'>
+          {t('settings.sections.about.description')}
         </p>
       </div>
 
-      <div className="rounded-md border divide-y">
+      <div className='rounded-md border divide-y'>
         {rows.map((r) => (
-          <div key={r.label} className="flex items-center justify-between px-4 py-2.5">
-            <span className="text-sm text-muted-foreground">{r.label}</span>
-            <span className={`text-sm ${r.mono ? "font-mono" : ""}`}>{r.value}</span>
+          <div key={r.label} className='flex items-center justify-between px-4 py-2.5'>
+            <span className='text-sm text-muted-foreground'>{r.label}</span>
+            <span className={`text-sm ${r.mono ? 'font-mono' : ''}`}>{r.value}</span>
           </div>
         ))}
       </div>
 
       {/* ── Update check card ──────────────────────────────────── */}
-      <div className="space-y-3 rounded-md border p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-medium">{t("settings.sections.about.updateCheck")}</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">
-              {t("settings.sections.about.lastChecked")}: {lastCheckedLabel}
+      <div className='space-y-3 rounded-md border p-4'>
+        <div className='flex items-center justify-between gap-3'>
+          <div className='min-w-0'>
+            <div className='text-sm font-medium'>{t('settings.sections.about.updateCheck')}</div>
+            <div className='mt-0.5 text-xs text-muted-foreground'>
+              {t('settings.sections.about.lastChecked')}: {lastCheckedLabel}
             </div>
           </div>
           <Button
-            variant="outline"
-            size="sm"
+            variant='outline'
+            size='sm'
             onClick={handleCheckNow}
             disabled={updateStore.checking}
-            className="shrink-0 gap-1.5"
+            className='shrink-0 gap-1.5'
           >
             <RefreshCw
-              className={`h-3.5 w-3.5 ${updateStore.checking ? "animate-spin" : ""}`}
+              className={`h-3.5 w-3.5 ${updateStore.checking ? 'animate-spin' : ''}`}
             />
             {updateStore.checking
-              ? t("settings.sections.about.checking")
-              : t("settings.sections.about.checkNow")}
+              ? t('settings.sections.about.checking')
+              : t('settings.sections.about.checkNow')}
           </Button>
         </div>
 
-        {showAvailable && updateStore.lastResult?.kind === "available" && (
+        {showAvailable && updateStore.lastResult?.kind === 'available' && (
           <UpdateAvailableBanner
             remote={updateStore.lastResult.remote}
             releaseUrl={updateStore.lastResult.release.html_url}
@@ -181,50 +198,52 @@ export function AboutSection() {
           />
         )}
 
-        {!showAvailable && updateStore.lastResult?.kind === "up-to-date" && (
-          <div className="flex items-center gap-2 rounded border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            {t("settings.sections.about.upToDate", { version: updateStore.lastResult.local })}
+        {!showAvailable && updateStore.lastResult?.kind === 'up-to-date' && (
+          <div className='flex items-center gap-2 rounded border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400'>
+            <CheckCircle2 className='h-4 w-4 shrink-0' />
+            {t('settings.sections.about.upToDate', { version: updateStore.lastResult.local })}
           </div>
         )}
 
-        {/* error state intentionally has no banner — see the timestamp
+        {
+          /* error state intentionally has no banner — see the timestamp
             line above for the muted "couldn't reach GitHub" hint. GitHub
             is regularly unreachable from certain networks (notably
             mainland China) and a colored warning would misleadingly
-            look like a bug in the app. */}
+            look like a bug in the app. */
+        }
 
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+        <label className='flex items-center gap-2 text-xs text-muted-foreground'>
           <input
-            type="checkbox"
+            type='checkbox'
             checked={updateStore.enabled}
             onChange={handleToggleAutoCheck}
-            className="h-3.5 w-3.5"
+            className='h-3.5 w-3.5'
           />
-          {t("settings.sections.about.autoCheck")}
+          {t('settings.sections.about.autoCheck')}
         </label>
       </div>
 
-      <div className="rounded-md border p-4 text-sm">
-        <div className="font-medium">LLM Wiki</div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t("settings.sections.about.appDescription")}
-          {" "}
-          {/*
-           * Tauri 2's webview doesn't honor `target="_blank"` for
-           * external URLs by default — clicking would either do
-           * nothing or replace the in-app webview with the github
-           * page (terrible UX). Route through the opener plugin
-           * via onClick + preventDefault so it always lands in the
-           * system browser.
-           */}
+      <div className='rounded-md border p-4 text-sm'>
+        <div className='font-medium'>LLM Wiki</div>
+        <p className='mt-1 text-xs text-muted-foreground'>
+          {t('settings.sections.about.appDescription')} {
+            /*
+             * Tauri 2's webview doesn't honor `target="_blank"` for
+             * external URLs by default — clicking would either do
+             * nothing or replace the in-app webview with the github
+             * page (terrible UX). Route through the opener plugin
+             * via onClick + preventDefault so it always lands in the
+             * system browser.
+             */
+          }
           <a
-            className="cursor-pointer underline underline-offset-2 hover:text-primary"
-            href="https://github.com/nashsu/llm_wiki"
+            className='cursor-pointer underline underline-offset-2 hover:text-primary'
+            href='https://github.com/nashsu/llm_wiki'
             onClick={(e) => {
               e.preventDefault()
-              void openUrl("https://github.com/nashsu/llm_wiki").catch((err) => {
-                console.error("[about] openUrl failed:", err)
+              void openUrl('https://github.com/nashsu/llm_wiki').catch((err) => {
+                console.error('[about] openUrl failed:', err)
               })
             }}
           >
@@ -272,7 +291,7 @@ function UpdateAvailableBanner({
     try {
       await openUrl(targetUrl)
     } catch (err) {
-      console.error("[update-banner] openUrl failed:", err)
+      console.error('[update-banner] openUrl failed:', err)
       try {
         await navigator.clipboard.writeText(targetUrl)
         await appDialog.alert({
@@ -288,27 +307,27 @@ function UpdateAvailableBanner({
   const truncated = releaseBody.length > preview.length
 
   return (
-    <div className="rounded border border-primary/40 bg-primary/5 p-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-primary">
-        <Sparkles className="h-4 w-4 shrink-0" />
-        {t("settings.sections.about.updateAvailable", { version: remote.replace(/^v/, "") })}
+    <div className='rounded border border-primary/40 bg-primary/5 p-3'>
+      <div className='flex items-center gap-2 text-sm font-medium text-primary'>
+        <Sparkles className='h-4 w-4 shrink-0' />
+        {t('settings.sections.about.updateAvailable', { version: remote.replace(/^v/, '') })}
       </div>
-      {releaseName && releaseName !== `v${remote.replace(/^v/, "")}` && (
-        <div className="mt-1 text-xs text-muted-foreground">{releaseName}</div>
+      {releaseName && releaseName !== `v${remote.replace(/^v/, '')}` && (
+        <div className='mt-1 text-xs text-muted-foreground'>{releaseName}</div>
       )}
       {preview.trim().length > 0 && (
-        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 px-2 py-1.5 text-[11px] leading-relaxed text-foreground/80">
+        <pre className='mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 px-2 py-1.5 text-[11px] leading-relaxed text-foreground/80'>
           {preview}
           {truncated && " …"}
         </pre>
       )}
-      <div className="mt-3 flex items-center gap-2">
-        <Button size="sm" onClick={handleOpen} className="gap-1.5">
-          <Download className="h-3.5 w-3.5" />
-          {t("settings.sections.about.openDownload")}
+      <div className='mt-3 flex items-center gap-2'>
+        <Button size='sm' onClick={handleOpen} className='gap-1.5'>
+          <Download className='h-3.5 w-3.5' />
+          {t('settings.sections.about.openDownload')}
         </Button>
-        <Button size="sm" variant="ghost" onClick={onDismiss}>
-          {t("settings.sections.about.later")}
+        <Button size='sm' variant='ghost' onClick={onDismiss}>
+          {t('settings.sections.about.later')}
         </Button>
       </div>
     </div>
@@ -319,12 +338,12 @@ function UpdateAvailableBanner({
  *  in from the caller so the function stays pure and unit-testable. */
 function formatRelative(timestamp: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const delta = Date.now() - timestamp
-  if (delta < 0) return t("time.justNow", { defaultValue: "just now" })
+  if (delta < 0) return t('time.justNow', { defaultValue: 'just now' })
   const mins = Math.floor(delta / 60_000)
-  if (mins < 1) return t("time.justNow", { defaultValue: "just now" })
-  if (mins < 60) return t("time.minutesAgo", { count: mins, defaultValue: `${mins} min ago` })
+  if (mins < 1) return t('time.justNow', { defaultValue: 'just now' })
+  if (mins < 60) return t('time.minutesAgo', { count: mins, defaultValue: `${mins} min ago` })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return t("time.hoursAgo", { count: hours, defaultValue: `${hours} h ago` })
+  if (hours < 24) return t('time.hoursAgo', { count: hours, defaultValue: `${hours} h ago` })
   const days = Math.floor(hours / 24)
-  return t("time.daysAgo", { count: days, defaultValue: `${days} d ago` })
+  return t('time.daysAgo', { count: days, defaultValue: `${days} d ago` })
 }

@@ -10,17 +10,17 @@
  * that need human judgment.
  */
 
-import { listDirectory, readFile } from "@/commands/fs"
-import { useReviewStore, type ReviewItem } from "@/stores/review-store"
-import { useActivityStore } from "@/stores/activity-store"
-import { useWikiStore } from "@/stores/wiki-store"
-import { streamChat } from "@/lib/llm-client"
-import type { FileNode } from "@/types/wiki"
-import { normalizePath } from "@/lib/path-utils"
-import { normalizeReviewTitle } from "@/lib/review-utils"
-import { hasUsableLlm } from "@/lib/has-usable-llm"
-import { getTaskLlmConfig } from "@/lib/llm-task-routing"
-import { parseFrontmatter } from "@/lib/frontmatter"
+import { listDirectory, readFile } from '@/commands/fs'
+import { parseFrontmatter } from '@/lib/frontmatter'
+import { hasUsableLlm } from '@/lib/has-usable-llm'
+import { streamChat } from '@/lib/llm-client'
+import { getTaskLlmConfig } from '@/lib/llm-task-routing'
+import { normalizePath } from '@/lib/path-utils'
+import { normalizeReviewTitle } from '@/lib/review-utils'
+import { useActivityStore } from '@/stores/activity-store'
+import { type ReviewItem, useReviewStore } from '@/stores/review-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import type { FileNode } from '@/types/wiki'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ function flattenMdFiles(nodes: FileNode[]): FileNode[] {
   for (const node of nodes) {
     if (node.is_dir && node.children) {
       files.push(...flattenMdFiles(node.children))
-    } else if (!node.is_dir && node.name.endsWith(".md")) {
+    } else if (!node.is_dir && node.name.endsWith('.md')) {
       files.push(node)
     }
   }
@@ -61,14 +61,14 @@ export async function buildWikiIndex(projectPath: string): Promise<WikiIndex> {
     const files = flattenMdFiles(tree)
 
     for (const file of files) {
-      const id = file.name.replace(/\.md$/, "").toLowerCase()
+      const id = file.name.replace(/\.md$/, '').toLowerCase()
       byId.add(id)
 
       let title: string | null = null
       try {
         const content = await readFile(file.path)
         const fmTitle = parseFrontmatter(content).frontmatter?.title
-        if (typeof fmTitle === "string" && fmTitle.trim()) {
+        if (typeof fmTitle === 'string' && fmTitle.trim()) {
           title = fmTitle.trim()
           byTitle.add(title.toLowerCase())
         }
@@ -101,7 +101,7 @@ function extractCandidateNames(item: ReviewItem): string[] {
 
   // Also check affectedPages — these reference files directly
   for (const page of item.affectedPages ?? []) {
-    const base = page.split("/").pop()?.replace(/\.md$/, "")
+    const base = page.split('/').pop()?.replace(/\.md$/, '')
     if (base) names.add(base.toLowerCase())
   }
 
@@ -115,7 +115,7 @@ function pageExists(name: string, index: WikiIndex): boolean {
 
   // Exact filename match (kebab-case or matching existing id)
   if (index.byId.has(normalized)) return true
-  if (index.byId.has(normalized.replace(/\s+/g, "-"))) return true
+  if (index.byId.has(normalized.replace(/\s+/g, '-'))) return true
 
   // Exact title match (from frontmatter)
   if (index.byTitle.has(normalized)) return true
@@ -139,14 +139,14 @@ export function extractJsonObject(raw: string): string {
   let text = raw.trim()
 
   // Strip an opening ```json or ``` fence (with or without newline)
-  text = text.replace(/^```(?:json)?\s*/i, "")
+  text = text.replace(/^```(?:json)?\s*/i, '')
   // Strip a trailing ``` fence
-  text = text.replace(/\s*```\s*$/i, "")
+  text = text.replace(/\s*```\s*$/i, '')
   text = text.trim()
 
   // Walk brace depth to find the first complete {...}, respecting strings/escapes
-  const start = text.indexOf("{")
-  if (start === -1) return ""
+  const start = text.indexOf('{')
+  if (start === -1) return ''
 
   let depth = 0
   let inString = false
@@ -159,7 +159,7 @@ export function extractJsonObject(raw: string): string {
       escape = false
       continue
     }
-    if (ch === "\\" && inString) {
+    if (ch === '\\' && inString) {
       escape = true
       continue
     }
@@ -169,14 +169,14 @@ export function extractJsonObject(raw: string): string {
     }
     if (inString) continue
 
-    if (ch === "{") depth++
-    else if (ch === "}") {
+    if (ch === '{') depth++
+    else if (ch === '}') {
       depth--
       if (depth === 0) return text.slice(start, i + 1)
     }
   }
 
-  return ""
+  return ''
 }
 
 const JUDGE_BATCH_SIZE = 40
@@ -197,49 +197,49 @@ async function judgeBatch(
 ): Promise<Set<string>> {
   if (batch.length === 0 || signal?.aborted) return new Set()
 
-  const llmConfig = getTaskLlmConfig("ingest")
+  const llmConfig = getTaskLlmConfig('ingest')
   if (!hasUsableLlm(llmConfig)) return new Set()
 
   const pages = index.pages.slice(0, MAX_PAGES_IN_PROMPT)
 
   const pageList = pages
     .map((p) => (p.title ? `- ${p.id}  (title: ${p.title})` : `- ${p.id}`))
-    .join("\n")
+    .join('\n')
 
   const reviewList = batch
     .map((r) => {
-      const affected = r.affectedPages?.length ? ` | affected: ${r.affectedPages.join(", ")}` : ""
-      const desc = r.description ? ` — ${r.description.slice(0, 200)}` : ""
+      const affected = r.affectedPages?.length ? ` | affected: ${r.affectedPages.join(', ')}` : ''
+      const desc = r.description ? ` — ${r.description.slice(0, 200)}` : ''
       return `- id=${r.id} [${r.type}] "${r.title}"${desc}${affected}`
     })
-    .join("\n")
+    .join('\n')
 
   const prompt = [
-    "You are cleaning up a stale review queue for a personal wiki.",
-    "After recent ingests, some review items may no longer be valid because the missing page now exists, the duplicate was resolved, or the referenced concept has been added.",
-    "",
-    "Current wiki pages (filename, optional title):",
-    pageList || "(no pages yet)",
-    "",
-    "Pending review items to judge:",
+    'You are cleaning up a stale review queue for a personal wiki.',
+    'After recent ingests, some review items may no longer be valid because the missing page now exists, the duplicate was resolved, or the referenced concept has been added.',
+    '',
+    'Current wiki pages (filename, optional title):',
+    pageList || '(no pages yet)',
+    '',
+    'Pending review items to judge:',
     reviewList,
-    "",
-    "For each review item, decide whether the underlying condition has been RESOLVED by the current wiki state.",
-    "Be conservative: only mark as resolved if you are confident the concern no longer applies.",
-    "For contradictions, confirmations, or human-judgment items, default to keeping them pending.",
-    "",
+    '',
+    'For each review item, decide whether the underlying condition has been RESOLVED by the current wiki state.',
+    'Be conservative: only mark as resolved if you are confident the concern no longer applies.',
+    'For contradictions, confirmations, or human-judgment items, default to keeping them pending.',
+    '',
     'Respond with ONLY a JSON object in this exact shape: {"resolved": ["id1", "id2"]}',
     'If none of the items are resolved, return exactly: {"resolved": []}',
-    "Do not wrap in markdown fences. Do not add commentary.",
-  ].join("\n")
+    'Do not wrap in markdown fences. Do not add commentary.',
+  ].join('\n')
 
-  let raw = ""
+  let raw = ''
   let hadError = false
 
   try {
     await streamChat(
       llmConfig,
-      [{ role: "user", content: prompt }],
+      [{ role: 'user', content: prompt }],
       {
         onToken: (token) => {
           raw += token
@@ -247,13 +247,13 @@ async function judgeBatch(
         onDone: () => {},
         onError: (err) => {
           hadError = true
-          console.warn("[Sweep Reviews] LLM error:", err.message)
+          console.warn('[Sweep Reviews] LLM error:', err.message)
         },
       },
       signal,
     )
   } catch (err) {
-    console.warn("[Sweep Reviews] LLM call failed:", err)
+    console.warn('[Sweep Reviews] LLM call failed:', err)
     return new Set()
   }
 
@@ -262,22 +262,24 @@ async function judgeBatch(
   try {
     const cleaned = extractJsonObject(raw)
     if (!cleaned) {
-      console.warn("[Sweep Reviews] No JSON object in response:", raw.slice(0, 300))
+      console.warn('[Sweep Reviews] No JSON object in response:', raw.slice(0, 300))
       return new Set()
     }
-    const parsed = JSON.parse(cleaned) as { resolved?: unknown }
-    if (!parsed || !Array.isArray(parsed.resolved)) return new Set()
+    const parsed: unknown = JSON.parse(cleaned)
+    if (typeof parsed !== 'object' || parsed === null || !('resolved' in parsed) || !Array.isArray(parsed.resolved)) {
+      return new Set()
+    }
 
     const validIds = new Set(batch.map((i) => i.id))
     const resolved = new Set<string>()
     for (const id of parsed.resolved) {
-      if (typeof id === "string" && validIds.has(id)) {
+      if (typeof id === 'string' && validIds.has(id)) {
         resolved.add(id)
       }
     }
     return resolved
   } catch (err) {
-    console.warn("[Sweep Reviews] Failed to parse LLM response:", err, raw.slice(0, 300))
+    console.warn('[Sweep Reviews] Failed to parse LLM response:', err, raw.slice(0, 300))
     return new Set()
   }
 }
@@ -368,24 +370,24 @@ export async function sweepResolvedReviews(
 
     let resolvedByRule = false
 
-    if (item.type === "missing-page") {
+    if (item.type === 'missing-page') {
       const names = extractCandidateNames(item)
       if (names.length > 0 && names.some((n) => pageExists(n, index))) {
-        store.resolveItem(item.id, "auto-resolved")
+        store.resolveItem(item.id, 'auto-resolved')
         ruleResolved++
         resolvedByRule = true
       }
-    } else if (item.type === "duplicate") {
+    } else if (item.type === 'duplicate') {
       // If any affected page no longer exists, the duplicate situation changed —
       // auto-resolve (user or cascade-delete took care of it).
       const affected = item.affectedPages ?? []
       if (affected.length > 0) {
         const allStillExist = affected.every((p) => {
-          const base = p.split("/").pop()?.replace(/\.md$/, "").toLowerCase()
+          const base = p.split('/').pop()?.replace(/\.md$/, '').toLowerCase()
           return base ? index.byId.has(base) : false
         })
         if (!allStillExist) {
-          store.resolveItem(item.id, "auto-resolved")
+          store.resolveItem(item.id, 'auto-resolved')
           ruleResolved++
           resolvedByRule = true
         }
@@ -406,10 +408,10 @@ export async function sweepResolvedReviews(
     // Surface a running indicator so a multi-second LLM judgment doesn't
     // feel like the app froze.
     activityId = activity.addItem({
-      type: "query",
-      title: "Review cleanup",
-      status: "running",
-      detail: `Judging ${stillPending.length} pending review${stillPending.length > 1 ? "s" : ""}…`,
+      type: 'query',
+      title: 'Review cleanup',
+      status: 'running',
+      detail: `Judging ${stillPending.length} pending review${stillPending.length > 1 ? 's' : ''}…`,
       filesWritten: [],
     })
 
@@ -419,13 +421,13 @@ export async function sweepResolvedReviews(
       // or aborted between the LLM call starting and finishing.
       if (!signal?.aborted && matchesCurrentProject(projectPath)) {
         for (const id of resolvedIds) {
-          store.resolveItem(id, "llm-judged")
+          store.resolveItem(id, 'llm-judged')
           llmResolved++
         }
       }
     } catch (err) {
       activity.updateItem(activityId, {
-        status: "error",
+        status: 'error',
         detail: `Review cleanup failed: ${err instanceof Error ? err.message : String(err)}`,
       })
       activityId = null
@@ -437,20 +439,20 @@ export async function sweepResolvedReviews(
   if (ruleResolved > 0) parts.push(`${ruleResolved} by rules`)
   if (llmResolved > 0) parts.push(`${llmResolved} by LLM`)
   const detail = total > 0
-    ? `Auto-resolved ${total} stale review item${total > 1 ? "s" : ""} (${parts.join(", ")})`
-    : "No stale review items to clean up"
+    ? `Auto-resolved ${total} stale review item${total > 1 ? 's' : ''} (${parts.join(', ')})`
+    : 'No stale review items to clean up'
 
   if (activityId !== null) {
     activity.updateItem(activityId, {
-      status: signal?.aborted ? "error" : "done",
-      detail: signal?.aborted ? "Review cleanup cancelled" : detail,
+      status: signal?.aborted ? 'error' : 'done',
+      detail: signal?.aborted ? 'Review cleanup cancelled' : detail,
     })
   } else if (total > 0) {
     // Rule-only path: no in-progress indicator was shown, add a done item.
     activity.addItem({
-      type: "query",
-      title: "Review cleanup",
-      status: "done",
+      type: 'query',
+      title: 'Review cleanup',
+      status: 'done',
       detail,
       filesWritten: [],
     })

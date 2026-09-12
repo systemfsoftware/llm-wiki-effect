@@ -4,12 +4,26 @@
     "subtitle": "用 LLM 构建和维护你的个人知识库"
   },
   "common": {
-    "retry": "重试", "cancel": "取消", "ignore": "忽略", "close": "关闭", "ok": "确定", "confirm": "确认", "notice": "提示",
-    "dismiss": "关闭", "loading": "加载中……", "optional": "可选"
+    "retry": "重试",
+    "cancel": "取消",
+    "ignore": "忽略",
+    "close": "关闭",
+    "ok": "确定",
+    "confirm": "确认",
+    "notice": "提示",
+    "dismiss": "关闭",
+    "loading": "加载中……",
+    "optional": "可选"
   },
-  "layout": { "showSidebar": "展开侧栏", "hideSidebar": "收起侧栏" },
+  "layout": {
+    "resizeSidebar": "调整侧栏宽度",
+    "resizeResearchPanel": "调整研究面板宽度",
+    "showSidebar": "展开侧栏",
+    "hideSidebar": "收起侧栏"
+  },
   "errors": { "generic": "出现错误" },
   "mermaid": {
+    "close": "关闭图表",
     "renderFailed": "无法渲染 Mermaid 图表",
     "showDetails": "查看解析器详情",
     "enlarge": "放大图表",
@@ -37,6 +51,7 @@
     "dismiss": "关闭"
   },
   "welcome": {
+    "removeRecent": "移除最近项目",
     "newProject": "新建项目",
     "openProject": "打开项目",
     "recentProjects": "最近项目"
@@ -49,10 +64,16 @@
     "allSources": "全部资料",
     "noWikiPages": "暂无 Wiki 页面，请先导入原始资料。",
     "typeLabels": {
-      "overview": "概览", "entity": "实体", "concept": "概念",
-      "source": "来源", "synthesis": "综合", "finding": "发现",
-      "thesis": "论点", "methodology": "方法论",
-      "comparison": "比较", "query": "查询"
+      "overview": "概览",
+      "entity": "实体",
+      "concept": "概念",
+      "source": "来源",
+      "synthesis": "综合",
+      "finding": "发现",
+      "thesis": "论点",
+      "methodology": "方法论",
+      "comparison": "比较",
+      "query": "查询"
     }
   },
   "editor": {
@@ -533,7 +554,7 @@
           "activeDefault": "使用当前活跃模型",
           "hint": "可为交互聊天和文档摄取分别选择模型；未指定时继续使用当前活跃模型。"
         },
-      "projectOverride": {
+        "projectOverride": {
           "enabled": "为当前项目使用独立模型",
           "provider": "项目 Provider",
           "selectProvider": "选择 Provider",
@@ -1079,10 +1100,19 @@
     "rescanTitle": "扫描项目文件的外部变更",
     "changeKinds": { "created": "已创建", "modified": "已修改", "deleted": "已删除" },
     "fileTypes": {
-      "entity": "实体", "concept": "概念", "source": "来源", "query": "查询",
-      "synthesis": "综合", "comparison": "比较", "finding": "发现",
-      "thesis": "论点", "methodology": "方法论", "overview": "概览",
-      "index": "索引", "log": "日志", "file": "文件"
+      "entity": "实体",
+      "concept": "概念",
+      "source": "来源",
+      "query": "查询",
+      "synthesis": "综合",
+      "comparison": "比较",
+      "finding": "发现",
+      "thesis": "论点",
+      "methodology": "方法论",
+      "overview": "概览",
+      "index": "索引",
+      "log": "日志",
+      "file": "文件"
     }
   },
   "fileTree": {

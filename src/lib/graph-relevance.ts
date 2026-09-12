@@ -1,6 +1,6 @@
-import { readFile, listDirectory } from "@/commands/fs"
-import type { FileNode } from "@/types/wiki"
-import { normalizePath } from "@/lib/path-utils"
+import { listDirectory, readFile } from '@/commands/fs'
+import { normalizePath } from '@/lib/path-utils'
+import type { FileNode } from '@/types/wiki'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,7 +57,7 @@ function flattenMdFiles(nodes: readonly FileNode[]): FileNode[] {
   for (const node of nodes) {
     if (node.is_dir && node.children) {
       files.push(...flattenMdFiles(node.children))
-    } else if (!node.is_dir && node.name.endsWith(".md")) {
+    } else if (!node.is_dir && node.name.endsWith('.md')) {
       files.push(node)
     }
   }
@@ -65,12 +65,12 @@ function flattenMdFiles(nodes: readonly FileNode[]): FileNode[] {
 }
 
 function fileNameToId(fileName: string): string {
-  return fileName.replace(/\.md$/, "")
+  return fileName.replace(/\.md$/, '')
 }
 
 function extractFrontmatter(content: string): { title: string; type: string; sources: string[] } {
   const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
-  const fm = fmMatch ? fmMatch[1] : ""
+  const fm = fmMatch ? fmMatch[1] : ''
 
   const titleMatch = fm.match(/^title:\s*["']?(.+?)["']?\s*$/m)
   const typeMatch = fm.match(/^type:\s*["']?(.+?)["']?\s*$/m)
@@ -79,7 +79,7 @@ function extractFrontmatter(content: string): { title: string; type: string; sou
   const sources: string[] = []
   const sourcesBlockMatch = fm.match(/^sources:\s*\n((?:\s+-\s+.+\n?)*)/m)
   if (sourcesBlockMatch) {
-    const lines = sourcesBlockMatch[1].split("\n")
+    const lines = sourcesBlockMatch[1].split('\n')
     for (const line of lines) {
       const itemMatch = line.match(/^\s+-\s+["']?(.+?)["']?\s*$/)
       if (itemMatch) {
@@ -90,30 +90,30 @@ function extractFrontmatter(content: string): { title: string; type: string; sou
     // Single-line: sources: ["a.pdf", "b.pdf"] or sources: [a.pdf]
     const inlineMatch = fm.match(/^sources:\s*\[([^\]]*)\]/m)
     if (inlineMatch) {
-      const items = inlineMatch[1].split(",")
+      const items = inlineMatch[1].split(',')
       for (const item of items) {
-        const trimmed = item.trim().replace(/^["']|["']$/g, "")
+        const trimmed = item.trim().replace(/^["']|["']$/g, '')
         if (trimmed) sources.push(trimmed)
       }
     }
   }
 
-  let title = titleMatch ? titleMatch[1].trim() : ""
+  let title = titleMatch ? titleMatch[1].trim() : ''
   if (!title) {
     const headingMatch = content.match(/^#\s+(.+)$/m)
-    title = headingMatch ? headingMatch[1].trim() : ""
+    title = headingMatch ? headingMatch[1].trim() : ''
   }
 
   return {
     title,
-    type: typeMatch ? typeMatch[1].trim().toLowerCase() : "other",
+    type: typeMatch ? typeMatch[1].trim().toLowerCase() : 'other',
     sources,
   }
 }
 
 function extractWikilinks(content: string): string[] {
   const links: string[] = []
-  const regex = new RegExp(WIKILINK_REGEX.source, "g")
+  const regex = new RegExp(WIKILINK_REGEX.source, 'g')
   let match: RegExpExecArray | null
   while ((match = regex.exec(content)) !== null) {
     links.push(match[1].trim())
@@ -127,12 +127,12 @@ function resolveTarget(
 ): string | null {
   if (nodeIds.has(raw)) return raw
 
-  const normalized = raw.toLowerCase().replace(/\s+/g, "-")
+  const normalized = raw.toLowerCase().replace(/\s+/g, '-')
   for (const id of nodeIds) {
     const idLower = id.toLowerCase()
     if (idLower === normalized) return id
     if (idLower === raw.toLowerCase()) return id
-    if (idLower.replace(/\s+/g, "-") === normalized) return id
+    if (idLower.replace(/\s+/g, '-') === normalized) return id
   }
   return null
 }
@@ -186,7 +186,7 @@ export async function buildRetrievalGraph(
 
   for (const file of mdFiles) {
     const id = fileNameToId(file.name)
-    let content = ""
+    let content = ''
     try {
       content = await readFile(file.path)
     } catch {
@@ -196,7 +196,7 @@ export async function buildRetrievalGraph(
     const fm = extractFrontmatter(content)
     rawNodes.push({
       id,
-      title: fm.title || file.name.replace(/\.md$/, "").replace(/-/g, " "),
+      title: fm.title || file.name.replace(/\.md$/, '').replace(/-/g, ' '),
       type: fm.type,
       path: file.path,
       sources: fm.sources,
@@ -220,8 +220,11 @@ export async function buildRetrievalGraph(
     for (const linkTarget of raw.rawLinks) {
       const resolvedId = resolveTarget(linkTarget, nodeIds)
       if (resolvedId === null || resolvedId === raw.id) continue
-      outLinksMap.get(raw.id)!.add(resolvedId)
-      inLinksMap.get(resolvedId)!.add(raw.id)
+      const outLinks = outLinksMap.get(raw.id)
+      const inLinks = inLinksMap.get(resolvedId)
+      if (!outLinks || !inLinks) continue
+      outLinks.add(resolvedId)
+      inLinks.add(raw.id)
     }
   }
 

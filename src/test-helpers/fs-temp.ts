@@ -9,10 +9,10 @@
  * caller is responsible for using a temp-dir root to prevent tests from
  * touching each other's state.
  */
-import fs from "node:fs/promises"
-import path from "node:path"
-import os from "node:os"
-import type { FileNode } from "@/types/wiki"
+import type { FileNode } from '@/types/wiki'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 async function buildTree(dir: string): Promise<FileNode[]> {
   let entries
@@ -24,21 +24,21 @@ async function buildTree(dir: string): Promise<FileNode[]> {
 
   const nodes: FileNode[] = []
   for (const entry of entries) {
-    const full = path.join(dir, entry.name).replace(/\\/g, "/")
+    const full = path.join(dir, entry.name).replace(/\\/g, '/')
     if (entry.isDirectory()) {
       nodes.push({
         name: entry.name,
         path: full,
         is_dir: true,
         children: await buildTree(full),
-      } as FileNode)
+      })
     } else {
       nodes.push({
         name: entry.name,
         path: full,
         is_dir: false,
         children: [],
-      } as FileNode)
+      })
     }
   }
   return nodes
@@ -50,11 +50,11 @@ async function buildTree(dir: string): Promise<FileNode[]> {
  */
 export const realFs = {
   readFile: async (p: string): Promise<string> => {
-    return fs.readFile(p, "utf-8")
+    return fs.readFile(p, 'utf-8')
   },
   writeFile: async (p: string, contents: string): Promise<void> => {
     await fs.mkdir(path.dirname(p), { recursive: true })
-    await fs.writeFile(p, contents, "utf-8")
+    await fs.writeFile(p, contents, 'utf-8')
   },
   listDirectory: async (p: string): Promise<FileNode[]> => {
     return buildTree(p)
@@ -64,7 +64,7 @@ export const realFs = {
     await fs.copyFile(source, destination)
   },
   preprocessFile: async (p: string): Promise<string> => {
-    return fs.readFile(p, "utf-8")
+    return fs.readFile(p, 'utf-8')
   },
   deleteFile: async (p: string): Promise<void> => {
     await fs.unlink(p).catch(() => {})
@@ -82,25 +82,25 @@ export const realFs = {
     await fs.mkdir(p, { recursive: true })
   },
   createProject: async () => {
-    throw new Error("createProject not supported in tests")
+    throw new Error('createProject not supported in tests')
   },
   openProject: async () => {
-    throw new Error("openProject not supported in tests")
+    throw new Error('openProject not supported in tests')
   },
-  clipServerStatus: async (): Promise<string> => "ok",
+  clipServerStatus: async (): Promise<string> => 'ok',
 }
 
 /**
  * Create a fresh unique temp directory for a single test. Returns the
  * absolute path (with forward slashes) and a cleanup function.
  */
-export async function createTempProject(label: string = "proj"): Promise<{
+export async function createTempProject(label: string = 'proj'): Promise<{
   path: string
   cleanup: () => Promise<void>
 }> {
   const prefix = path.join(os.tmpdir(), `llmwiki-${label}-`)
   const dir = await fs.mkdtemp(prefix)
-  const normalized = dir.replace(/\\/g, "/")
+  const normalized = dir.replace(/\\/g, '/')
   return {
     path: normalized,
     cleanup: async () => {
@@ -111,13 +111,13 @@ export async function createTempProject(label: string = "proj"): Promise<{
 
 /** Read a file directly (bypasses the mocked API) — used in assertions. */
 export async function readFileRaw(p: string): Promise<string> {
-  return fs.readFile(p, "utf-8")
+  return fs.readFile(p, 'utf-8')
 }
 
 /** Write a file directly (bypasses the mocked API) — used in fixture setup. */
 export async function writeFileRaw(p: string, contents: string): Promise<void> {
   await fs.mkdir(path.dirname(p), { recursive: true })
-  await fs.writeFile(p, contents, "utf-8")
+  await fs.writeFile(p, contents, 'utf-8')
 }
 
 /** Check if a file exists on disk. */

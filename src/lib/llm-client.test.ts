@@ -1,16 +1,17 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Stub getHttpFetch so streamChat hits our in-test responder; keep the
 // rest of tauri-fetch (notably isFetchNetworkError) real so the existing
 // cross-webview tests below still exercise the genuine classifier.
 const mockHttpFetch = vi.fn<(url: string, opts?: RequestInit) => Promise<Response>>()
-vi.mock("./tauri-fetch", async () => {
-  const actual = await vi.importActual<typeof import("./tauri-fetch")>("./tauri-fetch")
+vi.mock('./tauri-fetch', async () => {
+  const actual = await vi.importActual<typeof import('./tauri-fetch')>('./tauri-fetch')
   return { ...actual, getHttpFetch: () => Promise.resolve(mockHttpFetch) }
 })
 
-import { isFetchNetworkError, isReasoningOnlyResponseError, streamChat } from "./llm-client"
-import type { LlmConfig } from "@/stores/wiki-store"
+import type { LlmConfig } from '@/stores/wiki-store'
+import { isFetchNetworkError, isReasoningOnlyResponseError, streamChat } from './llm-client'
+import type { StreamCallbacks } from './llm-client'
 
 /**
  * Guards for cross-webview error detection. Tauri renders the frontend
@@ -19,55 +20,57 @@ import type { LlmConfig } from "@/stores/wiki-store"
  * down that every real-world error shape gets classified as a network
  * error so the user sees a helpful message instead of a raw stack.
  */
-describe("isFetchNetworkError — cross-webview fetch failures", () => {
+describe('isFetchNetworkError — cross-webview fetch failures', () => {
   it("recognises WebKit's 'Load failed' (macOS / Linux GTK)", () => {
-    const e = new Error("Load failed")
+    const e = new Error('Load failed')
     expect(isFetchNetworkError(e)).toBe(true)
   })
 
   it("recognises Chromium/Edge's TypeError: Failed to fetch (Windows)", () => {
     // Real Chromium throws a TypeError with this exact shape.
-    const e = new TypeError("Failed to fetch")
+    const e = new TypeError('Failed to fetch')
     expect(isFetchNetworkError(e)).toBe(true)
   })
 
-  it("recognises any TypeError (Chromium fetch failure class)", () => {
+  it('recognises any TypeError (Chromium fetch failure class)', () => {
     // Chromium also throws TypeError with messages like "NetworkError
     // when attempting to fetch resource." — the name alone is enough.
-    const e = new TypeError("NetworkError when attempting to fetch resource.")
+    const e = new TypeError('NetworkError when attempting to fetch resource.')
     expect(isFetchNetworkError(e)).toBe(true)
   })
 
   it("recognises messages containing 'network error' (mid-stream drops)", () => {
-    const e = new Error("The network error occurred while reading")
+    const e = new Error('The network error occurred while reading')
     expect(isFetchNetworkError(e)).toBe(true)
   })
 
-  it("rejects AbortError (user cancelled)", () => {
-    const e = new Error("The operation was aborted.")
-    e.name = "AbortError"
+  it('rejects AbortError (user cancelled)', () => {
+    const e = new Error('The operation was aborted.')
+    e.name = 'AbortError'
     expect(isFetchNetworkError(e)).toBe(false)
   })
 
-  it("rejects plain application errors (HTTP 4xx surfaced as Error)", () => {
-    const e = new Error("HTTP 401: Unauthorized")
+  it('rejects plain application errors (HTTP 4xx surfaced as Error)', () => {
+    const e = new Error('HTTP 401: Unauthorized')
     expect(isFetchNetworkError(e)).toBe(false)
   })
 
-  it("rejects non-Error values (strings, null, objects)", () => {
-    expect(isFetchNetworkError("boom")).toBe(false)
+  it('rejects non-Error values (strings, null, objects)', () => {
+    expect(isFetchNetworkError('boom')).toBe(false)
     expect(isFetchNetworkError(null)).toBe(false)
     expect(isFetchNetworkError(undefined)).toBe(false)
-    expect(isFetchNetworkError({ message: "Load failed" })).toBe(false)
+    expect(isFetchNetworkError({ message: 'Load failed' })).toBe(false)
   })
 })
 
-describe("isReasoningOnlyResponseError", () => {
-  it("recognises the reasoning-only stream diagnostic", () => {
+describe('isReasoningOnlyResponseError', () => {
+  it('recognises the reasoning-only stream diagnostic', () => {
     expect(isReasoningOnlyResponseError(
-      new Error("Model produced 2,176 characters of reasoning / chain-of-thought, but no actual response content. Try again."),
+      new Error(
+        'Model produced 2,176 characters of reasoning / chain-of-thought, but no actual response content. Try again.',
+      ),
     )).toBe(true)
-    expect(isReasoningOnlyResponseError(new Error("plain provider error"))).toBe(false)
+    expect(isReasoningOnlyResponseError(new Error('plain provider error'))).toBe(false)
   })
 })
 
@@ -82,89 +85,110 @@ describe("isReasoningOnlyResponseError", () => {
  * the actionable timeout message (or a silent cancel when no backstop).
  */
 const cfg: LlmConfig = {
-  provider: "ollama",
-  apiKey: "",
-  model: "qwen3:8b",
-  ollamaUrl: "http://localhost:11434",
-  customEndpoint: "",
-  apiMode: "chat_completions",
+  provider: 'ollama',
+  apiKey: '',
+  model: 'qwen3:8b',
+  ollamaUrl: 'http://localhost:11434',
+  customEndpoint: '',
+  apiMode: 'chat_completions',
   maxContextSize: 8192,
 }
 
 const customStreamingCfg: LlmConfig = {
   ...cfg,
-  provider: "custom",
-  model: "local-openai-model",
-  customEndpoint: "http://127.0.0.1:13305/v1",
+  provider: 'custom',
+  model: 'local-openai-model',
+  customEndpoint: 'http://127.0.0.1:13305/v1',
 }
 
 function openAiSseToken(content: string): string {
   return `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}`
 }
 
-describe("streamChat — buffered streaming responses", () => {
+function requestBody(call: [url: string, opts?: RequestInit] | undefined): string {
+  const body = call?.[1]?.body
+  if (typeof body !== 'string') throw new Error('expected a string request body')
+  return body
+}
+
+describe('streamChat — buffered streaming responses', () => {
   beforeEach(() => mockHttpFetch.mockReset())
 
-  it("surfaces a JSON endpoint error returned inside HTTP 200", async () => {
-    mockHttpFetch.mockResolvedValue(new Response(JSON.stringify({
-      error: { code: 400, message: "request exceeds available context" },
-    }), {
-      status: 200,
-      headers: { "Content-Type": "text/event-stream" },
-    }))
-    const onToken = vi.fn()
-    const onDone = vi.fn()
-    const onError = vi.fn()
+  it('surfaces a JSON endpoint error returned inside HTTP 200', async () => {
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: { code: 400, message: 'request exceeds available context' },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        },
+      ),
+    )
+    const onToken = vi.fn<StreamCallbacks['onToken']>()
+    const onDone = vi.fn<StreamCallbacks['onDone']>()
+    const onError = vi.fn<StreamCallbacks['onError']>()
 
     await streamChat(
       customStreamingCfg,
-      [{ role: "user", content: "hi" }],
+      [{ role: 'user', content: 'hi' }],
       { onToken, onDone, onError },
     )
 
     expect(onError).toHaveBeenCalledTimes(1)
     expect(onError.mock.calls[0][0].message).toBe(
-      "LLM endpoint error 400: request exceeds available context",
+      'LLM endpoint error 400: request exceeds available context',
     )
     expect(onToken).not.toHaveBeenCalled()
     expect(onDone).not.toHaveBeenCalled()
   })
 
-  it("retries a custom endpoint without temperature when the provider rejects it", async () => {
+  it('retries a custom endpoint without temperature when the provider rejects it', async () => {
     mockHttpFetch
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        error: { message: "Unsupported parameter: temperature" },
-      }), { status: 400 }))
-      .mockResolvedValueOnce(new Response([
-        openAiSseToken("retried"),
-        "data: [DONE]",
-      ].join("\n\n"), { status: 200 }))
-    const onToken = vi.fn()
-    const onDone = vi.fn()
-    const onError = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: { message: 'Unsupported parameter: temperature' },
+          }),
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          [
+            openAiSseToken('retried'),
+            'data: [DONE]',
+          ].join('\n\n'),
+          { status: 200 },
+        ),
+      )
+    const onToken = vi.fn<StreamCallbacks['onToken']>()
+    const onDone = vi.fn<StreamCallbacks['onDone']>()
+    const onError = vi.fn<StreamCallbacks['onError']>()
 
     await streamChat(
       customStreamingCfg,
-      [{ role: "user", content: "hi" }],
+      [{ role: 'user', content: 'hi' }],
       { onToken, onDone, onError },
       undefined,
       { temperature: 0.1, max_tokens: 512 },
     )
 
     expect(mockHttpFetch).toHaveBeenCalledTimes(2)
-    expect(JSON.parse(String(mockHttpFetch.mock.calls[0][1]?.body))).toMatchObject({
+    expect(JSON.parse(requestBody(mockHttpFetch.mock.calls[0]))).toMatchObject({
       temperature: 0.1,
       max_tokens: 512,
     })
-    const retryBody = JSON.parse(String(mockHttpFetch.mock.calls[1][1]?.body))
+    const retryBody = JSON.parse(requestBody(mockHttpFetch.mock.calls[1]))
     expect(retryBody.temperature).toBeUndefined()
     expect(retryBody.max_tokens).toBe(512)
-    expect(onToken).toHaveBeenCalledWith("retried")
+    expect(onToken).toHaveBeenCalledWith('retried')
     expect(onDone).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
   })
 
-  it("cancels a still-open response body after an SSE endpoint error", async () => {
+  it('cancels a still-open response body after an SSE endpoint error', async () => {
     let bodyCancelled = false
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -176,94 +200,100 @@ describe("streamChat — buffered streaming responses", () => {
         bodyCancelled = true
       },
     })
-    mockHttpFetch.mockResolvedValue(new Response(body, {
-      status: 200,
-      headers: { "Content-Type": "text/event-stream" },
-    }))
-    const onToken = vi.fn()
-    const onDone = vi.fn()
-    const onError = vi.fn()
+    mockHttpFetch.mockResolvedValue(
+      new Response(body, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      }),
+    )
+    const onToken = vi.fn<StreamCallbacks['onToken']>()
+    const onDone = vi.fn<StreamCallbacks['onDone']>()
+    const onError = vi.fn<StreamCallbacks['onError']>()
 
     await streamChat(
       customStreamingCfg,
-      [{ role: "user", content: "hi" }],
+      [{ role: 'user', content: 'hi' }],
       { onToken, onDone, onError },
     )
 
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(onError.mock.calls[0][0].message).toBe("LLM endpoint error: stream failed")
+    expect(onError.mock.calls[0][0].message).toBe('LLM endpoint error: stream failed')
     expect(bodyCancelled).toBe(true)
     expect(onToken).not.toHaveBeenCalled()
     expect(onDone).not.toHaveBeenCalled()
   })
 
-  it("parses every record from a fully buffered SSE body", async () => {
+  it('parses every record from a fully buffered SSE body', async () => {
     const body = [
-      openAiSseToken("Hello"),
-      "",
-      openAiSseToken(" world"),
-      "",
-      "data: [DONE]",
-      "",
-    ].join("\n")
-    mockHttpFetch.mockResolvedValue(new Response(body, {
-      status: 200,
-      headers: { "Content-Type": "text/event-stream" },
-    }))
-    const onToken = vi.fn()
-    const onDone = vi.fn()
-    const onError = vi.fn()
+      openAiSseToken('Hello'),
+      '',
+      openAiSseToken(' world'),
+      '',
+      'data: [DONE]',
+      '',
+    ].join('\n')
+    mockHttpFetch.mockResolvedValue(
+      new Response(body, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      }),
+    )
+    const onToken = vi.fn<StreamCallbacks['onToken']>()
+    const onDone = vi.fn<StreamCallbacks['onDone']>()
+    const onError = vi.fn<StreamCallbacks['onError']>()
 
     await streamChat(
       customStreamingCfg,
-      [{ role: "user", content: "hi" }],
+      [{ role: 'user', content: 'hi' }],
       { onToken, onDone, onError },
     )
 
-    expect(onToken.mock.calls.map(([token]) => token)).toEqual(["Hello", " world"])
+    expect(onToken.mock.calls.map(([token]) => token)).toEqual(['Hello', ' world'])
     expect(onDone).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
   })
 
-  it("normalizes escaped separators in a buffered SSE body", async () => {
+  it('normalizes escaped separators in a buffered SSE body', async () => {
     const body = [
-      openAiSseToken("Hello"),
-      openAiSseToken(" world"),
-      "data: [DONE]",
-    ].join("\\n\\n")
-    mockHttpFetch.mockResolvedValue(new Response(body, {
-      status: 200,
-      headers: { "Content-Type": "text/event-stream" },
-    }))
-    const onToken = vi.fn()
-    const onDone = vi.fn()
-    const onError = vi.fn()
+      openAiSseToken('Hello'),
+      openAiSseToken(' world'),
+      'data: [DONE]',
+    ].join('\\n\\n')
+    mockHttpFetch.mockResolvedValue(
+      new Response(body, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      }),
+    )
+    const onToken = vi.fn<StreamCallbacks['onToken']>()
+    const onDone = vi.fn<StreamCallbacks['onDone']>()
+    const onError = vi.fn<StreamCallbacks['onError']>()
 
     await streamChat(
       customStreamingCfg,
-      [{ role: "user", content: "hi" }],
+      [{ role: 'user', content: 'hi' }],
       { onToken, onDone, onError },
     )
 
-    expect(onToken.mock.calls.map(([token]) => token)).toEqual(["Hello", " world"])
+    expect(onToken.mock.calls.map(([token]) => token)).toEqual(['Hello', ' world'])
     expect(onDone).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
   })
 
-  it("does not split separator-like text inside streamed JSON content", async () => {
-    const content = "first line\n\ndata: still model output"
+  it('does not split separator-like text inside streamed JSON content', async () => {
+    const content = 'first line\n\ndata: still model output'
     const body = [
       openAiSseToken(content),
-      "data: [DONE]",
-    ].join("\\n\\n")
+      'data: [DONE]',
+    ].join('\\n\\n')
     mockHttpFetch.mockResolvedValue(new Response(body, { status: 200 }))
-    const onToken = vi.fn()
-    const onDone = vi.fn()
-    const onError = vi.fn()
+    const onToken = vi.fn<StreamCallbacks['onToken']>()
+    const onDone = vi.fn<StreamCallbacks['onDone']>()
+    const onError = vi.fn<StreamCallbacks['onError']>()
 
     await streamChat(
       customStreamingCfg,
-      [{ role: "user", content: "hi" }],
+      [{ role: 'user', content: 'hi' }],
       { onToken, onDone, onError },
     )
 
@@ -273,46 +303,56 @@ describe("streamChat — buffered streaming responses", () => {
   })
 })
 
-describe("streamChat — non-streaming HTTP responses", () => {
+describe('streamChat — non-streaming HTTP responses', () => {
   beforeEach(() => mockHttpFetch.mockReset())
 
-  it("emits one complete token and completes", async () => {
-    mockHttpFetch.mockResolvedValue(new Response(JSON.stringify({
-      choices: [{ message: { content: "complete answer" } }],
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }))
-    const onToken = vi.fn()
-    const onDone = vi.fn()
-    const onError = vi.fn()
+  it('emits one complete token and completes', async () => {
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'complete answer' } }],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    )
+    const onToken = vi.fn<StreamCallbacks['onToken']>()
+    const onDone = vi.fn<StreamCallbacks['onDone']>()
+    const onError = vi.fn<StreamCallbacks['onError']>()
 
     await streamChat(
       { ...cfg, streamingEnabled: false },
-      [{ role: "user", content: "hi" }],
+      [{ role: 'user', content: 'hi' }],
       { onToken, onDone, onError },
     )
 
     expect(onToken).toHaveBeenCalledTimes(1)
-    expect(onToken).toHaveBeenCalledWith("complete answer")
+    expect(onToken).toHaveBeenCalledWith('complete answer')
     expect(onDone).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
-    expect(JSON.parse(String(mockHttpFetch.mock.calls[0][1]?.body))).toMatchObject({ stream: false })
+    expect(JSON.parse(requestBody(mockHttpFetch.mock.calls[0]))).toMatchObject({ stream: false })
   })
 
-  it("reports an empty complete response instead of silently succeeding", async () => {
-    mockHttpFetch.mockResolvedValue(new Response(JSON.stringify({
-      choices: [{ message: { content: "" } }],
-    }), { status: 200 }))
-    const onError = vi.fn()
+  it('reports an empty complete response instead of silently succeeding', async () => {
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '' } }],
+        }),
+        { status: 200 },
+      ),
+    )
+    const onError = vi.fn<StreamCallbacks['onError']>()
 
     await streamChat(
       { ...cfg, streamingEnabled: false },
-      [{ role: "user", content: "hi" }],
-      { onToken: vi.fn(), onDone: vi.fn(), onError },
+      [{ role: 'user', content: 'hi' }],
+      { onToken: vi.fn<StreamCallbacks['onToken']>(), onDone: vi.fn<StreamCallbacks['onDone']>(), onError },
     )
 
-    expect(onError.mock.calls[0][0].message).toContain("empty non-streaming response")
+    expect(onError.mock.calls[0][0].message).toContain('empty non-streaming response')
   })
 })
 
@@ -327,7 +367,9 @@ function pendingStreamResponse(): {
 } {
   let reject!: (e: unknown) => void
   let signalReadCalled!: () => void
-  const readCalled = new Promise<void>((res) => { signalReadCalled = res })
+  const readCalled = new Promise<void>((res) => {
+    signalReadCalled = res
+  })
   const reader = {
     read: () =>
       new Promise<never>((_resolve, rej) => {
@@ -337,14 +379,12 @@ function pendingStreamResponse(): {
     releaseLock: () => {},
     cancel: () => {},
   }
-  const response = {
-    ok: true,
-    body: { getReader: () => reader },
-  } as unknown as Response
+  const response = new Response(null, { status: 200 })
+  Object.defineProperty(response, 'body', { value: { getReader: () => reader } })
   return { response, getReject: () => reject, readCalled }
 }
 
-describe("streamChat — mid-stream abort mapping", () => {
+describe('streamChat — mid-stream abort mapping', () => {
   beforeEach(() => {
     mockHttpFetch.mockReset()
     vi.useFakeTimers()
@@ -357,12 +397,12 @@ describe("streamChat — mid-stream abort mapping", () => {
     const { response, getReject, readCalled } = pendingStreamResponse()
     mockHttpFetch.mockResolvedValue(response)
 
-    const onError = vi.fn()
-    const onDone = vi.fn()
+    const onError = vi.fn<StreamCallbacks['onError']>()
+    const onDone = vi.fn<StreamCallbacks['onDone']>()
     const promise = streamChat(
       cfg,
-      [{ role: "user", content: "hi" }],
-      { onToken: vi.fn(), onDone, onError },
+      [{ role: 'user', content: 'hi' }],
+      { onToken: vi.fn<StreamCallbacks['onToken']>(), onDone, onError },
       undefined,
       {},
     )
@@ -371,7 +411,7 @@ describe("streamChat — mid-stream abort mapping", () => {
     // backstop and let the plugin error the stream with its bare string.
     await readCalled
     await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
-    getReject()("Request cancelled")
+    getReject()('Request cancelled')
     await promise
 
     expect(onError).toHaveBeenCalledTimes(1)
@@ -382,52 +422,52 @@ describe("streamChat — mid-stream abort mapping", () => {
   it("uses the provider's configured request timeout", async () => {
     const { response, getReject, readCalled } = pendingStreamResponse()
     mockHttpFetch.mockResolvedValue(response)
-    const onError = vi.fn()
+    const onError = vi.fn<StreamCallbacks['onError']>()
     const promise = streamChat(
       { ...cfg, requestTimeoutMinutes: 90 },
-      [{ role: "user", content: "hi" }],
-      { onToken: vi.fn(), onDone: vi.fn(), onError },
+      [{ role: 'user', content: 'hi' }],
+      { onToken: vi.fn<StreamCallbacks['onToken']>(), onDone: vi.fn<StreamCallbacks['onDone']>(), onError },
     )
     await readCalled
     await vi.advanceTimersByTimeAsync(90 * 60 * 1000)
-    getReject()("Request cancelled")
+    getReject()('Request cancelled')
     await promise
     expect(onError.mock.calls[0][0].message).toMatch(/timed out after 90 min/)
   })
 
-  it("treats a bare-string abort as a silent cancel when the backstop did NOT fire", async () => {
+  it('treats a bare-string abort as a silent cancel when the backstop did NOT fire', async () => {
     const { response, getReject, readCalled } = pendingStreamResponse()
     mockHttpFetch.mockResolvedValue(response)
 
-    const onError = vi.fn()
-    const onDone = vi.fn()
+    const onError = vi.fn<StreamCallbacks['onError']>()
+    const onDone = vi.fn<StreamCallbacks['onDone']>()
     const promise = streamChat(
       cfg,
-      [{ role: "user", content: "hi" }],
-      { onToken: vi.fn(), onDone, onError },
+      [{ role: 'user', content: 'hi' }],
+      { onToken: vi.fn<StreamCallbacks['onToken']>(), onDone, onError },
       undefined,
       {},
     )
 
     await readCalled
-    getReject()("Request cancelled")
+    getReject()('Request cancelled')
     await promise
 
     expect(onDone).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
   })
 
-  it("recognises lowercase and single-l cancelled spellings as silent cancels", async () => {
-    for (const message of ["request cancelled", "Request canceled"]) {
+  it('recognises lowercase and single-l cancelled spellings as silent cancels', async () => {
+    for (const message of ['request cancelled', 'Request canceled']) {
       const { response, getReject, readCalled } = pendingStreamResponse()
       mockHttpFetch.mockResolvedValueOnce(response)
 
-      const onError = vi.fn()
-      const onDone = vi.fn()
+      const onError = vi.fn<StreamCallbacks['onError']>()
+      const onDone = vi.fn<StreamCallbacks['onDone']>()
       const promise = streamChat(
         cfg,
-        [{ role: "user", content: "hi" }],
-        { onToken: vi.fn(), onDone, onError },
+        [{ role: 'user', content: 'hi' }],
+        { onToken: vi.fn<StreamCallbacks['onToken']>(), onDone, onError },
         undefined,
         {},
       )
@@ -441,17 +481,17 @@ describe("streamChat — mid-stream abort mapping", () => {
     }
   })
 
-  it("treats pre-fetch bare-string cancel spellings as silent cancels", async () => {
-    for (const message of ["request cancelled", "Request canceled"]) {
+  it('treats pre-fetch bare-string cancel spellings as silent cancels', async () => {
+    for (const message of ['request cancelled', 'Request canceled']) {
       mockHttpFetch.mockReset()
       mockHttpFetch.mockRejectedValueOnce(message)
 
-      const onError = vi.fn()
-      const onDone = vi.fn()
+      const onError = vi.fn<StreamCallbacks['onError']>()
+      const onDone = vi.fn<StreamCallbacks['onDone']>()
       await streamChat(
         cfg,
-        [{ role: "user", content: "hi" }],
-        { onToken: vi.fn(), onDone, onError },
+        [{ role: 'user', content: 'hi' }],
+        { onToken: vi.fn<StreamCallbacks['onToken']>(), onDone, onError },
         undefined,
         {},
       )

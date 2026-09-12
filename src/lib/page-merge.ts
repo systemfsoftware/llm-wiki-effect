@@ -23,11 +23,11 @@
  * the previous (Array-merged-frontmatter + new body) behavior, with
  * an optional backup of the existing content for user recovery.
  */
-import { parseFrontmatter } from "./frontmatter"
-import { mergeArrayFieldsIntoContent } from "./sources-merge"
+import { parseFrontmatter } from './frontmatter'
+import { mergeArrayFieldsIntoContent } from './sources-merge'
 
 /** Frontmatter array fields unioned across re-ingests. */
-const UNION_FIELDS = ["sources", "tags", "related"] as const
+const UNION_FIELDS = ['sources', 'tags', 'related'] as const
 
 /**
  * Frontmatter scalar fields whose existing value MUST survive an
@@ -41,7 +41,7 @@ const UNION_FIELDS = ["sources", "tags", "related"] as const
  *   - created: a one-time stamp; an "updated" stamp is computed
  *     separately.
  */
-const LOCKED_FIELDS = ["type", "title", "created"] as const
+const LOCKED_FIELDS = ['type', 'title', 'created'] as const
 
 /**
  * Body length safety threshold. If the LLM's merged body is shorter
@@ -121,13 +121,13 @@ export async function mergePageContent(
     let replacement = arrayMerged
     for (const field of LOCKED_FIELDS) {
       const existingValue = oldParsed.frontmatter?.[field]
-      if (typeof existingValue === "string" && existingValue !== "") {
+      if (typeof existingValue === 'string' && existingValue !== '') {
         replacement = setFrontmatterScalar(replacement, field, existingValue)
       }
     }
     return setFrontmatterScalar(
       replacement,
-      "updated",
+      'updated',
       (opts.today ?? defaultToday)(),
     )
   }
@@ -147,7 +147,9 @@ export async function mergePageContent(
     )
   } catch (err) {
     console.warn(
-      `[page-merge] LLM merge failed for ${opts.pagePath}, falling back to incoming + array-field union: ${err instanceof Error ? err.message : err}`,
+      `[page-merge] LLM merge failed for ${opts.pagePath}, falling back to incoming + array-field union: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     )
     await tryBackup(opts, existingContent)
     return arrayMerged
@@ -171,7 +173,9 @@ export async function mergePageContent(
   const minThreshold = Math.max(oldBodyLen, newBodyLen) * BODY_SHRINK_THRESHOLD
   if (llmBodyLen < minThreshold) {
     console.warn(
-      `[page-merge] LLM merge for ${opts.pagePath} produced body ${llmBodyLen} chars, below threshold ${minThreshold.toFixed(0)} (max input was ${Math.max(oldBodyLen, newBodyLen)}) — rejecting, falling back`,
+      `[page-merge] LLM merge for ${opts.pagePath} produced body ${llmBodyLen} chars, below threshold ${
+        minThreshold.toFixed(0)
+      } (max input was ${Math.max(oldBodyLen, newBodyLen)}) — rejecting, falling back`,
     )
     await tryBackup(opts, existingContent)
     return arrayMerged
@@ -183,7 +187,7 @@ export async function mergePageContent(
   let final = llmOutput
   for (const field of LOCKED_FIELDS) {
     const existingValue = oldParsed.frontmatter?.[field]
-    if (typeof existingValue === "string" && existingValue !== "") {
+    if (typeof existingValue === 'string' && existingValue !== '') {
       final = setFrontmatterScalar(final, field, existingValue)
     }
   }
@@ -195,7 +199,7 @@ export async function mergePageContent(
   final = mergeArrayFieldsIntoContent(final, arrayMerged, [...UNION_FIELDS])
   // Updated is always today on a successful merge.
   const todayFn = opts.today ?? defaultToday
-  final = setFrontmatterScalar(final, "updated", todayFn())
+  final = setFrontmatterScalar(final, 'updated', todayFn())
 
   return stripBodyWikilinkPathPrefixes(final)
 }
@@ -214,7 +218,7 @@ export function stripBodyWikilinkPathPrefixes(content: string): string {
   if (!frontmatter) return content
 
   const body = content.slice(frontmatter[0].length)
-  if (!body.includes("[[")) return content
+  if (!body.includes('[[')) return content
 
   const normalizedBody = normalizeWikilinksOutsideCode(body)
 
@@ -222,19 +226,20 @@ export function stripBodyWikilinkPathPrefixes(content: string): string {
 }
 
 function normalizeWikilinksOutsideCode(body: string): string {
-  let fence: { marker: "`" | "~"; length: number } | null = null
+  let fence: { marker: '`' | '~'; length: number } | null = null
 
   return body.replace(/.*(?:\r?\n|$)/g, (line) => {
-    const content = line.replace(/\r?\n$/, "")
+    const content = line.replace(/\r?\n$/, '')
     const markerMatch = content.match(/^ {0,3}(`{3,}|~{3,})/)
     if (markerMatch) {
-      const marker = markerMatch[1][0] as "`" | "~"
+      const marker = markerMatch[1][0]
+      if (marker !== '`' && marker !== '~') return line
       const length = markerMatch[1].length
       if (!fence) fence = { marker, length }
       else if (
         marker === fence.marker &&
         length >= fence.length &&
-        content.slice(markerMatch[0].length).trim() === ""
+        content.slice(markerMatch[0].length).trim() === ''
       ) {
         fence = null
       }
@@ -247,16 +252,16 @@ function normalizeWikilinksOutsideCode(body: string): string {
 }
 
 function replaceOutsideInlineCode(text: string): string {
-  let output = ""
+  let output = ''
   let cursor = 0
 
   while (cursor < text.length) {
-    const opening = text.indexOf("`", cursor)
+    const opening = text.indexOf('`', cursor)
     if (opening < 0) return output + replaceWikilinkPrefixes(text.slice(cursor))
 
     output += replaceWikilinkPrefixes(text.slice(cursor, opening))
     let runEnd = opening + 1
-    while (text[runEnd] === "`") runEnd += 1
+    while (text[runEnd] === '`') runEnd += 1
     const delimiter = text.slice(opening, runEnd)
     const closing = text.indexOf(delimiter, runEnd)
     if (closing < 0) {
@@ -279,7 +284,7 @@ function replaceWikilinkPrefixes(text: string): string {
   return text.replace(
     PAGE_WIKILINK_RE,
     (match, rawTarget: string, rawAlias: string | undefined, offset: number) => {
-      if (offset > 0 && text[offset - 1] === "!") return match
+      if (offset > 0 && text[offset - 1] === '!') return match
       const preceding = text.slice(0, offset).match(/\\+$/)?.[0].length ?? 0
       if (preceding % 2 === 1) return match
 
@@ -287,27 +292,27 @@ function replaceWikilinkPrefixes(text: string): string {
       const normalizedTarget = bareWikilinkTarget(target)
       if (normalizedTarget === target) return match
 
-      const alias = rawAlias === undefined ? "" : `|${rawAlias}`
+      const alias = rawAlias === undefined ? '' : `|${rawAlias}`
       return `[[${normalizedTarget}${alias}]]`
     },
   )
 }
 
 function bareWikilinkTarget(target: string): string {
-  if (!target || target.startsWith("#")) return target
+  if (!target || target.startsWith('#')) return target
   // URI-like targets are not wiki page paths.
   if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target
 
-  const fragmentIndex = target.indexOf("#")
+  const fragmentIndex = target.indexOf('#')
   const pageTarget = fragmentIndex >= 0 ? target.slice(0, fragmentIndex) : target
-  const fragment = fragmentIndex >= 0 ? target.slice(fragmentIndex) : ""
-  const normalizedPath = pageTarget.replace(/\\/g, "/")
-  if (!normalizedPath.includes("/")) return target
+  const fragment = fragmentIndex >= 0 ? target.slice(fragmentIndex) : ''
+  const normalizedPath = pageTarget.replace(/\\/g, '/')
+  if (!normalizedPath.includes('/')) return target
 
-  const leaf = normalizedPath.split("/").pop()
+  const leaf = normalizedPath.split('/').pop()
   if (!leaf) return target
-  const extensionIndex = leaf.lastIndexOf(".")
-  if (extensionIndex > 0 && leaf.slice(extensionIndex).toLowerCase() !== ".md") {
+  const extensionIndex = leaf.lastIndexOf('.')
+  if (extensionIndex > 0 && leaf.slice(extensionIndex).toLowerCase() !== '.md') {
     return target
   }
 
@@ -323,7 +328,7 @@ async function tryBackup(
     await opts.backup(existingContent)
   } catch (err) {
     console.warn(
-      `[page-merge] backup failed for ${opts.pagePath}: ${err instanceof Error ? err.message : err}`,
+      `[page-merge] backup failed for ${opts.pagePath}: ${err instanceof Error ? err.message : String(err)}`,
     )
   }
 }
@@ -355,12 +360,12 @@ function setFrontmatterScalar(
   const fmMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/)
   if (!fmMatch) return content
   const [, openDelim, fmBody, closeDelim] = fmMatch
-  const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const newLine = `${fieldName}: ${value}`
 
   // Only match scalar form (no `[`, no `\n  -`). Array-form fields
   // are handled by sources-merge.
-  const lineRe = new RegExp(`^${escapedName}:\\s*(?!\\[)([^\\n]*)`, "m")
+  const lineRe = new RegExp(`^${escapedName}:\\s*(?!\\[)([^\\n]*)`, 'm')
   if (lineRe.test(fmBody)) {
     const rewritten = fmBody.replace(lineRe, newLine)
     return `${openDelim}${rewritten}${closeDelim}${content.slice(fmMatch[0].length)}`

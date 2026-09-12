@@ -1,4 +1,4 @@
-import type { FileNode } from "@/types/wiki"
+import type { FileNode } from '@/types/wiki'
 
 export interface ProjectPathIndexEntry {
   name: string
@@ -62,9 +62,9 @@ export function unwrapWikilink(s: string): { slug: string; label: string } {
 }
 
 export type SourceReferenceResolution =
-  | { kind: "external"; url: string }
-  | { kind: "local"; path: string }
-  | { kind: "missing" }
+  | { kind: 'external'; url: string }
+  | { kind: 'local'; path: string }
+  | { kind: 'missing' }
 
 export function resolveSourceReference(
   index: ProjectPathIndex,
@@ -73,11 +73,11 @@ export function resolveSourceReference(
 ): SourceReferenceResolution {
   const trimmedRef = ref.trim()
   const externalUrl = normalizeHttpUrl(trimmedRef)
-  if (externalUrl) return { kind: "external", url: externalUrl }
-  if (!sourcesRoot) return { kind: "missing" }
+  if (externalUrl) return { kind: 'external', url: externalUrl }
+  if (!sourcesRoot) return { kind: 'missing' }
 
   const path = resolveSourceName(index, trimmedRef, sourcesRoot)
-  return path ? { kind: "local", path } : { kind: "missing" }
+  return path ? { kind: 'local', path } : { kind: 'missing' }
 }
 
 /**
@@ -122,14 +122,14 @@ export function resolveRelatedSlug(
 ): string | null {
   // Path-like → resolve relative to project root (one segment up
   // from wikiRoot).
-  if (ref.includes("/")) {
-    const projectRoot = wikiRoot.replace(/\/wiki$/, "")
+  if (ref.includes('/')) {
+    const projectRoot = wikiRoot.replace(/\/wiki$/, '')
     const target = `${projectRoot}/${ref}`
     const found = findInTreeByPath(index, target)
     return found && found.includes(`${wikiRoot}/`) ? found : null
   }
 
-  const filename = ref.endsWith(".md") ? ref : `${ref}.md`
+  const filename = ref.endsWith('.md') ? ref : `${ref}.md`
   return findInTreeByName(index, filename, `${wikiRoot}/`)
 }
 
@@ -150,18 +150,18 @@ export function resolveSourceName(
 ): string | null {
   // sourcesRoot is `<project>/raw/sources` — derive project root
   // and wiki/ root from it.
-  const projectRoot = sourcesRoot.replace(/\/raw\/sources$/, "")
+  const projectRoot = sourcesRoot.replace(/\/raw\/sources$/, '')
   const wikiSources = `${projectRoot}/wiki/sources`
 
-  if (ref.includes("/")) {
-    const normalizedRef = ref.replace(/\\/g, "/").replace(/^\/+/, "")
-    const candidates = normalizedRef.startsWith("raw/sources/") ||
-      normalizedRef.startsWith("wiki/")
+  if (ref.includes('/')) {
+    const normalizedRef = ref.replace(/\\/g, '/').replace(/^\/+/, '')
+    const candidates = normalizedRef.startsWith('raw/sources/') ||
+        normalizedRef.startsWith('wiki/')
       ? [`${projectRoot}/${normalizedRef}`]
       : [
-          `${sourcesRoot}/${normalizedRef}`,
-          `${projectRoot}/${normalizedRef}`,
-        ]
+        `${sourcesRoot}/${normalizedRef}`,
+        `${projectRoot}/${normalizedRef}`,
+      ]
 
     for (const target of candidates) {
       const found = findInTreeByPath(index, target)
@@ -172,7 +172,7 @@ export function resolveSourceName(
 
   // Bare .md filename → look in wiki/sources/ first (ingest's
   // canonical home for source-summary pages).
-  if (ref.endsWith(".md")) {
+  if (ref.endsWith('.md')) {
     const inWiki = findInTreeByName(index, ref, `${wikiSources}/`)
     if (inWiki) return inWiki
   }
@@ -187,10 +187,10 @@ function findInTreeByPath(index: ProjectPathIndex, targetPath: string): string |
 }
 
 function normalizeHttpUrl(ref: string): string | null {
-  if (/[\u0000-\u001f\u007f]/u.test(ref)) return null
+  if (/\p{Cc}/u.test(ref)) return null
   try {
     const url = new URL(ref)
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
     if (!url.hostname || url.username || url.password) return null
     return url.href
   } catch {

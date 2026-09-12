@@ -4,38 +4,38 @@
  * wraps that command, so this file guards the command contract from
  * the TS side instead of duplicating ranking logic in Node.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import { useWikiStore } from "@/stores/wiki-store"
+import { useWikiStore } from '@/stores/wiki-store'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockInvoke = vi.fn()
+const mockInvoke = vi.fn<(...args: unknown[]) => Promise<unknown>>()
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }))
 
-import { searchWiki } from "./search"
+import { searchWiki } from './search'
 
 beforeEach(() => {
   mockInvoke.mockReset()
   useWikiStore.getState().setEmbeddingConfig({
     enabled: false,
-    endpoint: "",
-    apiKey: "",
-    model: "",
+    endpoint: '',
+    apiKey: '',
+    model: '',
   })
 })
 
-describe("searchWiki backend command contract", () => {
-  it("delegates ranking to search_project and maps relative wiki paths to absolute paths", async () => {
+describe('searchWiki backend command contract', () => {
+  it('delegates ranking to search_project and maps relative wiki paths to absolute paths', async () => {
     mockInvoke.mockResolvedValueOnce({
-      mode: "keyword",
+      mode: 'keyword',
       tokenHits: 1,
       vectorHits: 0,
       results: [
         {
-          path: "wiki/concepts/attention.md",
-          title: "Attention",
-          snippet: "body",
+          path: 'wiki/concepts/attention.md',
+          title: 'Attention',
+          snippet: 'body',
           titleMatch: true,
           score: 1 / 61,
           images: [],
@@ -43,16 +43,16 @@ describe("searchWiki backend command contract", () => {
       ],
     })
 
-    const results = await searchWiki("/tmp/project", "attention")
+    const results = await searchWiki('/tmp/project', 'attention')
 
-    expect(mockInvoke).toHaveBeenCalledWith("search_project", {
-      projectPath: "/tmp/project",
-      query: "attention",
+    expect(mockInvoke).toHaveBeenCalledWith('search_project', {
+      projectPath: '/tmp/project',
+      query: 'attention',
       topK: 20,
       includeContent: false,
       queryEmbedding: null,
       embeddingConfig: expect.objectContaining({ enabled: false }),
     })
-    expect(results[0].path).toBe("/tmp/project/wiki/concepts/attention.md")
+    expect(results[0].path).toBe('/tmp/project/wiki/concepts/attention.md')
   })
 })

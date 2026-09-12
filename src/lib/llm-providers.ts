@@ -1,16 +1,12 @@
-import type { LlmConfig, ReasoningConfig } from "@/stores/wiki-store"
-import { computeContextBudget } from "@/lib/context-budget"
-import {
-  AZURE_OPENAI_API_VERSION,
-  buildAzureOpenAiUrl,
-  isAzureOpenAiEndpoint,
-} from "@/lib/azure-openai"
+import { AZURE_OPENAI_API_VERSION, buildAzureOpenAiUrl, isAzureOpenAiEndpoint } from '@/lib/azure-openai'
+import { computeContextBudget } from '@/lib/context-budget'
 import {
   isAdaptiveAnthropicModel,
   isGeminiThinkingLevelModel,
   isOpenRouterEndpoint,
   normalizeReasoningForProvider,
-} from "@/lib/reasoning-capabilities"
+} from '@/lib/reasoning-capabilities'
+import type { LlmConfig, ReasoningConfig } from '@/stores/wiki-store'
 
 /**
  * One piece of a multimodal message body. Text + image is the only
@@ -28,11 +24,11 @@ import {
  * agnostic.
  */
 export type ContentBlock =
-  | { type: "text"; text: string }
-  | { type: "image"; mediaType: string; dataBase64: string }
+  | { type: 'text'; text: string }
+  | { type: 'image'; mediaType: string; dataBase64: string }
 
 export interface ChatMessage {
-  role: "system" | "user" | "assistant"
+  role: 'system' | 'user' | 'assistant'
   /**
    * `string` is the legacy shape — every existing call site uses it,
    * and providers that don't speak vision (or callers that don't
@@ -73,7 +69,7 @@ interface ProviderConfig {
   streaming: boolean
 }
 
-const JSON_CONTENT_TYPE = "application/json"
+const JSON_CONTENT_TYPE = 'application/json'
 const HTTP_HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 
 /**
@@ -149,15 +145,15 @@ export function mergeLlmRequestHeaders(
  * stripping it. End-to-end our value wins.
  */
 export function localLlmOriginHeader(): Record<string, string> {
-  return { Origin: "http://localhost" }
+  return { Origin: 'http://localhost' }
 }
 
 export function isLocalOrPrivateHttpEndpoint(endpoint: string): boolean {
   try {
     const url = new URL(endpoint)
     const host = url.hostname.toLowerCase()
-    if (host === "localhost" || host.endsWith(".localhost")) return true
-    if (host === "127.0.0.1" || host === "::1" || host === "[::1]") return true
+    if (host === 'localhost' || host.endsWith('.localhost')) return true
+    if (host === '127.0.0.1' || host === '::1' || host === '[::1]') return true
     if (/^10\./.test(host)) return true
     if (/^192\.168\./.test(host)) return true
     const m = host.match(/^172\.(\d+)\./)
@@ -172,13 +168,13 @@ export function isLocalOrPrivateHttpEndpoint(endpoint: string): boolean {
 }
 
 function parseOpenAiLine(line: string): string | null {
-  if (!line.startsWith("data:")) return null
+  if (!line.startsWith('data:')) return null
   const data = line.slice(5).trim()
-  if (data === "[DONE]") return null
+  if (data === '[DONE]') return null
   try {
-    const parsed = JSON.parse(data) as {
+    const parsed: {
       choices: Array<{ delta: { content?: string } }>
-    }
+    } = JSON.parse(data)
     return parsed.choices?.[0]?.delta?.content ?? null
   } catch {
     return null
@@ -186,72 +182,81 @@ function parseOpenAiLine(line: string): string | null {
 }
 
 function textFromUnknownContent(content: unknown): string {
-  if (typeof content === "string") return content
-  if (!Array.isArray(content)) return ""
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
   return content
-    .map((part) => {
-      if (!part || typeof part !== "object") return ""
-      const value = part as Record<string, unknown>
-      return typeof value.text === "string" ? value.text : ""
-    })
-    .join("")
+    .map((part) => (typeof part?.text === 'string' ? part.text : ''))
+    .join('')
 }
 
 export function parseOpenAiResponse(payload: unknown): string {
-  const root = payload as { choices?: Array<{ message?: { content?: unknown } }> }
-  return textFromUnknownContent(root?.choices?.[0]?.message?.content)
+  if (typeof payload !== 'object' || payload === null || !('choices' in payload)) return ''
+  const choices = payload.choices
+  if (!Array.isArray(choices)) return ''
+  const choice = choices[0]
+  if (typeof choice !== 'object' || choice === null || !('message' in choice)) return ''
+  const message = choice.message
+  if (typeof message !== 'object' || message === null || !('content' in message)) return ''
+  return textFromUnknownContent(message.content)
 }
 
 export function parseAnthropicResponse(payload: unknown): string {
-  const root = payload as { content?: unknown }
-  return textFromUnknownContent(root?.content)
+  if (typeof payload !== 'object' || payload === null || !('content' in payload)) return ''
+  return textFromUnknownContent(payload.content)
 }
 
 export function parseGoogleResponse(payload: unknown): string {
-  const root = payload as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>
-  }
-  return (root?.candidates?.[0]?.content?.parts ?? [])
+  if (typeof payload !== 'object' || payload === null || !('candidates' in payload)) return ''
+  const candidates = payload.candidates
+  if (!Array.isArray(candidates)) return ''
+  const candidate = candidates[0]
+  if (typeof candidate !== 'object' || candidate === null || !('content' in candidate)) return ''
+  const content = candidate.content
+  if (typeof content !== 'object' || content === null || !('parts' in content)) return ''
+  const parts = content.parts
+  if (!Array.isArray(parts)) return ''
+  return parts
     .filter((part) => !part.thought)
-    .map((part) => part.text ?? "")
-    .join("")
+    .map((part) => (typeof part.text === 'string' ? part.text : ''))
+    .join('')
 }
 
 export function parseAnthropicLine(line: string): string | null {
-  if (!line.startsWith("data:")) return null
+  if (!line.startsWith('data:')) return null
   const data = line.slice(5).trim()
-  if (data === "[DONE]") return null
+  if (data === '[DONE]') return null
   try {
-    const parsed = JSON.parse(data) as Record<string, unknown>
+    const parsed = JSON.parse(data)
 
     // Standard Anthropic streaming: content_block_delta with text_delta
-    const delta = parsed.delta as Record<string, unknown> | undefined
+    const delta = parsed.delta
     if (
-      parsed.type === "content_block_delta" &&
-      (delta?.type === "text_delta" || typeof delta?.text === "string")
+      parsed.type === 'content_block_delta' &&
+      (delta?.type === 'text_delta' || typeof delta?.text === 'string')
     ) {
-      return (delta.text as string) ?? null
+      return typeof delta.text === 'string' ? delta.text : null
     }
 
     // Some third-party Anthropic-compatible gateways (e.g. Kimi/Moonshot)
     // emit the complete assistant message as a single SSE event instead
     // of incremental content_block_delta chunks.
+    const messageContent = parsed.content
     if (
-      parsed.type === "message" &&
-      Array.isArray(parsed.content)
+      parsed.type === 'message' &&
+      Array.isArray(messageContent)
     ) {
-      const text = (parsed.content as Array<Record<string, unknown>>)
-        .map((block) => typeof block.text === "string" ? block.text : "")
-        .join("")
+      const text = messageContent
+        .map((block) => (typeof block?.text === 'string' ? block.text : ''))
+        .join('')
       return text.length > 0 ? text : null
     }
 
     // Fallback: misconfigured proxies occasionally return OpenAI-shaped
     // chunks on an Anthropic wire. Extract delta.content when present.
-    const choices = parsed.choices as Array<Record<string, unknown>> | undefined
-    if (choices && choices[0]) {
-      const choiceDelta = choices[0].delta as Record<string, unknown> | undefined
-      if (typeof choiceDelta?.content === "string") return choiceDelta.content
+    const choices = parsed.choices
+    if (Array.isArray(choices) && choices[0]) {
+      const choiceDelta = choices[0].delta
+      if (typeof choiceDelta?.content === 'string') return choiceDelta.content
     }
 
     return null
@@ -261,14 +266,14 @@ export function parseAnthropicLine(line: string): string | null {
 }
 
 export function parseGoogleLine(line: string): string | null {
-  if (!line.startsWith("data:")) return null
+  if (!line.startsWith('data:')) return null
   const data = line.slice(5).trim()
   try {
-    const parsed = JSON.parse(data) as {
+    const parsed: {
       candidates: Array<{
         content: { parts: Array<{ text?: string; thought?: boolean }> }
       }>
-    }
+    } = JSON.parse(data)
     // Gemini can split a single event's output across multiple parts —
     // common with 2.5/3.x reasoning models, which interleave
     // `thought: true` parts (chain-of-thought) with the real answer.
@@ -278,7 +283,7 @@ export function parseGoogleLine(line: string): string | null {
     // the user-visible stream.
     const parts = parsed.candidates?.[0]?.content?.parts
     if (!parts || parts.length === 0) return null
-    let out = ""
+    let out = ''
     for (const p of parts) {
       if (p.thought) continue
       if (p.text) out += p.text
@@ -306,16 +311,16 @@ export function parseGoogleLine(line: string): string | null {
  * have outbound network access at all.
  */
 function toOpenAiContent(content: string | ContentBlock[]): unknown {
-  if (typeof content === "string") return content
+  if (typeof content === 'string') return content
   // Pure-text block array → flatten to a string so we don't force
   // every provider proxy to handle parts. Same wire either way.
-  if (content.every((b) => b.type === "text")) {
-    return content.map((b) => (b.type === "text" ? b.text : "")).join("")
+  if (content.every((b) => b.type === 'text')) {
+    return content.map((b) => (b.type === 'text' ? b.text : '')).join('')
   }
   return content.map((b) => {
-    if (b.type === "text") return { type: "text", text: b.text }
+    if (b.type === 'text') return { type: 'text', text: b.text }
     return {
-      type: "image_url",
+      type: 'image_url',
       image_url: { url: `data:${b.mediaType};base64,${b.dataBase64}` },
     }
   })
@@ -336,7 +341,7 @@ function buildOpenAiBody(
   return { messages: translated, stream: streaming, ...stripWireAgnosticOverrides(overrides) }
 }
 
-function stripWireAgnosticOverrides(overrides?: RequestOverrides): Omit<RequestOverrides, "reasoning"> {
+function stripWireAgnosticOverrides(overrides?: RequestOverrides): Omit<RequestOverrides, 'reasoning'> {
   const { reasoning: _reasoning, ...rest } = overrides ?? {}
   return rest
 }
@@ -344,7 +349,7 @@ function stripWireAgnosticOverrides(overrides?: RequestOverrides): Omit<RequestO
 function effectiveReasoning(config: LlmConfig, overrides?: RequestOverrides): ReasoningConfig {
   return normalizeReasoningForProvider(
     config,
-    overrides?.reasoning ?? config.reasoning ?? { mode: "auto" },
+    overrides?.reasoning ?? config.reasoning ?? { mode: 'auto' },
   )
 }
 
@@ -357,8 +362,8 @@ function supportsDeepSeekThinkingParam(config: LlmConfig): boolean {
 }
 
 function isKimiEndpoint(config: LlmConfig): boolean {
-  return /api\.moonshot\.(ai|cn)(?:[:/]|$)/i.test(config.customEndpoint)
-    || /api\.kimi\.com\/coding(?:\/|$)/i.test(config.customEndpoint)
+  return /api\.moonshot\.(ai|cn)(?:[:/]|$)/i.test(config.customEndpoint) ||
+    /api\.kimi\.com\/coding(?:\/|$)/i.test(config.customEndpoint)
 }
 
 function isXiaomiMimoEndpoint(config: LlmConfig): boolean {
@@ -371,30 +376,31 @@ function isBigModelEndpoint(config: LlmConfig): boolean {
 
 function isGlmVisionModel(model: string): boolean {
   const normalized = model.trim().toLowerCase()
-  return /(?:^|[-_.])glm[-_.]5v[-_.]turbo(?:[-_.]|$)/i.test(normalized)
-    || /(?:^|[-_.])glm[-_.]4\.?6v(?:[-_.]|$)/i.test(normalized)
-    || /(?:^|[-_.])glm[-_.]4\.?5v(?:[-_.]|$)/i.test(normalized)
-    || /(?:^|[-_.])glm[-_.]4v(?:[-_.]|$)/i.test(normalized)
+  return /(?:^|[-_.])glm[-_.]5v[-_.]turbo(?:[-_.]|$)/i.test(normalized) ||
+    /(?:^|[-_.])glm[-_.]4\.?6v(?:[-_.]|$)/i.test(normalized) ||
+    /(?:^|[-_.])glm[-_.]4\.?5v(?:[-_.]|$)/i.test(normalized) ||
+    /(?:^|[-_.])glm[-_.]4v(?:[-_.]|$)/i.test(normalized)
 }
 
 function isOpenAiStrictCompletionModel(config: LlmConfig): boolean {
-  if ((config.provider === "azure" || (config.provider === "custom" && isAzureOpenAiEndpoint(config.customEndpoint)))
-    && config.azureModelFamily === "gpt5") {
+  if (
+    (config.provider === 'azure' || (config.provider === 'custom' && isAzureOpenAiEndpoint(config.customEndpoint))) &&
+    config.azureModelFamily === 'gpt5'
+  ) {
     return true
   }
 
   const model = config.model.trim().toLowerCase()
-  const strictModel =
-    /^gpt-5(?:[.\-_]|$)/.test(model) || /^o\d+(?:[.\-_]|$)/.test(model)
+  const strictModel = /^gpt-5(?:[.\-_]|$)/.test(model) || /^o\d+(?:[.\-_]|$)/.test(model)
   if (!strictModel) return false
-  if (config.provider === "openai" || config.provider === "azure") return true
-  return config.provider === "custom" && isAzureOpenAiEndpoint(config.customEndpoint)
+  if (config.provider === 'openai' || config.provider === 'azure') return true
+  return config.provider === 'custom' && isAzureOpenAiEndpoint(config.customEndpoint)
 }
 
 function adaptOpenAiStrictCompletionBody(config: LlmConfig, body: Record<string, unknown>): void {
   if (!isOpenAiStrictCompletionModel(config)) return
 
-  if (typeof body.max_tokens === "number") {
+  if (typeof body.max_tokens === 'number') {
     body.max_completion_tokens = body.max_tokens
     delete body.max_tokens
   }
@@ -428,7 +434,7 @@ function adaptXiaomiMimoBody(
   // Xiaomi MiMo's OpenAI-compatible examples use
   // `max_completion_tokens`. Accept callers' provider-agnostic
   // `max_tokens` override but send the documented field on the wire.
-  if (typeof body.max_tokens === "number") {
+  if (typeof body.max_tokens === 'number') {
     body.max_completion_tokens = body.max_tokens
     delete body.max_tokens
   }
@@ -436,8 +442,8 @@ function adaptXiaomiMimoBody(
   // Official thinking-mode control documents `thinking.type=disabled`.
   // Do not invent an enabled/budget shape here; omitting the field lets
   // the server apply the model default.
-  if (reasoning.mode === "off") {
-    body.thinking = { type: "disabled" }
+  if (reasoning.mode === 'off') {
+    body.thinking = { type: 'disabled' }
   } else {
     // MiMo v2.5 thinking mode forces temperature=1.0 and rejects
     // custom temperature. Structured ingest passes temperature=0.1,
@@ -464,11 +470,11 @@ function buildOpenAiCompatibleBody(
   adaptKimiBody(config, body)
   adaptXiaomiMimoBody(config, body, reasoning)
 
-  if (config.provider === "custom" && isOpenRouterEndpoint(config.customEndpoint)) {
-    if (reasoning.mode === "custom" && reasoning.budgetTokens !== undefined) {
+  if (config.provider === 'custom' && isOpenRouterEndpoint(config.customEndpoint)) {
+    if (reasoning.mode === 'custom' && reasoning.budgetTokens !== undefined) {
       body.reasoning = { max_tokens: reasoning.budgetTokens }
-    } else if (reasoning.mode !== "auto") {
-      body.reasoning = { effort: reasoning.mode === "off" ? "none" : reasoning.mode }
+    } else if (reasoning.mode !== 'auto') {
+      body.reasoning = { effort: reasoning.mode === 'off' ? 'none' : reasoning.mode }
     }
     return body
   }
@@ -479,11 +485,11 @@ function buildOpenAiCompatibleBody(
     // from spending the whole response on `reasoning_content` with no
     // final `content`.
     if (supportsDeepSeekThinkingParam(config)) {
-      if (reasoning.mode === "off") {
-        body.thinking = { type: "disabled" }
-      } else if (reasoning.mode !== "auto") {
-        body.thinking = { type: "enabled" }
-        if (reasoning.mode === "high" || reasoning.mode === "max") {
+      if (reasoning.mode === 'off') {
+        body.thinking = { type: 'disabled' }
+      } else if (reasoning.mode !== 'auto') {
+        body.thinking = { type: 'enabled' }
+        if (reasoning.mode === 'high' || reasoning.mode === 'max') {
           body.reasoning_effort = reasoning.mode
         }
       }
@@ -491,7 +497,7 @@ function buildOpenAiCompatibleBody(
     return body
   }
 
-  if (config.provider === "ollama") {
+  if (config.provider === 'ollama') {
     // Ollama's OpenAI-compatible /v1/chat/completions maps reasoning
     // control onto `reasoning_effort` ("high"|"medium"|"low"|"none";
     // "none" disables thinking). This is the only lever that stops a
@@ -505,22 +511,22 @@ function buildOpenAiCompatibleBody(
     // llama) ignore the field harmlessly. "max" has no Ollama analogue,
     // so it maps to the strongest supported level, "high".
     // See docs.ollama.com/api/openai-compatibility.
-    if (reasoning.mode === "off") {
-      body.reasoning_effort = "none"
+    if (reasoning.mode === 'off') {
+      body.reasoning_effort = 'none'
     } else if (
-      reasoning.mode === "low" ||
-      reasoning.mode === "medium" ||
-      reasoning.mode === "high"
+      reasoning.mode === 'low' ||
+      reasoning.mode === 'medium' ||
+      reasoning.mode === 'high'
     ) {
       body.reasoning_effort = reasoning.mode
-    } else if (reasoning.mode === "max") {
-      body.reasoning_effort = "high"
+    } else if (reasoning.mode === 'max') {
+      body.reasoning_effort = 'high'
     }
     return body
   }
 
-  if (config.provider === "openai" && reasoning.mode !== "auto" && reasoning.mode !== "off") {
-    if (reasoning.mode === "low" || reasoning.mode === "medium" || reasoning.mode === "high") {
+  if (config.provider === 'openai' && reasoning.mode !== 'auto' && reasoning.mode !== 'off') {
+    if (reasoning.mode === 'low' || reasoning.mode === 'medium' || reasoning.mode === 'high') {
       body.reasoning_effort = reasoning.mode
     }
   }
@@ -540,16 +546,16 @@ function buildOpenAiCompatibleBody(
  * prompt can opt into prompt caching.
  */
 function toAnthropicContent(content: string | ContentBlock[]): unknown {
-  if (typeof content === "string") return content
-  if (content.every((b) => b.type === "text")) {
-    return content.map((b) => (b.type === "text" ? b.text : "")).join("")
+  if (typeof content === 'string') return content
+  if (content.every((b) => b.type === 'text')) {
+    return content.map((b) => (b.type === 'text' ? b.text : '')).join('')
   }
   return content.map((b) => {
-    if (b.type === "text") return { type: "text", text: b.text }
+    if (b.type === 'text') return { type: 'text', text: b.text }
     return {
-      type: "image",
+      type: 'image',
       source: {
-        type: "base64",
+        type: 'base64',
         media_type: b.mediaType,
         data: b.dataBase64,
       },
@@ -565,10 +571,10 @@ function toAnthropicContent(content: string | ContentBlock[]): unknown {
  * out for "Unsupported content block in system".
  */
 function flattenAnthropicSystem(content: string | ContentBlock[]): string {
-  if (typeof content === "string") return content
+  if (typeof content === 'string') return content
   return content
-    .map((b) => (b.type === "text" ? b.text : ""))
-    .join("")
+    .map((b) => (b.type === 'text' ? b.text : ''))
+    .join('')
 }
 
 function buildAnthropicSystem(systemText: string): unknown[] | undefined {
@@ -578,9 +584,9 @@ function buildAnthropicSystem(systemText: string): unknown[] | undefined {
   // cache_control marker.
   return [
     {
-      type: "text",
+      type: 'text',
       text: systemText,
-      cache_control: { type: "ephemeral" },
+      cache_control: { type: 'ephemeral' },
     },
   ]
 }
@@ -590,13 +596,13 @@ function buildAnthropicBody(
   overrides?: RequestOverrides,
   streaming = true,
 ): Record<string, unknown> {
-  const systemMessages = messages.filter((m) => m.role === "system")
+  const systemMessages = messages.filter((m) => m.role === 'system')
   const conversationMessages = messages
-    .filter((m) => m.role !== "system")
+    .filter((m) => m.role !== 'system')
     .map((m) => ({ role: m.role, content: toAnthropicContent(m.content) }))
   const systemText = systemMessages
     .map((m) => flattenAnthropicSystem(m.content))
-    .join("\n")
+    .join('\n')
   const system = buildAnthropicSystem(systemText)
 
   // Anthropic Messages uses top_p / top_k (Python-style snake_case), a
@@ -624,15 +630,15 @@ function buildAnthropicBodyWithReasoning(
 ): Record<string, unknown> {
   const body = buildAnthropicBody(messages, overrides, streaming)
   const reasoning = effectiveReasoning(config, overrides)
-  if (reasoning.mode === "auto" || reasoning.mode === "off") return body
+  if (reasoning.mode === 'auto' || reasoning.mode === 'off') return body
 
   if (isAdaptiveAnthropicModel(config)) {
-    body.thinking = { type: "adaptive" }
-    const effort = reasoning.mode === "custom"
-      ? "high"
-      : reasoning.mode === "max"
-        ? "max"
-        : reasoning.mode
+    body.thinking = { type: 'adaptive' }
+    const effort = reasoning.mode === 'custom'
+      ? 'high'
+      : reasoning.mode === 'max'
+      ? 'max'
+      : reasoning.mode
     body.output_config = { effort }
     delete body.temperature
     delete body.top_p
@@ -640,19 +646,19 @@ function buildAnthropicBodyWithReasoning(
     return body
   }
 
-  const budget =
-    reasoning.mode === "custom" && reasoning.budgetTokens !== undefined
-      ? reasoning.budgetTokens
-      : reasoning.mode === "low"
-        ? 1024
-        : reasoning.mode === "medium"
-          ? 4096
-        : 8192
+  const budget = reasoning.mode === 'custom' && reasoning.budgetTokens !== undefined
+    ? reasoning.budgetTokens
+    : reasoning.mode === 'low'
+    ? 1024
+    : reasoning.mode === 'medium'
+    ? 4096
+    : 8192
   const budgetTokens = Math.max(1024, budget)
-  if ((body.max_tokens as number) <= budgetTokens) {
+  const maxTokens = body.max_tokens
+  if (typeof maxTokens === 'number' && maxTokens <= budgetTokens) {
     body.max_tokens = budgetTokens + 1
   }
-  body.thinking = { type: "enabled", budget_tokens: budgetTokens }
+  body.thinking = { type: 'enabled', budget_tokens: budgetTokens }
   delete body.temperature
   delete body.top_p
   delete body.top_k
@@ -660,9 +666,7 @@ function buildAnthropicBodyWithReasoning(
 }
 
 function hasImageContent(messages: ChatMessage[]): boolean {
-  return messages.some((m) =>
-    Array.isArray(m.content) && m.content.some((block) => block.type === "image"),
-  )
+  return messages.some((m) => Array.isArray(m.content) && m.content.some((block) => block.type === 'image'))
 }
 
 /**
@@ -677,15 +681,15 @@ function hasImageContent(messages: ChatMessage[]): boolean {
  * even leaves.
  */
 function requiresBearerAuth(url: string): boolean {
-  const normalized = url.toLowerCase().replace(/\/+$/, "")
+  const normalized = url.toLowerCase().replace(/\/+$/, '')
   return (
     // MiniMax — CORS allow-headers doesn't include x-api-key
-    normalized.startsWith("https://api.minimax.io/anthropic") ||
-    normalized.startsWith("https://api.minimaxi.com/anthropic") ||
+    normalized.startsWith('https://api.minimax.io/anthropic') ||
+    normalized.startsWith('https://api.minimaxi.com/anthropic') ||
     // Alibaba Bailian Coding Plan — issues sk-xxx bearer-style tokens
     // on its /apps/anthropic gateway; behavior matches the other
     // Chinese Anthropic-wire proxies above.
-    normalized.startsWith("https://coding.dashscope.aliyuncs.com/apps/anthropic") ||
+    normalized.startsWith('https://coding.dashscope.aliyuncs.com/apps/anthropic') ||
     // Xiaomi MiMo Token Plan Anthropic gateway authenticates with
     // Authorization Bearer, matching its OpenAI-compatible gateway.
     /(^https:\/\/|^)token-plan-cn\.xiaomimimo\.com\/anthropic(?:\/|$)/i.test(normalized) ||
@@ -693,18 +697,18 @@ function requiresBearerAuth(url: string): boolean {
     // The coding endpoint (api.kimi.com/coding) is separate from the
     // Moonshot open platform (api.moonshot.ai) and expects Bearer auth
     // on both its OpenAI- and Anthropic-compatible wires.
-    normalized.startsWith("https://api.kimi.com/coding") ||
+    normalized.startsWith('https://api.kimi.com/coding') ||
     // Moonshot open platform Anthropic-compatible wires (global + CN)
     // also authenticate with Bearer tokens, matching their OpenAI wire.
-    normalized.startsWith("https://api.moonshot.ai/anthropic") ||
-    normalized.startsWith("https://api.moonshot.cn/anthropic")
+    normalized.startsWith('https://api.moonshot.ai/anthropic') ||
+    normalized.startsWith('https://api.moonshot.cn/anthropic')
   )
 }
 
 function isMiniMaxAnthropicHost(url: string): boolean {
   try {
     const parsed = new URL(url)
-    return parsed.hostname === "api.minimax.io" || parsed.hostname === "api.minimaxi.com"
+    return parsed.hostname === 'api.minimax.io' || parsed.hostname === 'api.minimaxi.com'
   } catch {
     return false
   }
@@ -715,12 +719,12 @@ function normalizeMiniMaxAnthropicBase(base: string): string {
 
   try {
     const parsed = new URL(base)
-    const path = parsed.pathname.replace(/\/+$/, "")
-    if (path === "" || path === "/" || /^\/v\d+(?:\/messages)?$/i.test(path)) {
-      parsed.pathname = "/anthropic"
-      parsed.search = ""
-      parsed.hash = ""
-      return parsed.toString().replace(/\/+$/, "")
+    const path = parsed.pathname.replace(/\/+$/, '')
+    if (path === '' || path === '/' || /^\/v\d+(?:\/messages)?$/i.test(path)) {
+      parsed.pathname = '/anthropic'
+      parsed.search = ''
+      parsed.hash = ''
+      return parsed.toString().replace(/\/+$/, '')
     }
   } catch {
     return base
@@ -746,22 +750,22 @@ function isMiniMaxM3Model(model: string): boolean {
 function assertMiniMaxImageSupport(url: string, model: string, messages: ChatMessage[]): void {
   if (!isOfficialMiniMaxAnthropicUrl(url) || !hasImageContent(messages) || isMiniMaxM3Model(model)) return
   throw new Error(
-    "MiniMax image input is supported only by MiniMax-M3 on the official Anthropic-compatible endpoint. Switch the model to MiniMax-M3 or use another vision-capable provider.",
+    'MiniMax image input is supported only by MiniMax-M3 on the official Anthropic-compatible endpoint. Switch the model to MiniMax-M3 or use another vision-capable provider.',
   )
 }
 
 function assertBigModelImageSupport(config: LlmConfig, messages: ChatMessage[]): void {
   if (!isBigModelEndpoint(config) || !hasImageContent(messages) || isGlmVisionModel(config.model)) return
   throw new Error(
-    "Zhipu BigModel image input is supported only by GLM vision models. Switch to glm-5v-turbo, glm-4.6v, glm-4.5v, or glm-4v-plus.",
+    'Zhipu BigModel image input is supported only by GLM vision models. Switch to glm-5v-turbo, glm-4.6v, glm-4.5v, or glm-4v-plus.',
   )
 }
 
 export function supportsImageInput(config: LlmConfig): boolean {
-  if (config.provider === "codex-cli") return false
-  if (config.provider === "minimax") return isMiniMaxM3Model(config.model)
+  if (config.provider === 'codex-cli') return false
+  if (config.provider === 'minimax') return isMiniMaxM3Model(config.model)
   if (isBigModelEndpoint(config)) return isGlmVisionModel(config.model)
-  if ((config.provider === "custom") && (config.apiMode ?? "chat_completions") === "anthropic_messages") {
+  if ((config.provider === 'custom') && (config.apiMode ?? 'chat_completions') === 'anthropic_messages') {
     const url = buildAnthropicUrl(config.customEndpoint)
     return !isOfficialMiniMaxAnthropicUrl(url) || isMiniMaxM3Model(config.model)
   }
@@ -782,7 +786,7 @@ export function supportsImageInput(config: LlmConfig): boolean {
  * ".../v1/v1/messages" (404) whenever a user typed a URL ending in /v1.
  */
 export function buildAnthropicUrl(base: string): string {
-  const trimmed = normalizeMiniMaxAnthropicBase(base).replace(/\/+$/, "")
+  const trimmed = normalizeMiniMaxAnthropicBase(base).replace(/\/+$/, '')
   if (/\/v\d+\/messages$/i.test(trimmed)) return trimmed
   if (/\/v\d+$/i.test(trimmed)) return `${trimmed}/messages`
   return `${trimmed}/v1/messages`
@@ -791,14 +795,14 @@ export function buildAnthropicUrl(base: string): string {
 function buildAnthropicHeaders(config: LlmConfig, url: string): Record<string, string> {
   const apiKey = config.apiKey
   const base: Record<string, string> = {
-    "Content-Type": JSON_CONTENT_TYPE,
-    "anthropic-version": "2023-06-01",
+    'Content-Type': JSON_CONTENT_TYPE,
+    'anthropic-version': '2023-06-01',
   }
   if (requiresBearerAuth(url)) {
     base.Authorization = `Bearer ${apiKey}`
   } else {
-    base["x-api-key"] = apiKey
-    base["anthropic-dangerous-direct-browser-access"] = "true"
+    base['x-api-key'] = apiKey
+    base['anthropic-dangerous-direct-browser-access'] = 'true'
   }
   return mergeLlmRequestHeaders(config.customHeaders, base)
 }
@@ -811,9 +815,9 @@ function buildAnthropicHeaders(config: LlmConfig, url: string): Record<string, s
  * uniformly.
  */
 function toGoogleParts(content: string | ContentBlock[]): unknown[] {
-  if (typeof content === "string") return [{ text: content }]
+  if (typeof content === 'string') return [{ text: content }]
   return content.map((b) => {
-    if (b.type === "text") return { text: b.text }
+    if (b.type === 'text') return { text: b.text }
     return {
       inline_data: {
         mime_type: b.mediaType,
@@ -824,8 +828,8 @@ function toGoogleParts(content: string | ContentBlock[]): unknown[] {
 }
 
 function flattenGoogleSystemParts(content: string | ContentBlock[]): string {
-  if (typeof content === "string") return content
-  return content.map((b) => (b.type === "text" ? b.text : "")).join("")
+  if (typeof content === 'string') return content
+  return content.map((b) => (b.type === 'text' ? b.text : '')).join('')
 }
 
 function buildGoogleBody(
@@ -833,11 +837,11 @@ function buildGoogleBody(
   messages: ChatMessage[],
   overrides?: RequestOverrides,
 ): Record<string, unknown> {
-  const systemMessages = messages.filter((m) => m.role === "system")
-  const conversationMessages = messages.filter((m) => m.role !== "system")
+  const systemMessages = messages.filter((m) => m.role === 'system')
+  const conversationMessages = messages.filter((m) => m.role !== 'system')
 
   const contents = conversationMessages.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
+    role: m.role === 'assistant' ? 'model' : 'user',
     parts: toGoogleParts(m.content),
   }))
 
@@ -845,12 +849,11 @@ function buildGoogleBody(
   // practice every consumer flattens it to a string equivalent —
   // images in a system instruction are not a documented use case.
   // Keep it text-only.
-  const systemInstruction =
-    systemMessages.length > 0
-      ? {
-          parts: systemMessages.map((m) => ({ text: flattenGoogleSystemParts(m.content) })),
-        }
-      : undefined
+  const systemInstruction = systemMessages.length > 0
+    ? {
+      parts: systemMessages.map((m) => ({ text: flattenGoogleSystemParts(m.content) })),
+    }
+    : undefined
 
   // Gemini rejects sampling knobs at the top level (HTTP 400
   // "Unknown name 'temperature': Cannot find field.") — everything
@@ -870,23 +873,22 @@ function buildGoogleBody(
     generationConfig.stopSequences = Array.isArray(overrides.stop) ? overrides.stop : [overrides.stop]
   }
   const reasoning = effectiveReasoning(config, overrides)
-  if (reasoning.mode === "off") {
+  if (reasoning.mode === 'off') {
     generationConfig.thinkingConfig = { thinkingBudget: 0 }
-  } else if (reasoning.mode !== "auto") {
+  } else if (reasoning.mode !== 'auto') {
     if (isGeminiThinkingLevelModel(config)) {
-      const thinkingLevel = reasoning.mode === "low" || reasoning.mode === "medium"
+      const thinkingLevel = reasoning.mode === 'low' || reasoning.mode === 'medium'
         ? reasoning.mode
-        : "high"
+        : 'high'
       generationConfig.thinkingConfig = { thinkingLevel }
     } else {
-      const budget =
-        reasoning.mode === "custom" && reasoning.budgetTokens !== undefined
-          ? reasoning.budgetTokens
-          : reasoning.mode === "low"
-            ? 1024
-            : reasoning.mode === "medium"
-              ? 4096
-              : 8192
+      const budget = reasoning.mode === 'custom' && reasoning.budgetTokens !== undefined
+        ? reasoning.budgetTokens
+        : reasoning.mode === 'low'
+        ? 1024
+        : reasoning.mode === 'medium'
+        ? 4096
+        : 8192
       generationConfig.thinkingConfig = { thinkingBudget: budget }
     }
   }
@@ -922,11 +924,11 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
   const anthropicBudgetTokens = deriveAnthropicMaxTokens(config.maxContextSize)
 
   switch (provider) {
-    case "openai":
+    case 'openai':
       return {
-        url: "https://api.openai.com/v1/chat/completions",
+        url: 'https://api.openai.com/v1/chat/completions',
         headers: mergeLlmRequestHeaders(config.customHeaders, {
-          "Content-Type": JSON_CONTENT_TYPE,
+          'Content-Type': JSON_CONTENT_TYPE,
           Authorization: `Bearer ${apiKey}`,
         }),
         buildBody: (messages, overrides) => ({
@@ -938,15 +940,20 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
         streaming,
       }
 
-    case "anthropic": {
-      const url = buildAnthropicUrl("https://api.anthropic.com")
+    case 'anthropic': {
+      const url = buildAnthropicUrl('https://api.anthropic.com')
       return {
         url,
         headers: buildAnthropicHeaders(config, url),
         buildBody: (messages, overrides) => {
           assertMiniMaxImageSupport(url, model, messages)
           return {
-            ...buildAnthropicBodyWithReasoning(config, messages, { max_tokens: anthropicBudgetTokens, ...overrides }, streaming),
+            ...buildAnthropicBodyWithReasoning(
+              config,
+              messages,
+              { max_tokens: anthropicBudgetTokens, ...overrides },
+              streaming,
+            ),
             model,
           }
         },
@@ -956,7 +963,7 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
       }
     }
 
-    case "google": {
+    case 'google': {
       // Encode the model segment — users sometimes paste OpenRouter-style
       // ids with slashes (e.g. "google/gemini-3-pro-preview") and bare
       // interpolation would produce a broken URL. encodeURIComponent
@@ -967,20 +974,21 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
           ? `https://generativelanguage.googleapis.com/v1beta/models/${encodedModel}:streamGenerateContent?alt=sse`
           : `https://generativelanguage.googleapis.com/v1beta/models/${encodedModel}:generateContent`,
         headers: mergeLlmRequestHeaders(config.customHeaders, {
-          "Content-Type": JSON_CONTENT_TYPE,
-          "x-goog-api-key": apiKey,
+          'Content-Type': JSON_CONTENT_TYPE,
+          'x-goog-api-key': apiKey,
         }),
-        buildBody: (messages, overrides) => buildGoogleBody(config, messages, {
-          ...(overrides ?? {}),
-          reasoning: effectiveReasoning(config, overrides),
-        }),
+        buildBody: (messages, overrides) =>
+          buildGoogleBody(config, messages, {
+            ...(overrides ?? {}),
+            reasoning: effectiveReasoning(config, overrides),
+          }),
         parseStream: parseGoogleLine,
         parseResponse: parseGoogleResponse,
         streaming,
       }
     }
 
-    case "azure": {
+    case 'azure': {
       return {
         url: buildAzureOpenAiUrl(
           customEndpoint,
@@ -988,32 +996,31 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
           config.azureApiVersion ?? AZURE_OPENAI_API_VERSION,
         ),
         headers: mergeLlmRequestHeaders(config.customHeaders, {
-          "Content-Type": JSON_CONTENT_TYPE,
-          "api-key": apiKey,
+          'Content-Type': JSON_CONTENT_TYPE,
+          'api-key': apiKey,
         }),
-        buildBody: (messages, overrides) =>
-          buildOpenAiCompatibleBody(config, messages, overrides, streaming),
+        buildBody: (messages, overrides) => buildOpenAiCompatibleBody(config, messages, overrides, streaming),
         parseStream: parseOpenAiLine,
         parseResponse: parseOpenAiResponse,
         streaming,
       }
     }
 
-    case "ollama": {
+    case 'ollama': {
       // Defense-in-depth for the same reason as the custom branch: if a
       // user pasted the full path as their Ollama URL, don't tack on
       // another copy. Also strip a bare trailing "/v1" so the user can
       // enter either form ("http://host:11434" or "http://host:11434/v1").
-      let ollamaBase = ollamaUrl.replace(/\/+$/, "")
+      let ollamaBase = ollamaUrl.replace(/\/+$/, '')
       if (/\/v1\/chat\/completions$/i.test(ollamaBase)) {
-        ollamaBase = ollamaBase.replace(/\/v1\/chat\/completions$/i, "")
+        ollamaBase = ollamaBase.replace(/\/v1\/chat\/completions$/i, '')
       } else if (/\/v1$/i.test(ollamaBase)) {
-        ollamaBase = ollamaBase.replace(/\/v1$/i, "")
+        ollamaBase = ollamaBase.replace(/\/v1$/i, '')
       }
       return {
         url: `${ollamaBase}/v1/chat/completions`,
         headers: mergeLlmRequestHeaders(config.customHeaders, {
-          "Content-Type": JSON_CONTENT_TYPE,
+          'Content-Type': JSON_CONTENT_TYPE,
           ...localLlmOriginHeader(),
         }),
         buildBody: (messages, overrides) => ({
@@ -1026,20 +1033,25 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
       }
     }
 
-    case "minimax": {
+    case 'minimax': {
       // MiniMax's real API is Anthropic Messages at /anthropic, not
       // OpenAI chat completions. customEndpoint can point at either the
       // global (.io) or China (.minimaxi.com) regional endpoint; default
       // to the global one when unset. Auth uses Bearer (see
       // buildAnthropicHeaders / requiresBearerAuth above).
-      const url = buildAnthropicUrl(customEndpoint || "https://api.minimax.io/anthropic")
+      const url = buildAnthropicUrl(customEndpoint || 'https://api.minimax.io/anthropic')
       return {
         url,
         headers: buildAnthropicHeaders(config, url),
         buildBody: (messages, overrides) => {
           assertMiniMaxImageSupport(url, model, messages)
           return {
-            ...buildAnthropicBodyWithReasoning(config, messages, { max_tokens: anthropicBudgetTokens, ...overrides }, streaming),
+            ...buildAnthropicBodyWithReasoning(
+              config,
+              messages,
+              { max_tokens: anthropicBudgetTokens, ...overrides },
+              streaming,
+            ),
             model,
           }
         },
@@ -1049,8 +1061,8 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
       }
     }
 
-    case "claude-code":
-    case "codex-cli":
+    case 'claude-code':
+    case 'codex-cli':
       // Local CLI providers use subprocess transports (stdin/stdout JSON
       // streams), not HTTP. Dispatch happens one layer up in
       // streamChat() before getProviderConfig is called. Reaching this
@@ -1059,13 +1071,13 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
         `${provider} provider uses subprocess transport; getProviderConfig should not be called for it`,
       )
 
-    case "custom": {
+    case 'custom': {
       // Custom endpoints can speak either OpenAI's /chat/completions
       // wire or Anthropic's /v1/messages wire. The field `apiMode` on
       // the config picks which. Default (missing) = chat_completions
       // so pre-0.3.7 configs keep working unchanged.
-      const mode = config.apiMode ?? "chat_completions"
-      if (mode === "anthropic_messages") {
+      const mode = config.apiMode ?? 'chat_completions'
+      if (mode === 'anthropic_messages') {
         const url = buildAnthropicUrl(customEndpoint)
         return {
           url,
@@ -1073,7 +1085,12 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
           buildBody: (messages, overrides) => {
             assertMiniMaxImageSupport(url, model, messages)
             return {
-              ...buildAnthropicBodyWithReasoning(config, messages, { max_tokens: anthropicBudgetTokens, ...overrides }, streaming),
+              ...buildAnthropicBodyWithReasoning(
+                config,
+                messages,
+                { max_tokens: anthropicBudgetTokens, ...overrides },
+                streaming,
+              ),
               model,
             }
           },
@@ -1086,24 +1103,24 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
       // blur, but older configs saved before that shipped may still carry
       // a pasted "/chat/completions" tail. Don't double-append in that
       // case, or we'd POST to ".../chat/completions/chat/completions".
-      const base = customEndpoint.replace(/\/+$/, "")
+      const base = customEndpoint.replace(/\/+$/, '')
       const url = isAzureOpenAiEndpoint(base)
         ? buildAzureOpenAiUrl(
-            base,
-            model,
-            config.azureApiVersion ?? AZURE_OPENAI_API_VERSION,
-          )
+          base,
+          model,
+          config.azureApiVersion ?? AZURE_OPENAI_API_VERSION,
+        )
         : /\/chat\/completions$/i.test(base)
-          ? base
-          : `${base}/chat/completions`
+        ? base
+        : `${base}/chat/completions`
       const azure = isAzureOpenAiEndpoint(url)
       return {
         url,
         headers: mergeLlmRequestHeaders(config.customHeaders, {
-          "Content-Type": JSON_CONTENT_TYPE,
+          'Content-Type': JSON_CONTENT_TYPE,
           ...(apiKey
             ? azure
-              ? { "api-key": apiKey }
+              ? { 'api-key': apiKey }
               : { Authorization: `Bearer ${apiKey}` }
             : {}),
           // Only local/LAN OpenAI-compatible servers (LM Studio,

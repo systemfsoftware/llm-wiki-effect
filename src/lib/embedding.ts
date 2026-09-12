@@ -21,13 +21,13 @@
  * transport is shared by UI and backend callers.
  */
 
-import { readFile, listDirectory } from "@/commands/fs"
-import { invoke } from "@tauri-apps/api/core"
-import type { EmbeddingConfig } from "@/stores/wiki-store"
-import type { FileNode } from "@/types/wiki"
-import { normalizePath } from "@/lib/path-utils"
-import { chunkMarkdown, type Chunk } from "@/lib/text-chunker"
-import { parseFrontmatter } from "@/lib/frontmatter"
+import { listDirectory, readFile } from '@/commands/fs'
+import { parseFrontmatter } from '@/lib/frontmatter'
+import { normalizePath } from '@/lib/path-utils'
+import { type Chunk, chunkMarkdown } from '@/lib/text-chunker'
+import type { EmbeddingConfig } from '@/stores/wiki-store'
+import type { FileNode } from '@/types/wiki'
+import { invoke } from '@tauri-apps/api/core'
 
 // ── Error surfacing ──────────────────────────────────────────────────────
 
@@ -66,14 +66,14 @@ export function looksLikeOversizeError(httpStatus: number, body: string): boolea
   if (httpStatus === 413) return true
   const lower = body.toLowerCase()
   return (
-    lower.includes("too long") ||
-    lower.includes("maximum context") ||
-    lower.includes("max_tokens") ||
-    lower.includes("max tokens") ||
-    lower.includes("context length") ||
-    lower.includes("token limit") ||
-    lower.includes("exceeds") ||
-    lower.includes("input length")
+    lower.includes('too long') ||
+    lower.includes('maximum context') ||
+    lower.includes('max_tokens') ||
+    lower.includes('max tokens') ||
+    lower.includes('context length') ||
+    lower.includes('token limit') ||
+    lower.includes('exceeds') ||
+    lower.includes('input length')
   )
 }
 
@@ -95,7 +95,7 @@ export async function fetchEmbedding(
   if (!cfg.endpoint) return null
   const failureVersionAtStart = embeddingFailureVersion
   try {
-    const embedding = await invoke<number[]>("embedding_fetch", {
+    const embedding = await invoke<number[]>('embedding_fetch', {
       text,
       cfg,
       maxRetries,
@@ -119,7 +119,7 @@ async function fetchBatchEmbeddings(
   if (texts.length === 0) return []
   const failureVersionAtStart = embeddingFailureVersion
   try {
-    const embeddings = await invoke<number[][]>("embedding_fetch_batch", { texts, cfg })
+    const embeddings = await invoke<number[][]>('embedding_fetch_batch', { texts, cfg })
     if (embeddings.length !== texts.length) {
       throw new Error(`Embedding batch returned ${embeddings.length} vectors for ${texts.length} inputs`)
     }
@@ -135,9 +135,9 @@ async function fetchBatchEmbeddings(
 function supportsOpenAiCompatibleBatch(cfg: EmbeddingConfig): boolean {
   const endpoint = cfg.endpoint.toLowerCase()
   const model = cfg.model.toLowerCase()
-  return !endpoint.includes("generativelanguage.googleapis.com")
-    && !endpoint.includes(":embedcontent")
-    && !model.includes("doubao-embedding-vision")
+  return !endpoint.includes('generativelanguage.googleapis.com') &&
+    !endpoint.includes(':embedcontent') &&
+    !model.includes('doubao-embedding-vision')
 }
 
 type AsyncLimiter = <T>(task: () => Promise<T>) => Promise<T>
@@ -178,7 +178,7 @@ async function vectorUpsertChunks(
   pageId: string,
   chunks: ChunkUpsertInput[],
 ): Promise<void> {
-  await invoke("vector_upsert_chunks", {
+  await invoke('vector_upsert_chunks', {
     projectPath: normalizePath(projectPath),
     pageId,
     chunks: chunks.map((c) => ({
@@ -204,7 +204,7 @@ async function vectorSearchChunks(
   queryEmbedding: number[],
   topK: number,
 ): Promise<ChunkSearchResult[]> {
-  return await invoke("vector_search_chunks", {
+  return await invoke('vector_search_chunks', {
     projectPath: normalizePath(projectPath),
     queryEmbedding: queryEmbedding.map((v) => Math.fround(v)),
     topK,
@@ -212,33 +212,33 @@ async function vectorSearchChunks(
 }
 
 async function vectorDeletePage(projectPath: string, pageId: string): Promise<void> {
-  await invoke("vector_delete_page", {
+  await invoke('vector_delete_page', {
     projectPath: normalizePath(projectPath),
     pageId,
   })
 }
 
 async function vectorCountChunks(projectPath: string): Promise<number> {
-  return await invoke("vector_count_chunks", {
+  return await invoke('vector_count_chunks', {
     projectPath: normalizePath(projectPath),
   })
 }
 
 async function vectorClearChunks(projectPath: string): Promise<void> {
-  await invoke("vector_clear_chunks", {
+  await invoke('vector_clear_chunks', {
     projectPath: normalizePath(projectPath),
   })
 }
 
 async function vectorOptimizeChunks(projectPath: string): Promise<void> {
-  await invoke("vector_optimize_chunks", {
+  await invoke('vector_optimize_chunks', {
     projectPath: normalizePath(projectPath),
   })
 }
 
 export async function legacyVectorRowCount(projectPath: string): Promise<number> {
   try {
-    return await invoke("vector_legacy_row_count", {
+    return await invoke('vector_legacy_row_count', {
       projectPath: normalizePath(projectPath),
     })
   } catch {
@@ -247,7 +247,7 @@ export async function legacyVectorRowCount(projectPath: string): Promise<number>
 }
 
 export async function dropLegacyVectorTable(projectPath: string): Promise<void> {
-  await invoke("vector_drop_legacy", {
+  await invoke('vector_drop_legacy', {
     projectPath: normalizePath(projectPath),
   })
 }
@@ -261,7 +261,7 @@ async function optimizeChunkVectorTableBestEffort(projectPath: string): Promise<
     await vectorOptimizeChunks(projectPath)
   } catch (err) {
     console.warn(
-      `[Embedding] LanceDB chunk optimization failed: ${err instanceof Error ? err.message : err}`,
+      `[Embedding] LanceDB chunk optimization failed: ${err instanceof Error ? err.message : String(err)}`,
     )
   }
 }
@@ -271,7 +271,7 @@ async function dropLegacyVectorTableBestEffort(projectPath: string): Promise<voi
     await dropLegacyVectorTable(projectPath)
   } catch (err) {
     console.warn(
-      `[Embedding] Legacy vector table cleanup failed: ${err instanceof Error ? err.message : err}`,
+      `[Embedding] Legacy vector table cleanup failed: ${err instanceof Error ? err.message : String(err)}`,
     )
   }
 }
@@ -304,7 +304,7 @@ function enrichChunkForEmbedding(
   if (pageTitle.trim().length > 0) parts.push(pageTitle.trim())
   if (chunk.headingPath.trim().length > 0) parts.push(chunk.headingPath.trim())
   parts.push(chunk.text.trim())
-  return parts.join("\n\n")
+  return parts.join('\n\n')
 }
 
 interface PreparedPageEmbedding {
@@ -315,14 +315,14 @@ interface PreparedPageEmbedding {
 }
 
 type PageEmbeddingPreparation =
-  | { status: "ready"; page: PreparedPageEmbedding }
-  | { status: "empty" }
-  | { status: "failed"; reason: string }
+  | { status: 'ready'; page: PreparedPageEmbedding }
+  | { status: 'empty' }
+  | { status: 'failed'; reason: string }
 
 /** @internal Exported for unit tests only. */
 export function extractEmbeddingTitle(content: string, fallbackId: string): string {
   const title = parseFrontmatter(content).frontmatter?.title
-  return typeof title === "string" && title.trim() ? title.trim() : fallbackId
+  return typeof title === 'string' && title.trim() ? title.trim() : fallbackId
 }
 
 async function preparePageEmbeddingRows(
@@ -332,13 +332,13 @@ async function preparePageEmbeddingRows(
   cfg: EmbeddingConfig,
   schedule: AsyncLimiter = createAsyncLimiter(cfg.concurrency),
 ): Promise<PageEmbeddingPreparation> {
-  if (!cfg.enabled || !cfg.model) return { status: "empty" }
+  if (!cfg.enabled || !cfg.model) return { status: 'empty' }
 
   const chunks = chunkMarkdown(content, {
     targetChars: cfg.maxChunkChars ?? 1000,
     overlapChars: cfg.overlapChunkChars ?? 200,
   })
-  if (chunks.length === 0) return { status: "empty" }
+  if (chunks.length === 0) return { status: 'empty' }
 
   const batchSize = Math.max(1, Math.min(64, Math.floor(cfg.batchSize ?? 1)))
   const tasks: Array<Promise<ChunkUpsertInput[]>> = []
@@ -370,12 +370,12 @@ async function preparePageEmbeddingRows(
 
   if (rows.length === 0) {
     return {
-      status: "failed",
-      reason: getLastEmbeddingError() || "all chunks failed to embed",
+      status: 'failed',
+      reason: getLastEmbeddingError() || 'all chunks failed to embed',
     }
   }
   return {
-    status: "ready",
+    status: 'ready',
     page: {
       pageId,
       rows,
@@ -405,8 +405,8 @@ export async function embedPage(
   const t0 = performance.now()
   const prepared = await preparePageEmbeddingRows(pageId, title, content, cfg)
 
-  if (prepared.status !== "ready") {
-    if (prepared.status === "failed") {
+  if (prepared.status !== 'ready') {
+    if (prepared.status === 'failed') {
       console.log(
         `[Embedding] Indexed nothing for "${pageId}" — no chunks could be embedded. See getLastEmbeddingError().`,
       )
@@ -426,12 +426,12 @@ export async function embedPage(
 }
 
 export type EmbeddingReindexState =
-  | { kind: "idle" }
-  | { kind: "running"; projectPath: string; done: number; total: number }
-  | { kind: "done"; projectPath: string; count: number }
-  | { kind: "error"; projectPath: string; message: string }
+  | { kind: 'idle' }
+  | { kind: 'running'; projectPath: string; done: number; total: number }
+  | { kind: 'done'; projectPath: string; count: number }
+  | { kind: 'error'; projectPath: string; message: string }
 
-let embeddingReindexState: EmbeddingReindexState = { kind: "idle" }
+let embeddingReindexState: EmbeddingReindexState = { kind: 'idle' }
 const embeddingReindexListeners = new Set<() => void>()
 
 export function getEmbeddingReindexState(): EmbeddingReindexState {
@@ -449,7 +449,7 @@ function setEmbeddingReindexState(state: EmbeddingReindexState): void {
 }
 
 function throwEmbeddingReindexError(projectPath: string, message: string): never {
-  setEmbeddingReindexState({ kind: "error", projectPath, message })
+  setEmbeddingReindexState({ kind: 'error', projectPath, message })
   throw new Error(message)
 }
 
@@ -481,13 +481,13 @@ async function preparePageEmbeddingRowsWithRetry(
 ): Promise<PageEmbeddingPreparation> {
   let best = await preparePageEmbeddingRows(pageId, title, content, cfg, schedule)
   for (let attempt = 1; attempt < attempts; attempt += 1) {
-    if (best.status === "empty") return best
-    if (best.status === "ready" && best.page.failedChunks === 0) return best
+    if (best.status === 'empty') return best
+    if (best.status === 'ready' && best.page.failedChunks === 0) return best
     await new Promise((resolve) => setTimeout(resolve, attempt * 250))
     const candidate = await preparePageEmbeddingRows(pageId, title, content, cfg, schedule)
     if (
-      candidate.status === "ready"
-      && (best.status !== "ready" || candidate.page.failedChunks < best.page.failedChunks)
+      candidate.status === 'ready' &&
+      (best.status !== 'ready' || candidate.page.failedChunks < best.page.failedChunks)
     ) {
       best = candidate
     }
@@ -511,18 +511,18 @@ export async function embedAllPages(
   lastEmbeddingError = null
 
   const pp = normalizePath(projectPath)
-  setEmbeddingReindexState({ kind: "running", projectPath: pp, done: 0, total: 0 })
+  setEmbeddingReindexState({ kind: 'running', projectPath: pp, done: 0, total: 0 })
 
   let tree: FileNode[]
   try {
     tree = await listDirectory(`${pp}/wiki`)
   } catch {
     if (options?.clearExisting) {
-      const message = "Could not read wiki tree; existing index was left unchanged."
-      setEmbeddingReindexState({ kind: "error", projectPath: pp, message })
+      const message = 'Could not read wiki tree; existing index was left unchanged.'
+      setEmbeddingReindexState({ kind: 'error', projectPath: pp, message })
       throw new Error(message)
     }
-    setEmbeddingReindexState({ kind: "done", projectPath: pp, count: 0 })
+    setEmbeddingReindexState({ kind: 'done', projectPath: pp, count: 0 })
     return 0
   }
 
@@ -531,9 +531,9 @@ export async function embedAllPages(
     for (const node of nodes) {
       if (node.is_dir && node.children) {
         walk(node.children)
-      } else if (!node.is_dir && node.name.endsWith(".md")) {
-        const id = node.name.replace(/\.md$/, "")
-        if (!["index", "log", "overview", "purpose", "schema"].includes(id)) {
+      } else if (!node.is_dir && node.name.endsWith('.md')) {
+        const id = node.name.replace(/\.md$/, '')
+        if (!['index', 'log', 'overview', 'purpose', 'schema'].includes(id)) {
           mdFiles.push({ id, path: node.path })
         }
       }
@@ -556,7 +556,7 @@ export async function embedAllPages(
       }
       await clearChunkVectorTable(pp)
       await dropLegacyVectorTableBestEffort(pp)
-      setEmbeddingReindexState({ kind: "done", projectPath: pp, count: 0 })
+      setEmbeddingReindexState({ kind: 'done', projectPath: pp, count: 0 })
       return 0
     }
 
@@ -575,16 +575,18 @@ export async function embedAllPages(
           3,
           scheduleEmbedding,
         )
-        if (prepared.status === "ready") {
+        if (prepared.status === 'ready') {
           if (prepared.page.failedChunks > 0) {
             const reason = getLastEmbeddingError()
             failures.push(
-              `${file.id}: ${prepared.page.failedChunks} of ${prepared.page.chunkCount} chunks failed to embed${reason ? ` (${reason})` : ""}`,
+              `${file.id}: ${prepared.page.failedChunks} of ${prepared.page.chunkCount} chunks failed to embed${
+                reason ? ` (${reason})` : ''
+              }`,
             )
           } else {
             preparedPages.push(prepared.page)
           }
-        } else if (prepared.status === "failed") {
+        } else if (prepared.status === 'failed') {
           failures.push(`${file.id}: ${prepared.reason}`)
         }
       } catch (err) {
@@ -592,7 +594,7 @@ export async function embedAllPages(
       }
       attempted++
       setEmbeddingReindexState({
-        kind: "running",
+        kind: 'running',
         projectPath: pp,
         done: attempted,
         total: mdFiles.length,
@@ -613,8 +615,10 @@ export async function embedAllPages(
         }
       }
       if (updated > 0) await optimizeChunkVectorTableBestEffort(pp)
-      const error = `${failures.length} of ${mdFiles.length} pages could not be embedded (${failures[0]}). ${updated} successful page(s) were updated; failed pages kept their previous vectors and can be retried.`
-      setEmbeddingReindexState({ kind: "error", projectPath: pp, message: error })
+      const error = `${failures.length} of ${mdFiles.length} pages could not be embedded (${
+        failures[0]
+      }). ${updated} successful page(s) were updated; failed pages kept their previous vectors and can be retried.`
+      setEmbeddingReindexState({ kind: 'error', projectPath: pp, message: error })
       throw new Error(error)
     }
 
@@ -655,7 +659,7 @@ export async function embedAllPages(
     // written. Keep this outside the `written > 0` optimization guard.
     await dropLegacyVectorTableBestEffort(pp)
 
-    setEmbeddingReindexState({ kind: "done", projectPath: pp, count: written })
+    setEmbeddingReindexState({ kind: 'done', projectPath: pp, count: written })
     return written
   }
 
@@ -666,7 +670,7 @@ export async function embedAllPages(
       const content = await readFile(file.path)
       const title = extractEmbeddingTitle(content, file.id)
       const prepared = await preparePageEmbeddingRows(file.id, title, content, cfg, scheduleEmbedding)
-      if (prepared.status === "ready") {
+      if (prepared.status === 'ready') {
         await scheduleVectorWrite(() => vectorUpsertChunks(pp, file.id, prepared.page.rows))
         indexed++
       }
@@ -674,7 +678,7 @@ export async function embedAllPages(
       // skip — individual file failure doesn't halt the batch
     }
     done++
-    setEmbeddingReindexState({ kind: "running", projectPath: pp, done, total: mdFiles.length })
+    setEmbeddingReindexState({ kind: 'running', projectPath: pp, done, total: mdFiles.length })
     if (onProgress) onProgress(done, mdFiles.length)
   })
 
@@ -682,7 +686,7 @@ export async function embedAllPages(
     await optimizeChunkVectorTableBestEffort(pp)
   }
 
-  setEmbeddingReindexState({ kind: "done", projectPath: pp, count: indexed })
+  setEmbeddingReindexState({ kind: 'done', projectPath: pp, count: indexed })
   return indexed
 }
 
@@ -723,7 +727,7 @@ export async function searchByEmbedding(
   try {
     rawChunks = await vectorSearchChunks(projectPath, queryEmb, Math.max(topK * 3, 30))
   } catch (err) {
-    console.log(`[Embedding] LanceDB chunk search failed: ${err instanceof Error ? err.message : err}`)
+    console.log(`[Embedding] LanceDB chunk search failed: ${err instanceof Error ? err.message : String(err)}`)
     return []
   }
   if (rawChunks.length === 0) return []

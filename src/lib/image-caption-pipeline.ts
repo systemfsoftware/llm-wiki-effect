@@ -37,10 +37,10 @@
  * restarts — no migration story needed when the embedding-side
  * schema changes. If we ever cache 100k+ images we'll revisit.
  */
-import { writeFile, readFile, createDirectory, fileExists, readFileAsBase64 } from "@/commands/fs"
-import { captionImage } from "@/lib/vision-caption"
-import type { LlmConfig } from "@/stores/wiki-store"
-import { normalizePath } from "@/lib/path-utils"
+import { createDirectory, fileExists, readFile, readFileAsBase64, writeFile } from '@/commands/fs'
+import { normalizePath } from '@/lib/path-utils'
+import { captionImage } from '@/lib/vision-caption'
+import type { LlmConfig } from '@/stores/wiki-store'
 
 interface CaptionEntry {
   caption: string
@@ -53,7 +53,7 @@ interface CaptionEntry {
 
 type CaptionCache = Record<string, CaptionEntry>
 
-const CACHE_REL_PATH = ".llm-wiki/image-caption-cache.json"
+const CACHE_REL_PATH = '.llm-wiki/image-caption-cache.json'
 
 /**
  * Compute SHA-256 of a base64 string by decoding to bytes first
@@ -69,10 +69,10 @@ async function sha256OfBase64(b64: string): Promise<string> {
   const binary = atob(b64)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  const digest = await crypto.subtle.digest("SHA-256", bytes)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
   return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 /**
@@ -108,13 +108,17 @@ export async function loadCaptionCache(
 
 function normalizeCaptionLanguage(outputLanguage?: string): string {
   const language = outputLanguage?.trim()
-  if (!language || language.toLowerCase() === "auto") return ""
-  return language.normalize("NFKC").toLowerCase()
+  if (!language || language.toLowerCase() === 'auto') return ''
+  return language.normalize('NFKC').toLowerCase()
 }
 
 function captionCacheKey(imageHash: string, outputLanguage?: string): string {
   const language = normalizeCaptionLanguage(outputLanguage)
   return language ? `${imageHash}::language:${encodeURIComponent(language)}` : imageHash
+}
+
+function isCaptionCache(value: unknown): value is CaptionCache {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 async function readCache(projectPath: string): Promise<CaptionCache> {
@@ -123,8 +127,8 @@ async function readCache(projectPath: string): Promise<CaptionCache> {
   try {
     const raw = await readFile(cachePath)
     const parsed = JSON.parse(raw) as unknown
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as CaptionCache
+    if (isCaptionCache(parsed)) {
+      return parsed
     }
   } catch (err) {
     // Corrupt cache (e.g. truncated mid-write before we added
@@ -338,9 +342,9 @@ export async function captionMarkdownImages(
     }
   }
 
-  if (llmConfig.provider === "codex-cli") {
+  if (llmConfig.provider === 'codex-cli') {
     console.warn(
-      "[caption-pipeline] skipped image captioning: Codex CLI transport does not support image input yet.",
+      '[caption-pipeline] skipped image captioning: Codex CLI transport does not support image input yet.',
     )
     return {
       enrichedMarkdown: markdown,
@@ -392,9 +396,9 @@ export async function captionMarkdownImages(
   async function processOne(ref: ImageRef): Promise<void> {
     const absPath = options?.urlToAbsPath
       ? options.urlToAbsPath(ref.url)
-      : ref.url.startsWith("/")
-        ? ref.url
-        : `${normalizePath(projectPath)}/wiki/${ref.url}`
+      : ref.url.startsWith('/')
+      ? ref.url
+      : `${normalizePath(projectPath)}/wiki/${ref.url}`
     if (!absPath) {
       failed++
       return
@@ -504,8 +508,8 @@ export async function captionMarkdownImages(
       const caption = captionByUrl.get(url)
       if (!caption) return whole
       const safe = caption
-        .replace(/[\r\n]+/g, " ") // collapse newlines
-        .replace(/]/g, ")") // ] would close the alt early
+        .replace(/[\r\n]+/g, ' ') // collapse newlines
+        .replace(/]/g, ')') // ] would close the alt early
         .trim()
       return `${openBang}${safe}${closeBracket}${url}${closeParen}`
     },
@@ -516,7 +520,7 @@ export async function captionMarkdownImages(
 
 // Exported for direct unit testing — keeps the module surface small
 // while letting the test file pin behavior on the helpers.
-export const __test = {
+export const captionInternals = {
   captionCacheKey,
   findImageReferences,
   normalizeCaptionLanguage,

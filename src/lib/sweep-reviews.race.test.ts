@@ -1,25 +1,26 @@
-import { describe, it, expect, beforeEach, vi } from "vitest"
-import { createDeferred, flushMicrotasks } from "@/test-helpers/deferred"
-import { createStreamChatHarness } from "@/test-helpers/mock-stream-chat"
+import type { writeFile } from '@/commands/fs'
+import { createDeferred, flushMicrotasks } from '@/test-helpers/deferred'
+import { createStreamChatHarness } from '@/test-helpers/mock-stream-chat'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock streamChat via the harness (installed via vi.mock below)
 const harness = createStreamChatHarness()
-vi.mock("./llm-client", () => ({
+vi.mock('./llm-client', () => ({
   streamChat: (...args: unknown[]) => harness.mock(...args),
 }))
 
 // Mock fs: listDirectory for buildWikiIndex, readFile for page content
-vi.mock("@/commands/fs", () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  listDirectory: vi.fn(),
+vi.mock('@/commands/fs', () => ({
+  readFile: vi.fn<typeof readFile>(),
+  writeFile: vi.fn<typeof writeFile>(),
+  listDirectory: vi.fn<typeof listDirectory>(),
 }))
 
-import { sweepResolvedReviews } from "./sweep-reviews"
-import { useWikiStore } from "@/stores/wiki-store"
-import { useReviewStore, type ReviewItem } from "@/stores/review-store"
-import { listDirectory, readFile } from "@/commands/fs"
-import type { FileNode } from "@/types/wiki"
+import { listDirectory, readFile } from '@/commands/fs'
+import { type ReviewItem, useReviewStore } from '@/stores/review-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import type { FileNode } from '@/types/wiki'
+import { sweepResolvedReviews } from './sweep-reviews'
 
 const mockListDirectory = vi.mocked(listDirectory)
 const mockReadFile = vi.mocked(readFile)
@@ -30,14 +31,14 @@ function fileNode(name: string): FileNode {
     path: `/project/wiki/${name}`,
     is_dir: false,
     children: [],
-  } as FileNode
+  }
 }
 
 function addPending(items: Array<Partial<ReviewItem>>) {
   const input = items.map((p) => ({
-    type: "missing-page" as ReviewItem["type"],
-    title: "X",
-    description: "",
+    type: 'missing-page' as ReviewItem['type'],
+    title: 'X',
+    description: '',
     options: [],
     ...p,
   }))
@@ -47,19 +48,17 @@ function addPending(items: Array<Partial<ReviewItem>>) {
 function setProject(path: string) {
   useWikiStore.setState({
     project: {
-      name: "p",
+      id: 'test-project',
+      name: 'p',
       path,
-      createdAt: 0,
-      purposeText: "",
-      fileTree: [],
-    } as unknown as ReturnType<typeof useWikiStore.getState>["project"],
+    },
   })
   useWikiStore.getState().setLlmConfig({
-    provider: "openai",
-    apiKey: "k",
-    model: "m",
-    ollamaUrl: "",
-    customEndpoint: "",
+    provider: 'openai',
+    apiKey: 'k',
+    model: 'm',
+    ollamaUrl: '',
+    customEndpoint: '',
     maxContextSize: 128000,
   })
 }
@@ -68,11 +67,11 @@ function setProject(path: string) {
 function disableLlm() {
   useWikiStore.setState({
     llmConfig: {
-      provider: "openai",
-      apiKey: "",
-      model: "",
-      ollamaUrl: "",
-      customEndpoint: "",
+      provider: 'openai',
+      apiKey: '',
+      model: '',
+      ollamaUrl: '',
+      customEndpoint: '',
       maxContextSize: 0,
     },
   })
@@ -99,32 +98,32 @@ beforeEach(() => {
 
   // Default: empty wiki dir, no files
   mockListDirectory.mockResolvedValue([])
-  mockReadFile.mockResolvedValue("")
+  mockReadFile.mockResolvedValue('')
 })
 
-describe("sweep race — project-identity guard", () => {
-  it("bails immediately if projectPath does not match current project", async () => {
-    setProject("/project-A")
-    addPending([{ title: "Missing page: Foo" }])
+describe('sweep race — project-identity guard', () => {
+  it('bails immediately if projectPath does not match current project', async () => {
+    setProject('/project-A')
+    addPending([{ title: 'Missing page: Foo' }])
 
-    const resolved = await sweepResolvedReviews("/project-B")
+    const resolved = await sweepResolvedReviews('/project-B')
     expect(resolved).toBe(0)
     // Store untouched
     expect(useReviewStore.getState().items.filter((i) => i.resolved)).toHaveLength(0)
   })
 
-  it("does not apply resolveItem if user switches projects mid-sweep (after buildWikiIndex)", async () => {
-    setProject("/project-A")
-    addPending([{ title: "Missing page: Foo" }])
+  it('does not apply resolveItem if user switches projects mid-sweep (after buildWikiIndex)', async () => {
+    setProject('/project-A')
+    addPending([{ title: 'Missing page: Foo' }])
 
     // Set up the wiki dir to contain foo.md so the rule stage WOULD have
     // resolved the review. The project switch should prevent that write.
-    mockListDirectory.mockResolvedValue([fileNode("foo.md")])
-    mockReadFile.mockResolvedValue("---\ntitle: Foo\n---\n")
+    mockListDirectory.mockResolvedValue([fileNode('foo.md')])
+    mockReadFile.mockResolvedValue('---\ntitle: Foo\n---\n')
 
-    const sweepPromise = sweepResolvedReviews("/project-A")
+    const sweepPromise = sweepResolvedReviews('/project-A')
     // Switch projects before sweep has a chance to finish
-    setProject("/project-B")
+    setProject('/project-B')
 
     const resolved = await sweepPromise
     // After project switch, the identity guard aborts before any resolveItem
@@ -132,15 +131,15 @@ describe("sweep race — project-identity guard", () => {
     expect(useReviewStore.getState().items.every((i) => !i.resolved)).toBe(true)
   })
 
-  it("bails before LLM stage if project path mismatches when entering stage 2", async () => {
-    setProject("/project-A")
-    addPending([{ title: "Ambiguous concept", type: "suggestion" }])
+  it('bails before LLM stage if project path mismatches when entering stage 2', async () => {
+    setProject('/project-A')
+    addPending([{ title: 'Ambiguous concept', type: 'suggestion' }])
 
     // Pause buildWikiIndex so we can switch projects at a deterministic point.
     const listDirDeferred = createDeferred<FileNode[]>()
     mockListDirectory.mockReturnValue(listDirDeferred.promise)
 
-    const sweepPromise = sweepResolvedReviews("/project-A")
+    const sweepPromise = sweepResolvedReviews('/project-A')
     await flushMicrotasks(3)
 
     // Switch project BEFORE buildWikiIndex resolves
@@ -155,34 +154,34 @@ describe("sweep race — project-identity guard", () => {
   })
 })
 
-describe("sweep race — abort signal", () => {
-  it("honors an abort signal that fires before the sweep starts", async () => {
-    setProject("/project-A")
-    addPending([{ title: "Something" }])
+describe('sweep race — abort signal', () => {
+  it('honors an abort signal that fires before the sweep starts', async () => {
+    setProject('/project-A')
+    addPending([{ title: 'Something' }])
 
     const ac = new AbortController()
     ac.abort()
-    const resolved = await sweepResolvedReviews("/project-A", ac.signal)
+    const resolved = await sweepResolvedReviews('/project-A', ac.signal)
     expect(resolved).toBe(0)
   })
 
-  it("does not invoke streamChat if aborted before stage 2", async () => {
-    setProject("/project-A")
-    addPending([{ title: "Cannot be rule-resolved" }])
+  it('does not invoke streamChat if aborted before stage 2', async () => {
+    setProject('/project-A')
+    addPending([{ title: 'Cannot be rule-resolved' }])
 
     const ac = new AbortController()
     ac.abort()
 
-    await sweepResolvedReviews("/project-A", ac.signal)
+    await sweepResolvedReviews('/project-A', ac.signal)
     expect(harness.pending).toHaveLength(0)
   })
 
-  it("signal aborted during streamChat — harness sees abort, sweep returns 0 LLM resolutions", async () => {
-    setProject("/project-A")
-    addPending([{ title: "Concept needing LLM" }])
+  it('signal aborted during streamChat — harness sees abort, sweep returns 0 LLM resolutions', async () => {
+    setProject('/project-A')
+    addPending([{ title: 'Concept needing LLM' }])
 
     const ac = new AbortController()
-    const sweepPromise = sweepResolvedReviews("/project-A", ac.signal)
+    const sweepPromise = sweepResolvedReviews('/project-A', ac.signal)
 
     // Wait until the harness has received the LLM call
     await flushMicrotasks(5)
@@ -195,42 +194,42 @@ describe("sweep race — abort signal", () => {
   })
 })
 
-describe("sweep — rule-based auto-resolution", () => {
-  it("auto-resolves a missing-page review when the page now exists by filename", async () => {
-    setProject("/project")
-    addPending([{ title: "Missing page: attention", type: "missing-page" }])
+describe('sweep — rule-based auto-resolution', () => {
+  it('auto-resolves a missing-page review when the page now exists by filename', async () => {
+    setProject('/project')
+    addPending([{ title: 'Missing page: attention', type: 'missing-page' }])
 
-    mockListDirectory.mockResolvedValue([fileNode("attention.md")])
-    mockReadFile.mockResolvedValue("no frontmatter")
+    mockListDirectory.mockResolvedValue([fileNode('attention.md')])
+    mockReadFile.mockResolvedValue('no frontmatter')
 
-    const resolved = await sweepResolvedReviews("/project")
+    const resolved = await sweepResolvedReviews('/project')
     expect(resolved).toBe(1)
 
     const items = useReviewStore.getState().items
     expect(items[0].resolved).toBe(true)
-    expect(items[0].resolvedAction).toBe("auto-resolved")
+    expect(items[0].resolvedAction).toBe('auto-resolved')
   })
 
   it("does not resolve when the page doesn't exist", async () => {
-    setProject("/project")
+    setProject('/project')
     disableLlm() // prevent stage-2 LLM stage from running
-    addPending([{ title: "Missing page: neverwritten", type: "missing-page" }])
+    addPending([{ title: 'Missing page: neverwritten', type: 'missing-page' }])
 
-    mockListDirectory.mockResolvedValue([fileNode("other.md")])
-    mockReadFile.mockResolvedValue("")
+    mockListDirectory.mockResolvedValue([fileNode('other.md')])
+    mockReadFile.mockResolvedValue('')
 
-    const resolved = await sweepResolvedReviews("/project")
+    const resolved = await sweepResolvedReviews('/project')
     expect(resolved).toBe(0)
     expect(useReviewStore.getState().items[0].resolved).toBe(false)
   })
 })
 
-describe("sweep — LLM batch loop", () => {
-  it("processes pending items in batches of JUDGE_BATCH_SIZE=40 and breaks when a batch resolves nothing", async () => {
-    setProject("/project")
+describe('sweep — LLM batch loop', () => {
+  it('processes pending items in batches of JUDGE_BATCH_SIZE=40 and breaks when a batch resolves nothing', async () => {
+    setProject('/project')
     // 80 pending items, none rule-resolvable (suggestion bypasses rule stage)
     const items = Array.from({ length: 80 }, (_, i) => ({
-      type: "suggestion" as ReviewItem["type"],
+      type: 'suggestion' as ReviewItem['type'],
       title: `Suggestion ${i}`,
     }))
     addPending(items)
@@ -238,7 +237,7 @@ describe("sweep — LLM batch loop", () => {
     // will contain, and the batches splice from the FRONT of that array.
     const orderedIds = useReviewStore.getState().items.map((i) => i.id)
 
-    const sweepPromise = sweepResolvedReviews("/project")
+    const sweepPromise = sweepResolvedReviews('/project')
     await waitUntil(() => harness.pending.length === 1)
 
     // Batch 1 = items 0..39. Resolve the first 3.
@@ -254,16 +253,16 @@ describe("sweep — LLM batch loop", () => {
     expect(harness.pending).toHaveLength(2)
   })
 
-  it("continues across batches when each resolves something", async () => {
-    setProject("/project")
+  it('continues across batches when each resolves something', async () => {
+    setProject('/project')
     const items = Array.from({ length: 120 }, (_, i) => ({
-      type: "suggestion" as ReviewItem["type"],
+      type: 'suggestion' as ReviewItem['type'],
       title: `S${i}`,
     }))
     addPending(items)
     const orderedIds = useReviewStore.getState().items.map((i) => i.id)
 
-    const sweepPromise = sweepResolvedReviews("/project")
+    const sweepPromise = sweepResolvedReviews('/project')
 
     // 120 items / 40 per batch = 3 batches. For each, resolve the first 5
     // ids of THAT batch's slice from the original insertion order.
@@ -279,17 +278,17 @@ describe("sweep — LLM batch loop", () => {
     expect(harness.pending).toHaveLength(3)
   })
 
-  it("caps at MAX_JUDGE_BATCHES=5 even if more batches would have content", async () => {
-    setProject("/project")
+  it('caps at MAX_JUDGE_BATCHES=5 even if more batches would have content', async () => {
+    setProject('/project')
     // 300 items — would be 8 batches at 40/each, but capped at 5
     const items = Array.from({ length: 300 }, (_, i) => ({
-      type: "suggestion" as ReviewItem["type"],
+      type: 'suggestion' as ReviewItem['type'],
       title: `S${i}`,
     }))
     addPending(items)
     const orderedIds = useReviewStore.getState().items.map((i) => i.id)
 
-    const sweepPromise = sweepResolvedReviews("/project")
+    const sweepPromise = sweepResolvedReviews('/project')
 
     for (let b = 0; b < 5; b++) {
       await waitUntil(() => harness.pending.length === b + 1)
@@ -303,24 +302,24 @@ describe("sweep — LLM batch loop", () => {
   })
 })
 
-describe("sweep — resolveItem safety after project switch", () => {
-  it("does not apply LLM results if project switched while LLM was running", async () => {
-    setProject("/project-A")
+describe('sweep — resolveItem safety after project switch', () => {
+  it('does not apply LLM results if project switched while LLM was running', async () => {
+    setProject('/project-A')
     const items = Array.from({ length: 3 }, (_, i) => ({
-      type: "suggestion" as ReviewItem["type"],
+      type: 'suggestion' as ReviewItem['type'],
       title: `S${i}`,
     }))
     addPending(items)
     const aIds = useReviewStore.getState().items.map((i) => i.id)
 
     const ac = new AbortController()
-    const sweepPromise = sweepResolvedReviews("/project-A", ac.signal)
+    const sweepPromise = sweepResolvedReviews('/project-A', ac.signal)
 
     await flushMicrotasks(5)
     expect(harness.pending).toHaveLength(1)
 
     // Switch project mid-LLM: reset review store to B's state
-    setProject("/project-B")
+    setProject('/project-B')
     useReviewStore.setState({ items: [] })
     // Also abort, as the real clearQueueState would
     ac.abort()
@@ -334,29 +333,29 @@ describe("sweep — resolveItem safety after project switch", () => {
   })
 })
 
-describe("sweep — empty / no-op cases", () => {
-  it("returns 0 and does not touch the LLM when there are no pending items", async () => {
-    setProject("/project")
-    const resolved = await sweepResolvedReviews("/project")
+describe('sweep — empty / no-op cases', () => {
+  it('returns 0 and does not touch the LLM when there are no pending items', async () => {
+    setProject('/project')
+    const resolved = await sweepResolvedReviews('/project')
     expect(resolved).toBe(0)
     expect(harness.pending).toHaveLength(0)
   })
 
-  it("returns 0 when LLM is not configured", async () => {
-    setProject("/project")
+  it('returns 0 when LLM is not configured', async () => {
+    setProject('/project')
     useWikiStore.setState({
       llmConfig: {
-        provider: "openai",
-        apiKey: "",
-        model: "",
-        ollamaUrl: "",
-        customEndpoint: "",
+        provider: 'openai',
+        apiKey: '',
+        model: '',
+        ollamaUrl: '',
+        customEndpoint: '',
         maxContextSize: 0,
       },
     })
-    addPending([{ title: "X", type: "suggestion" }])
+    addPending([{ title: 'X', type: 'suggestion' }])
 
-    const resolved = await sweepResolvedReviews("/project")
+    const resolved = await sweepResolvedReviews('/project')
     expect(resolved).toBe(0)
     expect(harness.pending).toHaveLength(0)
   })

@@ -7,19 +7,19 @@
  * A body line that merely starts with `title:` or `type:` (plain prose, not YAML)
  * could be misread as the frontmatter value.
  */
-import { describe, it, expect, vi } from "vitest"
-import type { FileNode } from "@/types/wiki"
+import type { FileNode } from '@/types/wiki'
+import { describe, expect, it, vi } from 'vitest'
 
-const mockListDirectory = vi.fn()
-const mockReadFile = vi.fn()
+const mockListDirectory = vi.fn<(path: string) => Promise<FileNode[]>>()
+const mockReadFile = vi.fn<(path: string) => Promise<string>>()
 
-vi.mock("@/commands/fs", () => ({
-  listDirectory: (...args: unknown[]) => mockListDirectory(...args),
-  readFile: (...args: unknown[]) => mockReadFile(...args),
+vi.mock('@/commands/fs', () => ({
+  listDirectory: (path: string) => mockListDirectory(path),
+  readFile: (path: string) => mockReadFile(path),
 }))
 
 async function loadBuildWikiGraph() {
-  const mod = await import("../wiki-graph")
+  const mod = await import('../wiki-graph')
   return mod.buildWikiGraph
 }
 
@@ -27,106 +27,106 @@ function mdFile(name: string): FileNode {
   return { name, path: `/project/wiki/${name}`, is_dir: false }
 }
 
-describe("buildWikiGraph frontmatter extraction", () => {
-  it("does not read a title: line from the document body as the frontmatter title", async () => {
+describe('buildWikiGraph frontmatter extraction', () => {
+  it('does not read a title: line from the document body as the frontmatter title', async () => {
     const buildWikiGraph = await loadBuildWikiGraph()
-    mockListDirectory.mockResolvedValue([mdFile("page.md")])
+    mockListDirectory.mockResolvedValue([mdFile('page.md')])
     mockReadFile.mockResolvedValue(
-      "---\ntype: entity\n---\n# Real Heading\n\nSome text.\ntitle: not-frontmatter-at-all\n",
+      '---\ntype: entity\n---\n# Real Heading\n\nSome text.\ntitle: not-frontmatter-at-all\n',
     )
 
-    const graph = await buildWikiGraph("/project")
+    const graph = await buildWikiGraph('/project')
 
     expect(graph.nodes).toHaveLength(1)
-    expect(graph.nodes[0].label).toBe("Real Heading")
+    expect(graph.nodes[0].label).toBe('Real Heading')
   })
 
-  it("does not read a type: line from the document body as the frontmatter type", async () => {
+  it('does not read a type: line from the document body as the frontmatter type', async () => {
     const buildWikiGraph = await loadBuildWikiGraph()
-    mockListDirectory.mockResolvedValue([mdFile("page.md")])
+    mockListDirectory.mockResolvedValue([mdFile('page.md')])
     mockReadFile.mockResolvedValue(
-      "---\ntitle: Real Page\n---\n# Real Page\n\nSome text.\ntype: query\nMore text.\n",
+      '---\ntitle: Real Page\n---\n# Real Page\n\nSome text.\ntype: query\nMore text.\n',
     )
 
-    const graph = await buildWikiGraph("/project")
+    const graph = await buildWikiGraph('/project')
 
     // A misread type of "query" would match HIDDEN_TYPES and silently drop the page.
     expect(graph.nodes).toHaveLength(1)
-    expect(graph.nodes[0].type).toBe("other")
+    expect(graph.nodes[0].type).toBe('other')
   })
 
-  it("parses CRLF frontmatter consistently with the rest of the application", async () => {
+  it('parses CRLF frontmatter consistently with the rest of the application', async () => {
     const buildWikiGraph = await loadBuildWikiGraph()
-    mockListDirectory.mockResolvedValue([mdFile("page.md")])
+    mockListDirectory.mockResolvedValue([mdFile('page.md')])
     mockReadFile.mockResolvedValue(
-      "---\r\ntitle: CRLF Page\r\ntype: entity\r\n---\r\n# Fallback Heading\r\n",
+      '---\r\ntitle: CRLF Page\r\ntype: entity\r\n---\r\n# Fallback Heading\r\n',
     )
 
-    const graph = await buildWikiGraph("/project")
+    const graph = await buildWikiGraph('/project')
 
     expect(graph.nodes).toHaveLength(1)
-    expect(graph.nodes[0]).toMatchObject({ label: "CRLF Page", type: "entity" })
+    expect(graph.nodes[0]).toMatchObject({ label: 'CRLF Page', type: 'entity' })
   })
 
-  it("uses YAML parsing for quoted values that contain a colon", async () => {
+  it('uses YAML parsing for quoted values that contain a colon', async () => {
     const buildWikiGraph = await loadBuildWikiGraph()
-    mockListDirectory.mockResolvedValue([mdFile("page.md")])
+    mockListDirectory.mockResolvedValue([mdFile('page.md')])
     mockReadFile.mockResolvedValue(
       '---\ntitle: "Attention: Architecture"\ntype: "Concept"\n---\n# Fallback Heading\n',
     )
 
-    const graph = await buildWikiGraph("/project")
+    const graph = await buildWikiGraph('/project')
 
     expect(graph.nodes).toHaveLength(1)
-    expect(graph.nodes[0]).toMatchObject({ label: "Attention: Architecture", type: "concept" })
+    expect(graph.nodes[0]).toMatchObject({ label: 'Attention: Architecture', type: 'concept' })
   })
 
-  it("resolves case and space variants without dropping links", async () => {
+  it('resolves case and space variants without dropping links', async () => {
     const buildWikiGraph = await loadBuildWikiGraph()
     mockListDirectory.mockResolvedValue([
-      mdFile("Source.md"),
-      mdFile("target-page.md"),
+      mdFile('Source.md'),
+      mdFile('target-page.md'),
     ])
     mockReadFile.mockImplementation(async (path: string) =>
-      path.endsWith("Source.md")
-        ? "# Source\n\n[[Target Page]]"
-        : "# Target",
+      path.endsWith('Source.md')
+        ? '# Source\n\n[[Target Page]]'
+        : '# Target'
     )
 
-    const graph = await buildWikiGraph("/project")
+    const graph = await buildWikiGraph('/project')
 
     expect(graph.edges).toEqual([
-      expect.objectContaining({ source: "Source", target: "target-page" }),
+      expect.objectContaining({ source: 'Source', target: 'target-page' }),
     ])
   })
 
-  it("prefers an exact page id when case-folded aliases collide", async () => {
+  it('prefers an exact page id when case-folded aliases collide', async () => {
     const buildWikiGraph = await loadBuildWikiGraph()
     mockListDirectory.mockResolvedValue([
-      mdFile("source.md"),
-      mdFile("Foo.md"),
-      mdFile("foo.md"),
+      mdFile('source.md'),
+      mdFile('Foo.md'),
+      mdFile('foo.md'),
     ])
     mockReadFile.mockImplementation(async (path: string) =>
-      path.endsWith("source.md") ? "# Source\n\n[[foo]]" : "# Target",
+      path.endsWith('source.md') ? '# Source\n\n[[foo]]' : '# Target'
     )
 
-    const graph = await buildWikiGraph("/case-project")
+    const graph = await buildWikiGraph('/case-project')
 
     expect(graph.edges).toEqual([
-      expect.objectContaining({ source: "source", target: "foo" }),
+      expect.objectContaining({ source: 'source', target: 'foo' }),
     ])
   })
 
-  it("reuses an unchanged graph by project data version", async () => {
+  it('reuses an unchanged graph by project data version', async () => {
     const buildWikiGraph = await loadBuildWikiGraph()
     mockListDirectory.mockClear()
     mockReadFile.mockClear()
-    mockListDirectory.mockResolvedValue([mdFile("cached.md")])
-    mockReadFile.mockResolvedValue("# Cached")
+    mockListDirectory.mockResolvedValue([mdFile('cached.md')])
+    mockReadFile.mockResolvedValue('# Cached')
 
-    const first = await buildWikiGraph("/cached-project", 42)
-    const second = await buildWikiGraph("/cached-project", 42)
+    const first = await buildWikiGraph('/cached-project', 42)
+    const second = await buildWikiGraph('/cached-project', 42)
 
     expect(second).toBe(first)
     expect(mockListDirectory).toHaveBeenCalledTimes(1)

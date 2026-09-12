@@ -1,5 +1,5 @@
-import Graph from "graphology"
-import forceAtlas2 from "graphology-layout-forceatlas2"
+import Graphology from 'graphology'
+import forceAtlas2 from 'graphology-layout-forceatlas2'
 
 interface LayoutRequest {
   key: string
@@ -11,7 +11,7 @@ interface LayoutRequest {
 
 self.onmessage = (event: MessageEvent<LayoutRequest>) => {
   const { key, nodes, edges, iterations, scalingRatio } = event.data
-  const graph = new Graph()
+  const graph = new Graphology()
 
   for (const node of nodes) {
     graph.addNode(node.id, { x: node.x, y: node.y })

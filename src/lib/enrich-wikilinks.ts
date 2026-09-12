@@ -1,9 +1,9 @@
-import { listDirectory, readFile, writeFile } from "@/commands/fs"
-import type { FileNode } from "@/types/wiki"
-import { streamChat } from "./llm-client"
-import { useWikiStore, type LlmConfig } from "@/stores/wiki-store"
-import { buildLanguageDirective } from "./output-language"
-import { normalizePath } from "@/lib/path-utils"
+import { listDirectory, readFile, writeFile } from '@/commands/fs'
+import { normalizePath } from '@/lib/path-utils'
+import { type LlmConfig, useWikiStore } from '@/stores/wiki-store'
+import type { FileNode } from '@/types/wiki'
+import { streamChat } from './llm-client'
+import { buildLanguageDirective } from './output-language'
 
 /**
  * Lightweight post-save enrichment: ask LLM to add [[wikilinks]] to a saved wiki page.
@@ -32,7 +32,7 @@ export async function enrichWithWikilinks(
   const fp = normalizePath(filePath)
   const [content, index, wikiTree] = await Promise.all([
     readFile(fp),
-    readFile(`${pp}/wiki/index.md`).catch(() => ""),
+    readFile(`${pp}/wiki/index.md`).catch(() => ''),
     listDirectory(`${pp}/wiki`).catch(() => []),
   ])
 
@@ -41,49 +41,51 @@ export async function enrichWithWikilinks(
   // Ask the LLM to return a JSON list of {term, target} substitutions.
   // Much easier task than rewriting the whole page, and the model can't
   // corrupt anything it doesn't put in the list.
-  let raw = ""
+  let raw = ''
 
   await streamChat(
     llmConfig,
     [
       {
-        role: "system",
+        role: 'system',
         content: [
-          "You identify which terms in a wiki page should become [[wikilinks]] pointing to existing wiki pages.",
-          "",
+          'You identify which terms in a wiki page should become [[wikilinks]] pointing to existing wiki pages.',
+          '',
           buildLanguageDirective(content),
-          "",
-          "You will receive:",
-          "  - a wiki index listing existing pages (each line roughly like `- pagename`)",
-          "  - the content of ONE wiki page",
-          "",
-          "Return a JSON object listing which terms in the page content should be linked to which index entries.",
-          "",
-          "Response format (EXACTLY this JSON shape, nothing else):",
-          "{",
-          "  \"links\": [",
-          "    { \"term\": \"exact text appearing in the content\", \"target\": \"index page name\" }",
-          "  ]",
-          "}",
-          "",
-          "Rules:",
-          "- Each \"term\" MUST be a literal substring present in the page content (case-sensitive).",
-          "- Each \"target\" MUST be a page listed in the wiki index.",
-          "- Include at most one entry per target (first mention).",
+          '',
+          'You will receive:',
+          '  - a wiki index listing existing pages (each line roughly like `- pagename`)',
+          '  - the content of ONE wiki page',
+          '',
+          'Return a JSON object listing which terms in the page content should be linked to which index entries.',
+          '',
+          'Response format (EXACTLY this JSON shape, nothing else):',
+          '{',
+          '  "links": [',
+          '    { "term": "exact text appearing in the content", "target": "index page name" }',
+          '  ]',
+          '}',
+          '',
+          'Rules:',
+          '- Each "term" MUST be a literal substring present in the page content (case-sensitive).',
+          '- Each "target" MUST be a page listed in the wiki index.',
+          '- Include at most one entry per target (first mention).',
           "- Only include clearly-matching terms (e.g. if content mentions 'Transformer' and index has 'transformer', target='transformer' is correct).",
-          "- If no terms should be linked, return `{\"links\": []}`.",
-          "- Do NOT output preamble, explanations, or markdown fences — ONLY the JSON object.",
-          "",
+          '- If no terms should be linked, return `{"links": []}`.',
+          '- Do NOT output preamble, explanations, or markdown fences — ONLY the JSON object.',
+          '',
           `## Wiki Index\n${index}`,
-        ].join("\n"),
+        ].join('\n'),
       },
       {
-        role: "user",
+        role: 'user',
         content: `Page content:\n\n${content}`,
       },
     ],
     {
-      onToken: (token) => { raw += token },
+      onToken: (token) => {
+        raw += token
+      },
       onDone: () => {},
       onError: () => {},
     },
@@ -99,9 +101,9 @@ export async function enrichWithWikilinks(
   const links = pageSlugs.size === 0
     ? []
     : parsedLinks.flatMap((link) => {
-        const canonicalTarget = pageSlugs.get(normalizeTargetSlug(link.target))
-        return canonicalTarget ? [{ ...link, target: canonicalTarget }] : []
-      })
+      const canonicalTarget = pageSlugs.get(normalizeTargetSlug(link.target))
+      return canonicalTarget ? [{ ...link, target: canonicalTarget }] : []
+    })
   if (links.length === 0) return // nothing to do
 
   // Apply substitutions to the ORIGINAL content. This guarantees the only
@@ -126,8 +128,8 @@ function collectWikiPageSlugs(nodes: FileNode[]): Map<string, string> {
         visit(node.children ?? [])
         continue
       }
-      const name = normalizePath(node.path).split("/").pop() ?? ""
-      if (name.toLowerCase().endsWith(".md")) {
+      const name = normalizePath(node.path).split('/').pop() ?? ''
+      if (name.toLowerCase().endsWith('.md')) {
         const canonical = name.slice(0, -3)
         const key = normalizeTargetSlug(canonical)
         const values = candidates.get(key) ?? new Set<string>()
@@ -147,17 +149,17 @@ function collectWikiPageSlugs(nodes: FileNode[]): Map<string, string> {
 }
 
 function normalizeTargetSlug(target: string): string {
-  const withoutAlias = target.split("|", 1)[0].split("#", 1)[0]
-  const name = normalizePath(withoutAlias).split("/").pop() ?? ""
-  return name.replace(/\.md$/i, "").normalize("NFKC").trim().toLowerCase()
+  const withoutAlias = target.split('|', 1)[0].split('#', 1)[0]
+  const name = normalizePath(withoutAlias).split('/').pop() ?? ''
+  return name.replace(/\.md$/i, '').normalize('NFKC').trim().toLowerCase()
 }
 
 function parseLinkResponse(raw: string): LinkEntry[] {
   if (!raw.trim()) return []
   // Extract the first balanced {...}
   let text = raw.trim()
-  text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "")
-  const start = text.indexOf("{")
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')
+  const start = text.indexOf('{')
   if (start === -1) return []
 
   let depth = 0
@@ -166,35 +168,49 @@ function parseLinkResponse(raw: string): LinkEntry[] {
   let end = -1
   for (let i = start; i < text.length; i++) {
     const ch = text[i]
-    if (escape) { escape = false; continue }
-    if (ch === "\\" && inStr) { escape = true; continue }
-    if (ch === '"') { inStr = !inStr; continue }
+    if (escape) {
+      escape = false
+      continue
+    }
+    if (ch === '\\' && inStr) {
+      escape = true
+      continue
+    }
+    if (ch === '"') {
+      inStr = !inStr
+      continue
+    }
     if (inStr) continue
-    if (ch === "{") depth++
-    else if (ch === "}") {
+    if (ch === '{') depth++
+    else if (ch === '}') {
       depth--
-      if (depth === 0) { end = i; break }
+      if (depth === 0) {
+        end = i
+        break
+      }
     }
   }
   if (end === -1) return []
 
   try {
-    const parsed = JSON.parse(text.slice(start, end + 1)) as { links?: unknown }
-    if (!parsed || !Array.isArray(parsed.links)) return []
+    const parsed: unknown = JSON.parse(text.slice(start, end + 1))
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed) ||
+      !('links' in parsed) ||
+      !Array.isArray(parsed.links)
+    ) {
+      return []
+    }
+    const links: unknown[] = parsed.links
     const result: LinkEntry[] = []
-    for (const item of parsed.links) {
-      if (
-        item &&
-        typeof item === "object" &&
-        typeof (item as LinkEntry).term === "string" &&
-        typeof (item as LinkEntry).target === "string" &&
-        (item as LinkEntry).term.length > 0 &&
-        (item as LinkEntry).target.length > 0
-      ) {
-        result.push({
-          term: (item as LinkEntry).term,
-          target: (item as LinkEntry).target,
-        })
+    for (const item of links) {
+      if (typeof item !== 'object' || item === null || Array.isArray(item)) continue
+      const term = 'term' in item ? item.term : undefined
+      const target = 'target' in item ? item.target : undefined
+      if (typeof term === 'string' && typeof target === 'string' && term.length > 0 && target.length > 0) {
+        result.push({ term, target })
       }
     }
     return result
@@ -212,8 +228,8 @@ function parseLinkResponse(raw: string): LinkEntry[] {
  */
 function applyLinks(content: string, links: LinkEntry[]): string {
   // Split off YAML frontmatter so we don't touch it
-  const fmEnd = content.startsWith("---\n") ? content.indexOf("\n---\n", 3) : -1
-  const frontmatter = fmEnd > 0 ? content.slice(0, fmEnd + 5) : ""
+  const fmEnd = content.startsWith('---\n') ? content.indexOf('\n---\n', 3) : -1
+  const frontmatter = fmEnd > 0 ? content.slice(0, fmEnd + 5) : ''
   let body = fmEnd > 0 ? content.slice(fmEnd + 5) : content
 
   // Track what we've already linked so we don't double-link
@@ -247,7 +263,7 @@ function findUnlinkedOccurrence(text: string, term: string): number {
     // Check a small window before for [[ (existing wikilink open)
     const windowStart = Math.max(0, idx - 2)
     const window = text.slice(windowStart, idx)
-    if (window.endsWith("[[")) {
+    if (window.endsWith('[[')) {
       searchFrom = idx + term.length
       continue
     }

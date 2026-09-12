@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react"
-import { useWikiStore } from "@/stores/wiki-store"
-import { ChatPanel } from "@/components/chat/chat-panel"
-import { SettingsView } from "@/components/settings/settings-view"
-import { SkillsSection } from "@/components/settings/sections/skills-section"
-import { SourcesView } from "@/components/sources/sources-view"
-import { ReviewView } from "@/components/review/review-view"
-import { LintView } from "@/components/lint/lint-view"
-import { SearchView } from "@/components/search/search-view"
-import { GraphView } from "@/components/graph/graph-view"
-import { PreviewPanel } from "./preview-panel"
+import { ChatPanel } from '@/components/chat/chat-panel'
+import { GraphView } from '@/components/graph/graph-view'
+import { LintView } from '@/components/lint/lint-view'
+import { ReviewView } from '@/components/review/review-view'
+import { SearchView } from '@/components/search/search-view'
+import { SkillsSection } from '@/components/settings/sections/skills-section'
+import { SettingsView } from '@/components/settings/settings-view'
+import { SourcesView } from '@/components/sources/sources-view'
+import { useWikiStore } from '@/stores/wiki-store'
+import { useState } from 'react'
+import { PreviewPanel } from './preview-panel'
 
 export function ContentArea() {
   const activeView = useWikiStore((s) => s.activeView)
@@ -17,21 +17,21 @@ export function ContentArea() {
   // full-width wiki preview, and unmounting the source tree here would discard
   // its scroll position, expanded folders, and incremental row limit. Hiding
   // the mounted view makes closing the preview a true return operation.
-  const [hasMountedSources, setHasMountedSources] = useState(activeView === "sources")
+  const [hasMountedSources, setHasMountedSources] = useState(activeView === 'sources')
 
-  useEffect(() => {
-    if (activeView === "sources") setHasMountedSources(true)
-  }, [activeView])
+  if (activeView === 'sources' && !hasMountedSources) {
+    setHasMountedSources(true)
+  }
 
   // Include the current view directly so the first navigation to Sources does
   // not wait for the effect above and briefly render an empty content area.
-  if (hasMountedSources || activeView === "sources") {
+  if (hasMountedSources || activeView === 'sources') {
     return (
       <>
-        <div className={activeView === "sources" ? "h-full" : "hidden"}>
+        <div className={activeView === 'sources' ? 'h-full' : 'hidden'}>
           <SourcesView />
         </div>
-        {activeView !== "sources" && <ActiveContent activeView={activeView} />}
+        {activeView !== 'sources' && <ActiveContent activeView={activeView} />}
       </>
     )
   }
@@ -42,26 +42,26 @@ export function ContentArea() {
 function ActiveContent({
   activeView,
 }: {
-  activeView: ReturnType<typeof useWikiStore.getState>["activeView"]
+  activeView: ReturnType<typeof useWikiStore.getState>['activeView']
 }) {
   switch (activeView) {
-    case "chat":
+    case 'chat':
       return <ChatPanel />
-    case "wiki":
+    case 'wiki':
       return <PreviewPanel />
-    case "settings":
+    case 'settings':
       return <SettingsView />
-    case "skills":
+    case 'skills':
       return <SkillsView />
-    case "sources":
+    case 'sources':
       return null
-    case "review":
+    case 'review':
       return <ReviewView />
-    case "lint":
+    case 'lint':
       return <LintView />
-    case "search":
+    case 'search':
       return <SearchView />
-    case "graph":
+    case 'graph':
       return <GraphView />
     default:
       return <PreviewPanel />
@@ -70,8 +70,8 @@ function ActiveContent({
 
 function SkillsView() {
   return (
-    <div className="h-full overflow-y-auto px-8 py-6">
-      <div className="mx-auto max-w-3xl">
+    <div className='h-full overflow-y-auto px-8 py-6'>
+      <div className='mx-auto max-w-3xl'>
         <SkillsSection />
       </div>
     </div>

@@ -18,7 +18,7 @@
  * - Windows/Linux: Ctrl + key
  */
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef } from 'react'
 
 export interface ShortcutDefinition {
   callback: () => void
@@ -45,14 +45,15 @@ function isTextInput(target: EventTarget | null): boolean {
   if (!element) return false
 
   const tag = element.tagName.toLowerCase()
-  if (tag === "textarea") return true
-  if (tag === "input") {
-    const inputType = (element as HTMLInputElement).type
+  if (tag === 'textarea') return true
+  if (tag === 'input') {
+    if (!(element instanceof HTMLInputElement)) return false
+    const inputType = element.type
     // Allow shortcuts on checkboxes, radio buttons, and buttons
-    return !["checkbox", "radio", "submit", "button", "reset"].includes(inputType)
+    return !['checkbox', 'radio', 'submit', 'button', 'reset'].includes(inputType)
   }
   if (element instanceof HTMLElement && element.isContentEditable) return true
-  if (element.getAttribute("role") === "textbox") return true
+  if (element.getAttribute('role') === 'textbox') return true
 
   return false
 }
@@ -65,7 +66,7 @@ function isTextInput(target: EventTarget | null): boolean {
  */
 function hasPlatformModifierKey(event: KeyboardEvent): boolean {
   // Reuse the platform class already set in main.tsx
-  const isMac = document.documentElement.classList.contains("platform-macos")
+  const isMac = document.documentElement.classList.contains('platform-macos')
   return isMac ? event.metaKey : event.ctrlKey
 }
 
@@ -98,8 +99,8 @@ export function useGlobalShortcut(shortcuts: ShortcutMap): void {
       const key = event.key.toLowerCase()
       const definition = shortcutsRef.current[key]
       if (!definition) return
-      const callback = typeof definition === "function" ? definition : definition.callback
-      const allowInTextInput = typeof definition === "function"
+      const callback = typeof definition === 'function' ? definition : definition.callback
+      const allowInTextInput = typeof definition === 'function'
         ? false
         : definition.allowInTextInput === true
 
@@ -114,9 +115,9 @@ export function useGlobalShortcut(shortcuts: ShortcutMap): void {
       callback()
     }
 
-    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown)
     return () => {
-      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener('keydown', handleKeyDown)
     }
   }, [])
 }

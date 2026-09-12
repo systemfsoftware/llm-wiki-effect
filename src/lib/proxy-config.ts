@@ -37,7 +37,7 @@ export interface ProxyConfig {
 
 export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   enabled: false,
-  url: "",
+  url: '',
   bypassLocal: true,
   acceptInvalidCerts: false,
 }
@@ -51,35 +51,34 @@ export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
  * DNS suffix. Not user-editable in v1 — toggle bypassLocal on/off
  * is the whole UI.
  */
-export const DEFAULT_BYPASS_LIST =
-  "localhost,127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,*.local"
+export const DEFAULT_BYPASS_LIST = 'localhost,127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,*.local'
 
-const SUPPORTED_SCHEMES = ["http:", "https:"] as const
+const SUPPORTED_SCHEMES = ['http:', 'https:'] as const
 
 export type ValidateResult = { ok: true } | { ok: false; error: string }
 
 export function validateProxyUrl(url: string): ValidateResult {
   const trimmed = url.trim()
-  if (trimmed === "") return { ok: false, error: "URL is empty" }
+  if (trimmed === '') return { ok: false, error: 'URL is empty' }
 
   let parsed: URL
   try {
     parsed = new URL(trimmed)
   } catch {
-    return { ok: false, error: "Not a valid URL" }
+    return { ok: false, error: 'Not a valid URL' }
   }
 
   if (!parsed.protocol) {
-    return { ok: false, error: "URL is missing a scheme (http:// or https://)" }
+    return { ok: false, error: 'URL is missing a scheme (http:// or https://)' }
   }
-  if (!SUPPORTED_SCHEMES.includes(parsed.protocol as (typeof SUPPORTED_SCHEMES)[number])) {
+  if (!SUPPORTED_SCHEMES.some((scheme) => scheme === parsed.protocol)) {
     return {
       ok: false,
       error: `Unsupported scheme "${parsed.protocol}". Use http:// or https://`,
     }
   }
   if (!parsed.hostname) {
-    return { ok: false, error: "URL is missing a host" }
+    return { ok: false, error: 'URL is missing a host' }
   }
   return { ok: true }
 }
@@ -102,6 +101,6 @@ export function buildNoProxyValue(bypassLocal: boolean): string | null {
  */
 export function isProxyActive(cfg: ProxyConfig): boolean {
   if (!cfg.enabled) return false
-  if (cfg.url.trim() === "") return false
+  if (cfg.url.trim() === '') return false
   return validateProxyUrl(cfg.url).ok
 }

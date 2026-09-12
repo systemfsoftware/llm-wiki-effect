@@ -27,24 +27,25 @@
  * skipped rather than failed. Lets contributors without the LAN
  * box still run the rest of the .real-llm.* suite.
  */
-import { describe, it, expect, vi } from "vitest"
+import { describe, expect, it, vi } from 'vitest'
 
 // Same module-graph stubs as llm-client.real-llm.test.ts — streamChat
 // transitively imports stores that touch Tauri commands during init.
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn().mockResolvedValue(undefined),
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn<(command: string, payload?: unknown) => Promise<unknown>>().mockResolvedValue(undefined),
 }))
-vi.mock("@/commands/fs", () => ({
-  readFile: vi.fn(),
-  listDirectory: vi.fn(),
+vi.mock('@/commands/fs', () => ({
+  readFile: vi.fn<(path: string) => Promise<string>>(),
+  listDirectory: vi.fn<(path: string) => Promise<FileNode[]>>(),
 }))
 
-import { streamChat } from "./llm-client"
-import type { LlmConfig } from "@/stores/wiki-store"
-import type { ChatMessage } from "./llm-providers"
+import type { LlmConfig } from '@/stores/wiki-store'
+import type { FileNode } from '@/types/wiki'
+import { streamChat } from './llm-client'
+import type { ChatMessage } from './llm-providers'
 
-const DEFAULT_ENDPOINT = "http://192.168.1.50:8000/v1"
-const DEFAULT_MODEL = "Qwen3.6-27B-Q4_K_M.gguf"
+const DEFAULT_ENDPOINT = 'http://192.168.1.50:8000/v1'
+const DEFAULT_MODEL = 'Qwen3.6-27B-Q4_K_M.gguf'
 const ENDPOINT = process.env.VISION_ENDPOINT ?? DEFAULT_ENDPOINT
 const MODEL = process.env.VISION_MODEL ?? DEFAULT_MODEL
 const REACHABILITY_TIMEOUT_MS = 2000
@@ -61,7 +62,8 @@ const TEST_TIMEOUT_MS = 120_000
  * Pinned (not computed at runtime) so the test stays deterministic
  * and works without a PNG encoder dependency in the test env.
  */
-const RED_PNG_64_B64 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAb0lEQVR4nO3PAQkAAAyEwO9feoshgnABdLep8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3IPanc8OLDQitxAAAAAElFTkSuQmCC"
+const RED_PNG_64_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAb0lEQVR4nO3PAQkAAAyEwO9feoshgnABdLep8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3IPanc8OLDQitxAAAAAElFTkSuQmCC'
 
 async function isEndpointReachable(url: string, timeoutMs: number): Promise<boolean> {
   const controller = new AbortController()
@@ -71,7 +73,7 @@ async function isEndpointReachable(url: string, timeoutMs: number): Promise<bool
     // servers. We don't actually care about the response body — a
     // socket-level success means the host is up, which is what the
     // skip gate cares about.
-    const probe = url.replace(/\/+$/, "") + "/models"
+    const probe = url.replace(/\/+$/, '') + '/models'
     await fetch(probe, { signal: controller.signal })
     return true
   } catch {
@@ -81,9 +83,9 @@ async function isEndpointReachable(url: string, timeoutMs: number): Promise<bool
   }
 }
 
-describe("vision wire E2E (real LLM)", () => {
+describe('vision wire E2E (real LLM)', () => {
   it(
-    "text-only baseline — endpoint is alive and our SSE parser sees its output",
+    'text-only baseline — endpoint is alive and our SSE parser sees its output',
     async () => {
       const reachable = await isEndpointReachable(ENDPOINT, REACHABILITY_TIMEOUT_MS)
       if (!reachable) {
@@ -91,19 +93,19 @@ describe("vision wire E2E (real LLM)", () => {
         return
       }
       const cfg: LlmConfig = {
-        provider: "custom",
-        apiKey: "",
+        provider: 'custom',
+        apiKey: '',
         model: MODEL,
-        ollamaUrl: "",
+        ollamaUrl: '',
         customEndpoint: ENDPOINT,
-        apiMode: "chat_completions",
+        apiMode: 'chat_completions',
         maxContextSize: 8192,
       }
       const tokens: string[] = []
       const state: { done: boolean; error: Error | null } = { done: false, error: null }
       await streamChat(
         cfg,
-        [{ role: "user", content: "Say the single word: ready" }],
+        [{ role: 'user', content: 'Say the single word: ready' }],
         {
           onToken: (t) => tokens.push(t),
           onDone: () => {
@@ -124,17 +126,18 @@ describe("vision wire E2E (real LLM)", () => {
         // stream stays empty. 4096 leaves room for both.
         { temperature: 0, max_tokens: 4096 },
       )
-      const body = tokens.join("").trim()
+      const body = tokens.join('').trim()
       console.log(`[vision.real-llm:text-baseline] tokens=${tokens.length} body="${body}"`)
       expect(state.error, `text-baseline error: ${state.error?.message}`).toBeNull()
       expect(state.done).toBe(true)
-      expect(body.length, "text-only response is non-empty (proves the endpoint+parser pipeline works at all)").toBeGreaterThan(0)
+      expect(body.length, 'text-only response is non-empty (proves the endpoint+parser pipeline works at all)')
+        .toBeGreaterThan(0)
     },
     TEST_TIMEOUT_MS,
   )
 
   it(
-    "OpenAI-compat endpoint accepts ContentBlock[] with image and produces a description",
+    'OpenAI-compat endpoint accepts ContentBlock[] with image and produces a description',
     async () => {
       // Skip rather than fail when the LAN endpoint isn't reachable —
       // contributors without that machine still get to run the rest
@@ -146,26 +149,26 @@ describe("vision wire E2E (real LLM)", () => {
       }
 
       const cfg: LlmConfig = {
-        provider: "custom",
-        apiKey: "",
+        provider: 'custom',
+        apiKey: '',
         model: MODEL,
-        ollamaUrl: "",
+        ollamaUrl: '',
         customEndpoint: ENDPOINT,
-        apiMode: "chat_completions",
+        apiMode: 'chat_completions',
         maxContextSize: 8192,
       }
 
       const messages: ChatMessage[] = [
         {
-          role: "user",
+          role: 'user',
           content: [
             {
-              type: "text",
-              text: "What single color fills this image? Reply with one English word.",
+              type: 'text',
+              text: 'What single color fills this image? Reply with one English word.',
             },
             {
-              type: "image",
-              mediaType: "image/png",
+              type: 'image',
+              mediaType: 'image/png',
               dataBase64: RED_PNG_64_B64,
             },
           ],
@@ -193,19 +196,19 @@ describe("vision wire E2E (real LLM)", () => {
         { temperature: 0, max_tokens: 4096 },
       )
 
-      const body = tokens.join("").trim()
+      const body = tokens.join('').trim()
       console.log(`[vision.real-llm] model="${MODEL}" replied: "${body}"`)
 
       expect(state.error, `streamChat error: ${state.error?.message}`).toBeNull()
-      expect(state.done, "stream finished cleanly").toBe(true)
-      expect(body.length, "response is non-empty").toBeGreaterThan(0)
+      expect(state.done, 'stream finished cleanly').toBe(true)
+      expect(body.length, 'response is non-empty').toBeGreaterThan(0)
 
       // Behavioral assertion — the model should "see" red. We
       // accept "red" in any case and tolerate trailing punctuation
       // / Chinese 红色 (some Qwen builds prefer answering in the
       // model's pretraining-dominant language regardless of the
       // prompt language).
-      const matchesRed = /\bred\b/i.test(body) || body.includes("红")
+      const matchesRed = /\bred\b/i.test(body) || body.includes('红')
       expect(matchesRed, `expected "red" or "红" in response; got: "${body}"`).toBe(true)
     },
     TEST_TIMEOUT_MS,

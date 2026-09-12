@@ -1,4 +1,4 @@
-import { normalizePath } from "@/lib/path-utils"
+import { normalizePath } from '@/lib/path-utils'
 
 export interface SourceLinkedPage {
   sources: readonly string[]
@@ -6,12 +6,12 @@ export interface SourceLinkedPage {
 
 export function normalizeSourceIdentity(source: string): string {
   return normalizePath(source)
-    .replace(/^\.\//, "")
-    .replace(/^raw\/sources\//i, "")
+    .replace(/^\.\//, '')
+    .replace(/^raw\/sources\//i, '')
     .toLowerCase()
 }
 
-export function listPageSourceIdentities<T extends SourceLinkedPage>(pages: readonly T[]): string[] {
+export function listPageSourceIdentities(pages: readonly SourceLinkedPage[]): string[] {
   const identities = new Map<string, string>()
   for (const page of pages) {
     for (const source of page.sources) {
@@ -20,10 +20,12 @@ export function listPageSourceIdentities<T extends SourceLinkedPage>(pages: read
       if (key && !identities.has(key)) identities.set(key, trimmed)
     }
   }
-  return [...identities.values()].sort((a, b) => a.localeCompare(b, undefined, {
-    numeric: true,
-    sensitivity: "base",
-  }))
+  return [...identities.values()].sort((a, b) =>
+    a.localeCompare(b, undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    })
+  )
 }
 
 export function filterPagesBySource<T extends SourceLinkedPage>(
@@ -32,7 +34,5 @@ export function filterPagesBySource<T extends SourceLinkedPage>(
 ): T[] {
   if (!selectedSource) return [...pages]
   const selectedIdentity = normalizeSourceIdentity(selectedSource)
-  return pages.filter((page) =>
-    page.sources.some((source) => normalizeSourceIdentity(source) === selectedIdentity),
-  )
+  return pages.filter((page) => page.sources.some((source) => normalizeSourceIdentity(source) === selectedIdentity))
 }

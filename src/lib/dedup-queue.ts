@@ -15,14 +15,14 @@
  * same retry-up-to-3 policy, same registry-based path resolution so
  * a relocated project still finds its tasks.
  */
-import { readFile, writeFile } from "@/commands/fs"
-import { useWikiStore } from "@/stores/wiki-store"
-import { normalizePath } from "@/lib/path-utils"
-import { getProjectPathById } from "@/lib/project-identity"
-import { hasUsableLlm } from "@/lib/has-usable-llm"
-import { getTaskLlmConfig } from "@/lib/llm-task-routing"
-import { executeMerge } from "@/lib/dedup-runner"
-import type { DuplicateGroup } from "@/lib/dedup"
+import { readFile, writeFile } from '@/commands/fs'
+import type { DuplicateGroup } from '@/lib/dedup'
+import { executeMerge } from '@/lib/dedup-runner'
+import { hasUsableLlm } from '@/lib/has-usable-llm'
+import { getTaskLlmConfig } from '@/lib/llm-task-routing'
+import { normalizePath } from '@/lib/path-utils'
+import { getProjectPathById } from '@/lib/project-identity'
+import { useWikiStore } from '@/stores/wiki-store'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ export interface DedupTask {
   projectId: string
   group: DuplicateGroup
   canonicalSlug: string
-  status: "pending" | "processing" | "done" | "failed"
+  status: 'pending' | 'processing' | 'done' | 'failed'
   addedAt: number
   error: string | null
   retryCount: number
@@ -46,8 +46,8 @@ let processing = false
  * not immediately spend LLM tokens on historical merge work. A fresh
  * enqueue for the same group promotes the restored task out of this set. */
 let restoredPausedTaskIds = new Set<string>()
-let currentProjectId = ""
-let currentProjectPath = ""
+let currentProjectId = ''
+let currentProjectPath = ''
 let currentAbortController: AbortController | null = null
 
 // ── Persistence ───────────────────────────────────────────────────────────
@@ -58,11 +58,52 @@ function queueFilePath(projectPath: string): string {
 
 async function saveQueue(projectPath: string): Promise<void> {
   try {
-    const toSave = queue.filter((t) => t.status !== "done")
+    const toSave = queue.filter((t) => t.status !== 'done')
     await writeFile(queueFilePath(projectPath), JSON.stringify(toSave, null, 2))
   } catch {
     // non-critical
   }
+}
+
+type StoredDedupTask = Omit<DedupTask, 'projectId'> & { projectId?: string }
+
+function isDuplicateGroup(value: unknown): value is DuplicateGroup {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'slugs' in value &&
+    Array.isArray(value.slugs) &&
+    value.slugs.every((slug) => typeof slug === 'string') &&
+    'reason' in value &&
+    typeof value.reason === 'string' &&
+    'confidence' in value &&
+    (value.confidence === 'high' || value.confidence === 'medium' || value.confidence === 'low')
+  )
+}
+
+function isDedupTask(value: unknown): value is StoredDedupTask {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    typeof value.id === 'string' &&
+    'group' in value &&
+    isDuplicateGroup(value.group) &&
+    'canonicalSlug' in value &&
+    typeof value.canonicalSlug === 'string' &&
+    'status' in value &&
+    (value.status === 'pending' ||
+      value.status === 'processing' ||
+      value.status === 'done' ||
+      value.status === 'failed') &&
+    'addedAt' in value &&
+    typeof value.addedAt === 'number' &&
+    'error' in value &&
+    (value.error === null || typeof value.error === 'string') &&
+    'retryCount' in value &&
+    typeof value.retryCount === 'number' &&
+    (!('projectId' in value) || typeof value.projectId === 'string')
+  )
 }
 
 async function loadQueue(
@@ -71,11 +112,15 @@ async function loadQueue(
 ): Promise<DedupTask[]> {
   try {
     const raw = await readFile(queueFilePath(projectPath))
-    const tasks = JSON.parse(raw) as DedupTask[]
-    return tasks.map((t) => ({
-      ...t,
-      projectId: t.projectId ?? projectId,
-    }))
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    const tasks: DedupTask[] = []
+    for (const task of parsed) {
+      if (isDedupTask(task)) {
+        tasks.push({ ...task, projectId: task.projectId ?? projectId })
+      }
+    }
+    return tasks
   } catch {
     return []
   }
@@ -92,7 +137,7 @@ function generateId(): string {
  * lowercase join — same shape used by dedup-storage's canonical key.
  */
 export function groupKey(slugs: readonly string[]): string {
-  return [...slugs].map((s) => s.toLowerCase()).sort().join(",")
+  return [...slugs].map((s) => s.toLowerCase()).sort().join(',')
 }
 
 /**
@@ -108,7 +153,7 @@ export async function enqueueMerge(
 ): Promise<string> {
   if (!currentProjectId || currentProjectId !== projectId) {
     throw new Error(
-      `enqueueMerge: project ${projectId} is not the active project (current: ${currentProjectId || "<none>"})`,
+      `enqueueMerge: project ${projectId} is not the active project (current: ${currentProjectId || '<none>'})`,
     )
   }
 
@@ -116,18 +161,18 @@ export async function enqueueMerge(
   const existing = queue.find(
     (t) =>
       t.projectId === projectId &&
-      t.status !== "done" &&
+      t.status !== 'done' &&
       groupKey(t.group.slugs) === key,
   )
   if (existing) {
     restoredPausedTaskIds.delete(existing.id)
-    if (existing.status === "failed") {
-      existing.status = "pending"
+    if (existing.status === 'failed') {
+      existing.status = 'pending'
       existing.error = null
       existing.retryCount = 0
     }
     await saveQueue(currentProjectPath)
-    processNext(currentProjectId)
+    void processNext(currentProjectId)
     return existing.id
   }
 
@@ -136,7 +181,7 @@ export async function enqueueMerge(
     projectId,
     group,
     canonicalSlug,
-    status: "pending",
+    status: 'pending',
     addedAt: Date.now(),
     error: null,
     retryCount: 0,
@@ -144,7 +189,7 @@ export async function enqueueMerge(
 
   queue.push(task)
   await saveQueue(currentProjectPath)
-  processNext(currentProjectId)
+  void processNext(currentProjectId)
   return task.id
 }
 
@@ -159,17 +204,17 @@ export async function retryTask(taskId: string): Promise<void> {
   if (task.projectId !== currentProjectId) return
 
   restoredPausedTaskIds.delete(task.id)
-  task.status = "pending"
+  task.status = 'pending'
   task.error = null
   task.retryCount = 0
   await saveQueue(currentProjectPath)
-  processNext(currentProjectId)
+  void processNext(currentProjectId)
 }
 
 /** Resume merge tasks restored from disk during project open. */
 export function resumeProcessing(): void {
   restoredPausedTaskIds.clear()
-  if (currentProjectId) processNext(currentProjectId)
+  if (currentProjectId) void processNext(currentProjectId)
 }
 
 /**
@@ -182,7 +227,7 @@ export async function cancelTask(taskId: string): Promise<void> {
   if (!task) return
   if (task.projectId !== currentProjectId) return
 
-  if (task.status === "processing") {
+  if (task.status === 'processing') {
     if (currentAbortController) {
       currentAbortController.abort()
       currentAbortController = null
@@ -193,7 +238,7 @@ export async function cancelTask(taskId: string): Promise<void> {
   restoredPausedTaskIds.delete(taskId)
   queue = queue.filter((t) => t.id !== taskId)
   await saveQueue(currentProjectPath)
-  processNext(currentProjectId)
+  void processNext(currentProjectId)
 }
 
 export function getQueue(): readonly DedupTask[] {
@@ -208,13 +253,11 @@ export function getQueueSummary(): {
   restoredBacklogWaiting: boolean
 } {
   return {
-    pending: queue.filter((t) => t.status === "pending").length,
-    processing: queue.filter((t) => t.status === "processing").length,
-    failed: queue.filter((t) => t.status === "failed").length,
+    pending: queue.filter((t) => t.status === 'pending').length,
+    processing: queue.filter((t) => t.status === 'processing').length,
+    failed: queue.filter((t) => t.status === 'failed').length,
     total: queue.length,
-    restoredBacklogWaiting: queue.some((t) =>
-      t.status === "pending" && restoredPausedTaskIds.has(t.id)
-    ),
+    restoredBacklogWaiting: queue.some((t) => t.status === 'pending' && restoredPausedTaskIds.has(t.id)),
   }
 }
 
@@ -230,8 +273,8 @@ export function clearQueueState(): void {
   queue = []
   restoredPausedTaskIds.clear()
   processing = false
-  currentProjectId = ""
-  currentProjectPath = ""
+  currentProjectId = ''
+  currentProjectPath = ''
   currentAbortController = null
 }
 
@@ -252,8 +295,8 @@ export async function pauseQueue(): Promise<void> {
   processing = false
 
   for (const task of queue) {
-    if (task.status === "processing") {
-      task.status = "pending"
+    if (task.status === 'processing') {
+      task.status = 'pending'
     }
   }
 
@@ -261,8 +304,8 @@ export async function pauseQueue(): Promise<void> {
 
   queue = []
   restoredPausedTaskIds.clear()
-  currentProjectId = ""
-  currentProjectPath = ""
+  currentProjectId = ''
+  currentProjectPath = ''
 }
 
 /**
@@ -294,8 +337,8 @@ export async function restoreQueue(
 
   let restored = 0
   for (const task of mine) {
-    if (task.status === "processing") {
-      task.status = "pending"
+    if (task.status === 'processing') {
+      task.status = 'pending'
       restored++
     }
   }
@@ -303,13 +346,13 @@ export async function restoreQueue(
   queue = mine
   restoredPausedTaskIds = new Set(
     queue
-      .filter((t) => t.status === "pending")
+      .filter((t) => t.status === 'pending')
       .map((t) => t.id),
   )
   await saveQueue(pp)
 
-  const pending = queue.filter((t) => t.status === "pending").length
-  const failed = queue.filter((t) => t.status === "failed").length
+  const pending = queue.filter((t) => t.status === 'pending').length
+  const failed = queue.filter((t) => t.status === 'failed').length
   if (pending > 0 || restored > 0) {
     console.log(
       `[Dedup Queue] Restored: ${pending} pending paused for manual resume, ${failed} failed, ${restored} reset from interrupted`,
@@ -327,40 +370,40 @@ async function processNext(projectId: string): Promise<void> {
 
   const next = queue.find((t) =>
     t.projectId === projectId &&
-    t.status === "pending" &&
+    t.status === 'pending' &&
     !restoredPausedTaskIds.has(t.id)
   )
   if (!next) return
 
   const registryPath = await getProjectPathById(projectId)
-  const pp = registryPath ? normalizePath(registryPath) : ""
+  const pp = registryPath ? normalizePath(registryPath) : ''
   if (currentProjectId !== projectId) return
 
   if (!pp) {
-    next.status = "failed"
-    next.error = "Project not found in registry (was it deleted?)"
+    next.status = 'failed'
+    next.error = 'Project not found in registry (was it deleted?)'
     await saveQueue(currentProjectPath)
-    processNext(projectId)
+    void processNext(projectId)
     return
   }
 
   processing = true
-  next.status = "processing"
+  next.status = 'processing'
   await saveQueue(pp)
   if (currentProjectId !== projectId) return
 
-  const llmConfig = getTaskLlmConfig("ingest")
+  const llmConfig = getTaskLlmConfig('ingest')
 
   if (!hasUsableLlm(llmConfig)) {
-    next.status = "failed"
-    next.error = "LLM not configured — set API key in Settings"
+    next.status = 'failed'
+    next.error = 'LLM not configured — set API key in Settings'
     processing = false
     await saveQueue(pp)
     return
   }
 
   console.log(
-    `[Dedup Queue] Processing: merge ${next.group.slugs.join(",")} → ${next.canonicalSlug}`,
+    `[Dedup Queue] Processing: merge ${next.group.slugs.join(',')} → ${next.canonicalSlug}`,
   )
 
   currentAbortController = new AbortController()
@@ -378,7 +421,7 @@ async function processNext(projectId: string): Promise<void> {
     // Tell the rest of the app the wiki tree changed.
     useWikiStore.getState().bumpDataVersion()
 
-    console.log(`[Dedup Queue] Done: ${next.group.slugs.join(",")}`)
+    console.log(`[Dedup Queue] Done: ${next.group.slugs.join(',')}`)
   } catch (err) {
     if (currentProjectId !== projectId) return
     currentAbortController = null
@@ -387,19 +430,19 @@ async function processNext(projectId: string): Promise<void> {
     next.error = message
 
     if (next.retryCount >= MAX_RETRIES) {
-      next.status = "failed"
+      next.status = 'failed'
       console.log(
-        `[Dedup Queue] Failed (${next.retryCount}x): ${next.group.slugs.join(",")} — ${message}`,
+        `[Dedup Queue] Failed (${next.retryCount}x): ${next.group.slugs.join(',')} — ${message}`,
       )
     } else {
-      next.status = "pending"
+      next.status = 'pending'
       console.log(
-        `[Dedup Queue] Error (retry ${next.retryCount}/${MAX_RETRIES}): ${next.group.slugs.join(",")} — ${message}`,
+        `[Dedup Queue] Error (retry ${next.retryCount}/${MAX_RETRIES}): ${next.group.slugs.join(',')} — ${message}`,
       )
     }
     await saveQueue(pp)
   }
 
   processing = false
-  processNext(projectId)
+  void processNext(projectId)
 }

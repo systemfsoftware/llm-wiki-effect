@@ -13,9 +13,9 @@
  * captioning lands, the same helper grows a `caption` field per
  * image and the markdown line uses that instead.
  */
-import { invoke } from "@tauri-apps/api/core"
-import { copyFile, createDirectory, fileExists, readFileAsBase64 } from "@/commands/fs"
-import { getFileName, normalizePath } from "@/lib/path-utils"
+import { copyFile, createDirectory, fileExists, readFileAsBase64 } from '@/commands/fs'
+import { getFileName, normalizePath } from '@/lib/path-utils'
+import { invoke } from '@tauri-apps/api/core'
 
 /** Mirrors `commands::extract_images::SavedImage` on the Rust side. */
 export interface SavedImage {
@@ -36,25 +36,29 @@ export interface SavedImage {
  *  because spreadsheets generally don't have charts as images (charts
  *  are XML-rendered shapes, not embedded raster). Adding them later is
  *  a one-line change here. */
-const SUPPORTED_PDF_EXTS = ["pdf"] as const
-const SUPPORTED_OFFICE_EXTS = ["pptx", "docx"] as const
+const SUPPORTED_PDF_EXTS = ['pdf'] as const
+const SUPPORTED_OFFICE_EXTS = ['pptx', 'docx'] as const
 // Legacy binary .doc/.ppt text extraction is handled separately; image
 // extraction here is ZIP-based and only supports OOXML files.
 const MARKDOWN_IMAGE_EXTS = new Set([
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "bmp",
-  "tif",
-  "tiff",
-  "svg",
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'bmp',
+  'tif',
+  'tiff',
+  'svg',
 ])
 
 function dirname(path: string): string {
-  const idx = normalizePath(path).lastIndexOf("/")
-  return idx >= 0 ? normalizePath(path).slice(0, idx) : ""
+  const idx = normalizePath(path).lastIndexOf('/')
+  return idx >= 0 ? normalizePath(path).slice(0, idx) : ''
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isRemoteOrDataImageRef(raw: string): boolean {
@@ -62,7 +66,7 @@ function isRemoteOrDataImageRef(raw: string): boolean {
 }
 
 function cleanMarkdownImageRef(raw: string): string {
-  const stripped = raw.trim().replace(/^<(.+)>$/, "$1")
+  const stripped = raw.trim().replace(/^<(.+)>$/, '$1')
   try {
     return decodeURIComponent(stripped)
   } catch {
@@ -71,41 +75,41 @@ function cleanMarkdownImageRef(raw: string): string {
 }
 
 function imageMimeType(path: string): string {
-  const ext = getFileName(path).split(".").pop()?.toLowerCase() ?? ""
+  const ext = getFileName(path).split('.').pop()?.toLowerCase() ?? ''
   switch (ext) {
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg"
-    case "png":
-      return "image/png"
-    case "gif":
-      return "image/gif"
-    case "webp":
-      return "image/webp"
-    case "bmp":
-      return "image/bmp"
-    case "svg":
-      return "image/svg+xml"
-    case "tif":
-    case "tiff":
-      return "image/tiff"
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg'
+    case 'png':
+      return 'image/png'
+    case 'gif':
+      return 'image/gif'
+    case 'webp':
+      return 'image/webp'
+    case 'bmp':
+      return 'image/bmp'
+    case 'svg':
+      return 'image/svg+xml'
+    case 'tif':
+    case 'tiff':
+      return 'image/tiff'
     default:
-      return "application/octet-stream"
+      return 'application/octet-stream'
   }
 }
 
 function uniqueDestName(index: number, sourcePath: string): string {
-  const name = getFileName(sourcePath).replace(/[<>:"|?*\x00-\x1f]/g, "_")
-  return `${String(index).padStart(3, "0")}-${name}`
+  const name = getFileName(sourcePath).replace(/[<>:"|?*\p{Cc}]/gu, '_')
+  return `${String(index).padStart(3, '0')}-${name}`
 }
 
 async function sha256OfFile(path: string): Promise<string> {
   const bytes = await readFileAsBase64(path)
   const raw = Uint8Array.from(atob(bytes.base64), (c) => c.charCodeAt(0))
-  const digest = await crypto.subtle.digest("SHA-256", raw)
+  const digest = await crypto.subtle.digest('SHA-256', raw)
   return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 export function findLocalMarkdownImageRefs(markdown: string): string[] {
@@ -113,9 +117,9 @@ export function findLocalMarkdownImageRefs(markdown: string): string[] {
   const seen = new Set<string>()
 
   const add = (raw: string) => {
-    const ref = cleanMarkdownImageRef(raw.split("#")[0].split("|")[0])
+    const ref = cleanMarkdownImageRef(raw.split('#')[0].split('|')[0])
     if (!ref || isRemoteOrDataImageRef(ref)) return
-    const ext = getFileName(ref).split(".").pop()?.toLowerCase() ?? ""
+    const ext = getFileName(ref).split('.').pop()?.toLowerCase() ?? ''
     if (!MARKDOWN_IMAGE_EXTS.has(ext)) return
     const key = normalizePath(ref)
     if (seen.has(key)) return
@@ -124,11 +128,11 @@ export function findLocalMarkdownImageRefs(markdown: string): string[] {
   }
 
   for (const match of markdown.matchAll(/!\[\[([^\]]+)\]\]/g)) {
-    add(match[1] ?? "")
+    add(match[1] ?? '')
   }
 
   for (const match of markdown.matchAll(/!\[[^\]]*]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g)) {
-    add(match[1] ?? "")
+    add(match[1] ?? '')
   }
 
   return refs
@@ -156,19 +160,19 @@ export async function extractAndSaveSourceImages(
   const pp = normalizePath(projectPath)
   const sp = normalizePath(sourcePath)
   const fileName = getFileName(sp)
-  const ext = fileName.split(".").pop()?.toLowerCase() ?? ""
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
 
   const isPdf = (SUPPORTED_PDF_EXTS as readonly string[]).includes(ext)
   const isOffice = (SUPPORTED_OFFICE_EXTS as readonly string[]).includes(ext)
   if (!isPdf && !isOffice) return []
 
-  const slug = slugOverride ?? fileName.replace(/\.[^.]+$/, "")
+  const slug = slugOverride ?? fileName.replace(/\.[^.]+$/, '')
   const destDir = `${pp}/wiki/media/${slug}`
   const relTo = `${pp}/wiki`
 
   try {
     const images = await invoke<unknown[]>(
-      isPdf ? "extract_and_save_pdf_images_cmd" : "extract_and_save_office_images_cmd",
+      isPdf ? 'extract_and_save_pdf_images_cmd' : 'extract_and_save_office_images_cmd',
       { sourcePath: sp, destDir, relTo },
     )
     // Rust's `SavedImage` is `#[serde(rename_all = "camelCase")]`,
@@ -180,12 +184,11 @@ export async function extractAndSaveSourceImages(
     // wrote images to disk. We had that bug.)
     return images
       .filter((it): it is SavedImage => {
-        if (!it || typeof it !== "object") return false
-        const obj = it as Record<string, unknown>
+        if (!isRecord(it)) return false
         return (
-          typeof obj.index === "number" &&
-          typeof obj.relPath === "string" &&
-          typeof obj.absPath === "string"
+          typeof it.index === 'number' &&
+          typeof it.relPath === 'string' &&
+          typeof it.absPath === 'string'
         )
       })
   } catch (err) {
@@ -209,20 +212,20 @@ export async function extractAndSaveMarkdownImages(
   const pp = normalizePath(projectPath)
   const sp = normalizePath(sourcePath)
   const sourceDir = dirname(sp)
-  const slug = slugOverride ?? getFileName(sp).replace(/\.[^.]+$/, "")
+  const slug = slugOverride ?? getFileName(sp).replace(/\.[^.]+$/, '')
   const destDir = `${pp}/wiki/media/${slug}`
   const images: SavedImage[] = []
 
   try {
     await createDirectory(destDir)
   } catch (err) {
-    console.warn("[ingest:images] failed to create markdown image directory:", err)
+    console.warn('[ingest:images] failed to create markdown image directory:', err)
     return []
   }
 
   for (const ref of refs) {
     const abs = normalizePath(
-      ref.startsWith("/") || /^[a-zA-Z]:/.test(ref) || ref.startsWith("\\\\")
+      ref.startsWith('/') || /^[a-zA-Z]:/.test(ref) || ref.startsWith('\\\\')
         ? ref
         : `${sourceDir}/${ref}`,
     )
@@ -274,15 +277,15 @@ export function buildImageMarkdownSection(
   images: SavedImage[],
   captionsBySha?: Map<string, string>,
 ): string {
-  if (images.length === 0) return ""
+  if (images.length === 0) return ''
 
-  const lines: string[] = ["", "", "## Embedded Images", ""]
+  const lines: string[] = ['', '', '## Embedded Images', '']
   // Group by page so the LLM can correlate "Figure 3 mentioned on
   // page 5" with the right image. DOCX images have page=null; they
   // get grouped under "Document":
   const byPage = new Map<string, SavedImage[]>()
   for (const img of images) {
-    const key = img.page == null ? "Document" : `Page ${img.page}`
+    const key = img.page == null ? 'Document' : `Page ${img.page}`
     const bucket = byPage.get(key)
     if (bucket) bucket.push(img)
     else byPage.set(key, [img])
@@ -290,10 +293,10 @@ export function buildImageMarkdownSection(
 
   // Page-keyed order, with "Document" (DOCX) last when present.
   const ordered = [...byPage.keys()].sort((a, b) => {
-    if (a === "Document") return 1
-    if (b === "Document") return -1
-    const numA = parseInt(a.replace(/\D/g, ""), 10) || 0
-    const numB = parseInt(b.replace(/\D/g, ""), 10) || 0
+    if (a === 'Document') return 1
+    if (b === 'Document') return -1
+    const numA = parseInt(a.replace(/\D/g, ''), 10) || 0
+    const numB = parseInt(b.replace(/\D/g, ''), 10) || 0
     return numA - numB
   })
 
@@ -301,11 +304,10 @@ export function buildImageMarkdownSection(
   // rules as the inline-rewrite path: no `]` (would close the alt
   // bracket early), no embedded newlines (would break the markdown
   // image syntax across lines).
-  const sanitize = (s: string): string =>
-    s.replace(/[\r\n]+/g, " ").replace(/]/g, ")").trim()
+  const sanitize = (s: string): string => s.replace(/[\r\n]+/g, ' ').replace(/]/g, ')').trim()
 
   for (const key of ordered) {
-    lines.push(`### ${key}`, "")
+    lines.push(`### ${key}`, '')
     for (const img of byPage.get(key) ?? []) {
       // Caption lookup by SHA-256 — same key the caption pipeline
       // uses to dedupe across documents. Falling back to empty alt
@@ -315,11 +317,11 @@ export function buildImageMarkdownSection(
       // — the inline LLM-generated text might cite the image by
       // page number anyway.
       const caption = captionsBySha?.get(img.sha256)
-      const alt = caption ? sanitize(caption) : ""
+      const alt = caption ? sanitize(caption) : ''
       lines.push(`![${alt}](${img.relPath})`)
     }
-    lines.push("")
+    lines.push('')
   }
 
-  return lines.join("\n")
+  return lines.join('\n')
 }

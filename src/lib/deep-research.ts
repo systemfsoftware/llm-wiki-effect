@@ -1,16 +1,16 @@
-import { anyTxtSearchSmart, hasConfiguredAnyTxt } from "./anytxt-search"
-import { hasConfiguredSearchProvider, resolveSearchConfig, webSearch } from "./web-search"
-import { streamChat } from "./llm-client"
-import { currentWikiDate } from "./ingest"
-import { fileExists, writeFile, readFile } from "@/commands/fs"
-import { useWikiStore, type LlmConfig, type SearchApiConfig } from "@/stores/wiki-store"
-import { useResearchStore } from "@/stores/research-store"
-import { normalizePath } from "@/lib/path-utils"
-import { buildLanguageDirective } from "@/lib/output-language"
-import { makeQueryFileName } from "@/lib/wiki-filename"
-import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
-import { useReviewStore } from "@/stores/review-store"
-import { stripBodyWikilinkPathPrefixes } from "./page-merge"
+import { fileExists, readFile, writeFile } from '@/commands/fs'
+import { buildLanguageDirective } from '@/lib/output-language'
+import { normalizePath } from '@/lib/path-utils'
+import { refreshProjectFileTree } from '@/lib/project-file-tree-refresh'
+import { makeQueryFileName } from '@/lib/wiki-filename'
+import { useResearchStore } from '@/stores/research-store'
+import { useReviewStore } from '@/stores/review-store'
+import { type LlmConfig, type SearchApiConfig, useWikiStore } from '@/stores/wiki-store'
+import { anyTxtSearchSmart, hasConfiguredAnyTxt } from './anytxt-search'
+import { currentWikiDate } from './ingest'
+import { streamChat } from './llm-client'
+import { stripBodyWikilinkPathPrefixes } from './page-merge'
+import { hasConfiguredSearchProvider, resolveSearchConfig, webSearch } from './web-search'
 
 const MAX_RESEARCH_SOURCES = 20
 const MIN_RESEARCH_CONTENT_CHARS = 120
@@ -29,25 +29,25 @@ export function buildResearchPageContent(
   synthesis: string,
   references: string,
 ): string {
-  const displayTopic = topic.replace(/\s+/g, " ").trim()
+  const displayTopic = topic.replace(/\s+/g, ' ').trim()
   return stripBodyWikilinkPathPrefixes([
-    "---",
-    "type: query",
+    '---',
+    'type: query',
     `title: ${JSON.stringify(`Research: ${displayTopic}`)}`,
     `created: ${date}`,
-    "origin: deep-research",
-    "tags: [research]",
-    "---",
-    "",
+    'origin: deep-research',
+    'tags: [research]',
+    '---',
+    '',
     `# Research: ${displayTopic}`,
-    "",
+    '',
     synthesis,
-    "",
-    "## References",
-    "",
+    '',
+    '## References',
+    '',
     references,
-    "",
-  ].join("\n"))
+    '',
+  ].join('\n'))
 }
 
 export async function makeAvailableResearchFilePath(
@@ -58,7 +58,7 @@ export async function makeAvailableResearchFilePath(
   const basePath = `${directory}/${fileName}`
   if (!(await exists(basePath))) return basePath
 
-  const extensionIndex = fileName.toLowerCase().endsWith(".md") ? fileName.length - 3 : fileName.length
+  const extensionIndex = fileName.toLowerCase().endsWith('.md') ? fileName.length - 3 : fileName.length
   const stem = fileName.slice(0, extensionIndex)
   const extension = fileName.slice(extensionIndex)
   for (let suffix = 2; suffix <= 999; suffix++) {
@@ -69,14 +69,14 @@ export async function makeAvailableResearchFilePath(
 }
 
 export function addResearchTaskDiscriminator(fileName: string, taskId: string): string {
-  const safeTaskId = taskId.replace(/[^A-Za-z0-9-]/g, "-").replace(/-+/g, "-")
-  const extensionIndex = fileName.toLowerCase().endsWith(".md") ? fileName.length - 3 : fileName.length
-  return `${fileName.slice(0, extensionIndex)}-${safeTaskId || "task"}${fileName.slice(extensionIndex)}`
+  const safeTaskId = taskId.replace(/[^A-Za-z0-9-]/g, '-').replace(/-+/g, '-')
+  const extensionIndex = fileName.toLowerCase().endsWith('.md') ? fileName.length - 3 : fileName.length
+  return `${fileName.slice(0, extensionIndex)}-${safeTaskId || 'task'}${fileName.slice(extensionIndex)}`
 }
 
 export function researchPageIdFromPath(filePath: string): string {
   const fileName = filePath.split(/[\\/]/).pop() || filePath
-  return fileName.replace(/\.md$/i, "")
+  return fileName.replace(/\.md$/i, '')
 }
 
 interface ResearchSourceDeps {
@@ -89,12 +89,12 @@ interface CollectResearchSourceOptions {
 }
 
 interface ResearchSourceCollection {
-  results: import("./web-search").WebSearchResult[]
+  results: import('./web-search').WebSearchResult[]
   errors: string[]
 }
 
 export function noResearchSourcesTaskPatch(sourceErrors: string[]): {
-  status: "done" | "error"
+  status: 'done' | 'error'
   synthesis: string
   error: string | null
 } {
@@ -103,14 +103,14 @@ export function noResearchSourcesTaskPatch(sourceErrors: string[]): {
   // the UI shows "completed" for a task that could not actually search.
   if (sourceErrors.length > 0) {
     return {
-      status: "error",
-      synthesis: "",
-      error: sourceErrors.join("\n"),
+      status: 'error',
+      synthesis: '',
+      error: sourceErrors.join('\n'),
     }
   }
   return {
-    status: "done",
-    synthesis: "No research sources found.",
+    status: 'done',
+    synthesis: 'No research sources found.',
     error: null,
   }
 }
@@ -130,8 +130,8 @@ export function makeDeepResearchFileName(topic: string, now: Date = new Date()):
  */
 export function cleanResearchSynthesis(content: string): string {
   return content
-    .replace(/<think(?:ing)?>\s*[\s\S]*?<\/think(?:ing)?>\s*/gi, "")
-    .replace(/<think(?:ing)?>\s*[\s\S]*$/gi, "")
+    .replace(/<think(?:ing)?>\s*[\s\S]*?<\/think(?:ing)?>\s*/gi, '')
+    .replace(/<think(?:ing)?>\s*[\s\S]*$/gi, '')
     .trim()
 }
 
@@ -145,7 +145,7 @@ function meaningfulCharacterCount(content: string): number {
 export function citedResearchSourceIndexes(content: string, sourceCount: number): number[] {
   const cited = new Set<number>()
   for (const match of content.matchAll(/\[([\d,\-\s]+)\]/g)) {
-    for (const part of match[1].split(",")) {
+    for (const part of match[1].split(',')) {
       const range = part.trim().match(/^(\d+)\s*-\s*(\d+)$/)
       if (range) {
         const start = Number(range[1])
@@ -176,7 +176,7 @@ export function validateResearchSynthesis(
   const cleaned = cleanResearchSynthesis(content)
   const blocks = cleaned
     .split(/\n\s*\n/)
-    .map((block) => block.replace(/^\s{0,3}#{1,6}\s+/gm, ""))
+    .map((block) => block.replace(/^\s{0,3}#{1,6}\s+/gm, ''))
     .map(meaningfulCharacterCount)
     .filter((count) => count >= MIN_RESEARCH_BLOCK_CHARS)
   const meaningfulChars = meaningfulCharacterCount(cleaned)
@@ -187,7 +187,7 @@ export function validateResearchSynthesis(
       valid: false,
       cleaned,
       citedSourceIndexes,
-      error: "The research synthesis was empty or incomplete. Please retry.",
+      error: 'The research synthesis was empty or incomplete. Please retry.',
     }
   }
   if (sourceCount > 0 && citedSourceIndexes.length === 0) {
@@ -195,7 +195,7 @@ export function validateResearchSynthesis(
       valid: false,
       cleaned,
       citedSourceIndexes,
-      error: "The research synthesis did not cite any collected sources. Please retry.",
+      error: 'The research synthesis did not cite any collected sources. Please retry.',
     }
   }
   return { valid: true, cleaned, citedSourceIndexes, error: null }
@@ -260,7 +260,7 @@ export function resolveReviewForSavedResearch(
   const task = useResearchStore.getState().tasks.find((candidate) => candidate.id === taskId)
   if (
     !task?.sourceReviewId ||
-    task.status !== "done" ||
+    task.status !== 'done' ||
     task.savedPath !== savedPath ||
     !validateResearchSynthesis(task.synthesis, task.webResults.length).valid
   ) return false
@@ -278,20 +278,22 @@ export async function collectResearchSources(
   options: CollectResearchSourceOptions = {},
 ): Promise<ResearchSourceCollection> {
   const resolvedSearchConfig = resolveSearchConfig(searchConfig)
-  const sourceMode = resolvedSearchConfig.deepResearchSource ?? "web"
-  const useWeb = sourceMode === "web" || sourceMode === "both"
+  const sourceMode = resolvedSearchConfig.deepResearchSource ?? 'web'
+  const useWeb = sourceMode === 'web' || sourceMode === 'both'
   const useAnyTxt = hasAnyTxtSource(resolvedSearchConfig) && hasConfiguredAnyTxt(resolvedSearchConfig.anyTxt)
   const webConfigured = hasConfiguredSearchProvider(resolvedSearchConfig)
-  const allResults: import("./web-search").WebSearchResult[] = []
+  const allResults: import('./web-search').WebSearchResult[] = []
   const errors: string[] = []
   const seenUrls = new Set<string>()
   let cappedWarned = false
 
-  function addResults(results: import("./web-search").WebSearchResult[]) {
+  function addResults(results: import('./web-search').WebSearchResult[]) {
     for (const r of results) {
       if (allResults.length >= MAX_RESEARCH_SOURCES) {
         if (!cappedWarned) {
-          console.info(`[DeepResearch] capped at ${MAX_RESEARCH_SOURCES} research sources; later results were truncated.`)
+          console.info(
+            `[DeepResearch] capped at ${MAX_RESEARCH_SOURCES} research sources; later results were truncated.`,
+          )
           cappedWarned = true
         }
         return
@@ -305,7 +307,7 @@ export async function collectResearchSources(
   }
 
   const webQueries = queries.map((q) => q.trim()).filter(Boolean)
-  const calls: Array<Promise<{ results: import("./web-search").WebSearchResult[] }>> = []
+  const calls: Array<Promise<{ results: import('./web-search').WebSearchResult[] }>> = []
 
   for (const webQuery of webQueries) {
     if (useWeb && webConfigured && webQuery) {
@@ -313,17 +315,21 @@ export async function collectResearchSources(
     }
   }
   if (useAnyTxt) {
-    calls.push(deps.anyTxtSearch(queries, resolvedSearchConfig.anyTxt, options.llmConfig, 15, projectPath).then((results) => ({ results })))
+    calls.push(
+      deps.anyTxtSearch(queries, resolvedSearchConfig.anyTxt, options.llmConfig, 15, projectPath).then((results) => ({
+        results,
+      })),
+    )
   }
 
   const settled = await Promise.allSettled(calls)
   for (const item of settled) {
-    if (item.status === "fulfilled") {
+    if (item.status === 'fulfilled') {
       addResults(item.value.results)
     } else {
       const message = item.reason instanceof Error ? item.reason.message : String(item.reason)
       errors.push(message)
-      console.warn("[DeepResearch] source search failed:", message)
+      console.warn('[DeepResearch] source search failed:', message)
     }
   }
 
@@ -331,8 +337,8 @@ export async function collectResearchSources(
 }
 
 function hasAnyTxtSource(searchConfig: SearchApiConfig): boolean {
-  const sourceMode = searchConfig.deepResearchSource ?? "web"
-  return sourceMode === "anytxt" || sourceMode === "both"
+  const sourceMode = searchConfig.deepResearchSource ?? 'web'
+  return sourceMode === 'anytxt' || sourceMode === 'both'
 }
 
 function isActiveProjectPath(projectPath: string): boolean {
@@ -343,7 +349,7 @@ function isActiveProjectPath(projectPath: string): boolean {
 function updateTaskIfActive(
   projectPath: string,
   taskId: string,
-  patch: Parameters<ReturnType<typeof useResearchStore.getState>["updateTask"]>[1],
+  patch: Parameters<ReturnType<typeof useResearchStore.getState>['updateTask']>[1],
 ): boolean {
   if (!isActiveProjectPath(projectPath)) return false
   useResearchStore.getState().updateTask(taskId, patch)
@@ -365,7 +371,7 @@ function processQueue(
   for (let i = 0; i < available; i++) {
     const next = useResearchStore.getState().getNextQueued()
     if (!next) break
-    executeResearch(projectPath, next.id, next.topic, llmConfig, searchConfig)
+    void executeResearch(projectPath, next.id, next.topic, llmConfig, searchConfig)
   }
 }
 
@@ -382,7 +388,7 @@ async function executeResearch(
     if (!isActiveProjectPath(pp)) return
     // Step 1: gather research sources — use multiple queries if available,
     // merge Web Search and local AnyTXT results, then deduplicate.
-    if (!updateTaskIfActive(pp, taskId, { status: "searching" })) return
+    if (!updateTaskIfActive(pp, taskId, { status: 'searching' })) return
 
     const task = useResearchStore.getState().tasks.find((t) => t.id === taskId)
     const queries = task?.searchQueries && task.searchQueries.length > 0
@@ -407,14 +413,14 @@ async function executeResearch(
     }
 
     // Step 2: LLM synthesis
-    if (!updateTaskIfActive(pp, taskId, { status: "synthesizing" })) return
+    if (!updateTaskIfActive(pp, taskId, { status: 'synthesizing' })) return
 
     const searchContext = webResults
       .map((r, i) => `[${i + 1}] **${r.title}** (${r.source})\n${r.snippet}`)
-      .join("\n\n")
+      .join('\n\n')
 
     // Read existing wiki index to enable cross-referencing
-    let wikiIndex = ""
+    let wikiIndex = ''
     try {
       wikiIndex = await readFile(`${pp}/wiki/index.md`)
     } catch {
@@ -422,33 +428,37 @@ async function executeResearch(
     }
 
     const systemPrompt = [
-      "You are a research assistant. Synthesize the collected research sources into a comprehensive wiki page.",
-      "",
+      'You are a research assistant. Synthesize the collected research sources into a comprehensive wiki page.',
+      '',
       buildLanguageDirective(topic),
-      "",
-      "## Cross-referencing (IMPORTANT)",
-      "- The wiki already has existing pages listed in the Wiki Index below.",
-      "- When your synthesis mentions an entity or concept that exists in the wiki, ALWAYS use [[wikilink]] syntax to link to it.",
+      '',
+      '## Cross-referencing (IMPORTANT)',
+      '- The wiki already has existing pages listed in the Wiki Index below.',
+      '- When your synthesis mentions an entity or concept that exists in the wiki, ALWAYS use [[wikilink]] syntax to link to it.',
       "- For example, if the wiki has an entity 'anthropic', write [[anthropic]] when mentioning it.",
-      "- This is critical for connecting new research to existing knowledge in the graph.",
-      "",
-      "## Writing Rules",
-      "- Organize into clear sections with headings",
-      "- Cite sources using [N] notation",
-      "- Note contradictions or gaps",
-      "- Suggest additional sources worth finding",
-      "- Neutral, encyclopedic tone",
-      "",
-      wikiIndex ? `## Existing Wiki Index (link to these pages with [[wikilink]])\n${wikiIndex}` : "",
-    ].filter(Boolean).join("\n")
+      '- This is critical for connecting new research to existing knowledge in the graph.',
+      '',
+      '## Writing Rules',
+      '- Organize into clear sections with headings',
+      '- Cite sources using [N] notation',
+      '- Note contradictions or gaps',
+      '- Suggest additional sources worth finding',
+      '- Neutral, encyclopedic tone',
+      '',
+      wikiIndex ? `## Existing Wiki Index (link to these pages with [[wikilink]])\n${wikiIndex}` : '',
+    ].filter(Boolean).join('\n')
 
-    let accumulated = ""
+    let accumulated = ''
 
     await streamChat(
       llmConfig,
       [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Research topic: **${topic}**\n\n## Research Sources\n\n${searchContext}\n\nSynthesize into a wiki page.` },
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content:
+            `Research topic: **${topic}**\n\n## Research Sources\n\n${searchContext}\n\nSynthesize into a wiki page.`,
+        },
       ],
       {
         onToken: (token) => {
@@ -461,7 +471,7 @@ async function executeResearch(
         onError: (err) => {
           if (!isActiveProjectPath(pp)) return
           useResearchStore.getState().updateTask(taskId, {
-            status: "error",
+            status: 'error',
             error: err.message,
           })
         },
@@ -469,7 +479,7 @@ async function executeResearch(
     )
 
     // Check if errored during streaming
-    if (useResearchStore.getState().tasks.find((t) => t.id === taskId)?.status === "error") {
+    if (useResearchStore.getState().tasks.find((t) => t.id === taskId)?.status === 'error') {
       if (isActiveProjectPath(pp)) onTaskFinished(pp, llmConfig, searchConfig)
       return
     }
@@ -480,15 +490,17 @@ async function executeResearch(
     // must remain retryable instead of creating a references-only artifact.
     const validation = validateResearchSynthesis(accumulated, webResults.length)
     if (!validation.valid) {
-      if (!updateTaskIfActive(pp, taskId, {
-        status: "error",
-        synthesis: validation.cleaned,
-        error: validation.error,
-      })) return
+      if (
+        !updateTaskIfActive(pp, taskId, {
+          status: 'error',
+          synthesis: validation.cleaned,
+          error: validation.error,
+        })
+      ) return
       if (isActiveProjectPath(pp)) onTaskFinished(pp, llmConfig, searchConfig)
       return
     }
-    if (!updateTaskIfActive(pp, taskId, { status: "saving", synthesis: validation.cleaned })) return
+    if (!updateTaskIfActive(pp, taskId, { status: 'saving', synthesis: validation.cleaned })) return
 
     const { fileName, date } = makeDeepResearchFileName(topic)
     const taskFileName = addResearchTaskDiscriminator(fileName, taskId)
@@ -502,7 +514,7 @@ async function executeResearch(
         const result = webResults[sourceIndex - 1]
         return `${sourceIndex}. [${result.title}](${result.url}) — ${result.source}`
       })
-      .join("\n")
+      .join('\n')
 
     const pageContent = buildResearchPageContent(
       topic,
@@ -514,10 +526,12 @@ async function executeResearch(
     await writeFile(filePath, pageContent)
     const savedPath = filePath.slice(`${pp}/`.length)
 
-    if (!updateTaskIfActive(pp, taskId, {
-      status: "done",
-      savedPath,
-    })) return
+    if (
+      !updateTaskIfActive(pp, taskId, {
+        status: 'done',
+        savedPath,
+      })
+    ) return
     resolveReviewForSavedResearch(pp, taskId, savedPath)
 
     try {
@@ -532,10 +546,10 @@ async function executeResearch(
     const embeddingConfig = useWikiStore.getState().embeddingConfig
     if (embeddingConfig.enabled && embeddingConfig.model) {
       try {
-        const { embedPage } = await import("@/lib/embedding")
+        const { embedPage } = await import('@/lib/embedding')
         await embedPage(pp, researchPageIdFromPath(filePath), `Research: ${topic}`, pageContent, embeddingConfig)
       } catch (err) {
-        console.warn("[DeepResearch] failed to index generated query page:", err)
+        console.warn('[DeepResearch] failed to index generated query page:', err)
       }
     }
 
@@ -546,7 +560,7 @@ async function executeResearch(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     updateTaskIfActive(pp, taskId, {
-      status: "error",
+      status: 'error',
       error: message,
     })
   }

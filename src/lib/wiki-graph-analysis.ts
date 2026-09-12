@@ -1,6 +1,6 @@
-import Graph from "graphology"
-import louvain from "graphology-communities-louvain"
-import type { CommunityInfo, GraphEdge } from "./wiki-graph"
+import Graphology from 'graphology'
+import louvain from 'graphology-communities-louvain'
+import type { CommunityInfo, GraphEdge } from './wiki-graph'
 
 /** Run Louvain community detection and compute cohesion per community. */
 export function detectCommunities(
@@ -11,7 +11,7 @@ export function detectCommunities(
     return { assignments: new Map(), communities: [] }
   }
 
-  const graph = new Graph({ type: "undirected" })
+  const graph = new Graphology({ type: 'undirected' })
   for (const node of nodes) graph.addNode(node.id)
   for (const edge of edges) {
     if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) continue

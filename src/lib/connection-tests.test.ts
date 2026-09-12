@@ -1,22 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { EmbeddingConfig, LlmConfig } from "@/stores/wiki-store"
+import { fetchEmbedding, getLastEmbeddingError } from '@/lib/embedding'
+import { streamChat } from '@/lib/llm-client'
+import type { EmbeddingConfig, LlmConfig } from '@/stores/wiki-store'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   LLM_PROVIDER_TEST_MAX_TOKENS,
   testEmbeddingConnection,
   testEmbeddingFunction,
   testLlmConnection,
   testLlmFunction,
-} from "./connection-tests"
-import { fetchEmbedding, getLastEmbeddingError } from "@/lib/embedding"
-import { streamChat } from "@/lib/llm-client"
+} from './connection-tests'
 
-vi.mock("@/lib/embedding", () => ({
-  fetchEmbedding: vi.fn(),
-  getLastEmbeddingError: vi.fn(),
+vi.mock('@/lib/embedding', () => ({
+  fetchEmbedding: vi.fn<typeof fetchEmbedding>(),
+  getLastEmbeddingError: vi.fn<typeof getLastEmbeddingError>(),
 }))
 
-vi.mock("@/lib/llm-client", () => ({
-  streamChat: vi.fn(),
+vi.mock('@/lib/llm-client', () => ({
+  streamChat: vi.fn<typeof streamChat>(),
 }))
 
 const fetchEmbeddingMock = vi.mocked(fetchEmbedding)
@@ -25,19 +25,19 @@ const streamChatMock = vi.mocked(streamChat)
 
 const embeddingConfig: EmbeddingConfig = {
   enabled: true,
-  endpoint: "http://localhost:1234/v1/embeddings",
-  apiKey: "",
-  model: "text-embedding-test",
+  endpoint: 'http://localhost:1234/v1/embeddings',
+  apiKey: '',
+  model: 'text-embedding-test',
 }
 
 const llmConfig: LlmConfig = {
-  provider: "custom",
-  apiKey: "",
-  model: "test-model",
-  ollamaUrl: "http://localhost:11434",
-  customEndpoint: "http://localhost:1234/v1",
+  provider: 'custom',
+  apiKey: '',
+  model: 'test-model',
+  ollamaUrl: 'http://localhost:11434',
+  customEndpoint: 'http://localhost:1234/v1',
   maxContextSize: 4096,
-  apiMode: "chat_completions",
+  apiMode: 'chat_completions',
 }
 
 beforeEach(() => {
@@ -45,18 +45,18 @@ beforeEach(() => {
   getLastEmbeddingErrorMock.mockReturnValue(null)
 })
 
-describe("provider connection tests", () => {
-  it("reports embedding connection dimensions", async () => {
+describe('provider connection tests', () => {
+  it('reports embedding connection dimensions', async () => {
     fetchEmbeddingMock.mockResolvedValueOnce([0.1, 0.2, 0.3])
 
     const result = await testEmbeddingConnection(embeddingConfig)
 
     expect(result.ok).toBe(true)
-    expect(result.message).toContain("3 dimensions")
+    expect(result.message).toContain('3 dimensions')
     expect(fetchEmbeddingMock).toHaveBeenCalledWith(expect.any(String), embeddingConfig, 0)
   })
 
-  it("fails embedding functional test when dimensions are unstable", async () => {
+  it('fails embedding functional test when dimensions are unstable', async () => {
     fetchEmbeddingMock
       .mockResolvedValueOnce([0.1, 0.2])
       .mockResolvedValueOnce([0.1, 0.2, 0.3])
@@ -64,24 +64,24 @@ describe("provider connection tests", () => {
     const result = await testEmbeddingFunction(embeddingConfig)
 
     expect(result.ok).toBe(false)
-    expect(result.message).toContain("dimension changed")
+    expect(result.message).toContain('dimension changed')
   })
 
-  it("passes LLM connection when any content is streamed", async () => {
+  it('passes LLM connection when any content is streamed', async () => {
     streamChatMock.mockImplementationOnce(async (_cfg, _messages, callbacks) => {
-      callbacks.onToken("OK")
+      callbacks.onToken('OK')
       callbacks.onDone()
     })
 
     const result = await testLlmConnection(llmConfig)
 
     expect(result.ok).toBe(true)
-    expect(result.message).toContain("Response: OK")
+    expect(result.message).toContain('Response: OK')
   })
 
-  it("validates LLM functional output token", async () => {
+  it('validates LLM functional output token', async () => {
     streamChatMock.mockImplementationOnce(async (_cfg, _messages, callbacks) => {
-      callbacks.onToken("LLM_WIKI_TEST_OK")
+      callbacks.onToken('LLM_WIKI_TEST_OK')
       callbacks.onDone()
     })
 
@@ -93,13 +93,13 @@ describe("provider connection tests", () => {
       expect.any(Array),
       expect.any(Object),
       undefined,
-      { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: "auto" } },
+      { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: 'auto' } },
     )
   })
 
-  it("uses enough output budget for reasoning-heavy local models", async () => {
+  it('uses enough output budget for reasoning-heavy local models', async () => {
     streamChatMock.mockImplementationOnce(async (_cfg, _messages, callbacks) => {
-      callbacks.onToken("OK")
+      callbacks.onToken('OK')
       callbacks.onDone()
     })
 
@@ -114,20 +114,22 @@ describe("provider connection tests", () => {
     )
   })
 
-  it.each([
-    ["Claude Code", "claude-code", "connection", false],
-    ["Claude Code", "claude-code", "connection", undefined],
-    ["Claude Code", "claude-code", "functional", false],
-    ["Claude Code", "claude-code", "functional", undefined],
-    ["Codex CLI", "codex-cli", "connection", false],
-    ["Codex CLI", "codex-cli", "connection", undefined],
-    ["Codex CLI", "codex-cli", "functional", false],
-    ["Codex CLI", "codex-cli", "functional", undefined],
-  ] as const)(
-    "preserves local CLI isolation during %s %s tests",
+  it.each(
+    [
+      ['Claude Code', 'claude-code', 'connection', false],
+      ['Claude Code', 'claude-code', 'connection', undefined],
+      ['Claude Code', 'claude-code', 'functional', false],
+      ['Claude Code', 'claude-code', 'functional', undefined],
+      ['Codex CLI', 'codex-cli', 'connection', false],
+      ['Codex CLI', 'codex-cli', 'connection', undefined],
+      ['Codex CLI', 'codex-cli', 'functional', false],
+      ['Codex CLI', 'codex-cli', 'functional', undefined],
+    ] as const,
+  )(
+    'preserves local CLI isolation during %s %s tests',
     async (_label, provider, kind, initialIsolation) => {
       streamChatMock.mockImplementationOnce(async (_cfg, _messages, callbacks) => {
-        callbacks.onToken(kind === "functional" ? "LLM_WIKI_TEST_OK" : "OK")
+        callbacks.onToken(kind === 'functional' ? 'LLM_WIKI_TEST_OK' : 'OK')
         callbacks.onDone()
       })
       const cfg: LlmConfig = {
@@ -136,7 +138,7 @@ describe("provider connection tests", () => {
         ...(initialIsolation === undefined ? {} : { localCliIsolation: initialIsolation }),
       }
 
-      const result = kind === "functional"
+      const result = kind === 'functional'
         ? await testLlmFunction(cfg)
         : await testLlmConnection(cfg)
 
@@ -146,15 +148,15 @@ describe("provider connection tests", () => {
         expect.any(Array),
         expect.any(Object),
         undefined,
-        { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: "auto" } },
+        { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: 'auto' } },
       )
       expect(cfg.localCliIsolation).toBe(initialIsolation)
     },
   )
 
-  it("does not isolate non-CLI provider connection tests", async () => {
+  it('does not isolate non-CLI provider connection tests', async () => {
     streamChatMock.mockImplementationOnce(async (_cfg, _messages, callbacks) => {
-      callbacks.onToken("OK")
+      callbacks.onToken('OK')
       callbacks.onDone()
     })
 
@@ -166,7 +168,7 @@ describe("provider connection tests", () => {
       expect.any(Array),
       expect.any(Object),
       undefined,
-      { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: "auto" } },
+      { max_tokens: LLM_PROVIDER_TEST_MAX_TOKENS, reasoning: { mode: 'auto' } },
     )
   })
 })

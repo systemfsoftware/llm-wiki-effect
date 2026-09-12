@@ -6,28 +6,29 @@
  * file on disk was overwritten and (if so) whether it has the expected
  * content exactly.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest"
-import path from "node:path"
-import fs from "node:fs/promises"
-import { realFs, createTempProject, readFileRaw } from "@/test-helpers/fs-temp"
-import { materializeScenario, copyDir } from "@/test-helpers/scenarios/materialize"
-import { enrichScenarios } from "@/test-helpers/scenarios/enrich-scenarios"
-import type { EnrichScenario } from "@/test-helpers/scenarios/types"
+import { createTempProject, readFileRaw, realFs } from '@/test-helpers/fs-temp'
+import { enrichScenarios } from '@/test-helpers/scenarios/enrich-scenarios'
+import { copyDir, materializeScenario } from '@/test-helpers/scenarios/materialize'
+import type { EnrichScenario } from '@/test-helpers/scenarios/types'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock("@/commands/fs", () => realFs)
+vi.mock('@/commands/fs', () => realFs)
 
-let currentLlmResponse = ""
-vi.mock("./llm-client", () => ({
-  streamChat: vi.fn(async (_cfg, _msgs, cb) => {
+let currentLlmResponse = ''
+vi.mock('./llm-client', () => ({
+  streamChat: vi.fn<typeof streamChat>(async (_cfg, _msgs, cb) => {
     cb.onToken(currentLlmResponse)
     cb.onDone()
   }),
 }))
 
-import { enrichWithWikilinks } from "./enrich-wikilinks"
-import { useWikiStore } from "@/stores/wiki-store"
+import { useWikiStore } from '@/stores/wiki-store'
+import { enrichWithWikilinks } from './enrich-wikilinks'
+import type { streamChat } from './llm-client'
 
-const FIXTURES_ROOT = path.join(process.cwd(), "tests", "fixtures", "scenarios-enrich")
+const FIXTURES_ROOT = path.join(process.cwd(), 'tests', 'fixtures', 'scenarios-enrich')
 
 beforeAll(async () => {
   await fs.rm(FIXTURES_ROOT, { recursive: true, force: true })
@@ -38,7 +39,7 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
-  currentLlmResponse = ""
+  currentLlmResponse = ''
 })
 
 interface Ctx {
@@ -48,32 +49,30 @@ let ctx: Ctx | undefined
 
 async function setup(scenario: EnrichScenario): Promise<Ctx> {
   const tmp = await createTempProject(
-    `enrich-${scenario.name.replace(/\//g, "-")}`,
+    `enrich-${scenario.name.replace(/\//g, '-')}`,
   )
-  const initialWikiDir = path.join(FIXTURES_ROOT, scenario.name, "initial-wiki")
+  const initialWikiDir = path.join(FIXTURES_ROOT, scenario.name, 'initial-wiki')
   await copyDir(initialWikiDir, tmp.path)
 
   useWikiStore.setState({
     project: {
-      name: "t",
+      id: 'scenario-project',
+      name: 't',
       path: tmp.path,
-      createdAt: 0,
-      purposeText: "",
-      fileTree: [],
-    } as unknown as ReturnType<typeof useWikiStore.getState>["project"],
+    },
   })
   useWikiStore.getState().setLlmConfig({
-    provider: "openai",
-    apiKey: "test-key",
-    model: "gpt-4",
-    ollamaUrl: "",
-    customEndpoint: "",
+    provider: 'openai',
+    apiKey: 'test-key',
+    model: 'gpt-4',
+    ollamaUrl: '',
+    customEndpoint: '',
     maxContextSize: 128000,
   })
 
   currentLlmResponse = await fs.readFile(
-    path.join(FIXTURES_ROOT, scenario.name, "llm-response.txt"),
-    "utf-8",
+    path.join(FIXTURES_ROOT, scenario.name, 'llm-response.txt'),
+    'utf-8',
   )
   return { tmp }
 }
@@ -85,9 +84,9 @@ afterEach(async () => {
   }
 })
 
-describe("enrich-wikilinks scenarios (fixture-driven)", () => {
+describe('enrich-wikilinks scenarios (fixture-driven)', () => {
   it.each(enrichScenarios.map((s) => [s.name, s]))(
-    "%s",
+    '%s',
     async (_name, scenario) => {
       ctx = await setup(scenario)
       const pagePath = path.join(ctx.tmp.path, scenario.pageToEnrich)
@@ -100,16 +99,13 @@ describe("enrich-wikilinks scenarios (fixture-driven)", () => {
       )
 
       const finalContent = await readFileRaw(pagePath)
+      const { writeCalled, expectedContent } = scenario.expected
+      const changed = finalContent !== originalContent
+      const expectedFinal = expectedContent ?? (writeCalled ? finalContent : originalContent)
 
       try {
-        if (scenario.expected.writeCalled) {
-          expect(finalContent).not.toBe(originalContent)
-          if (scenario.expected.expectedContent !== undefined) {
-            expect(finalContent).toBe(scenario.expected.expectedContent)
-          }
-        } else {
-          expect(finalContent).toBe(originalContent)
-        }
+        expect(changed).toBe(writeCalled)
+        expect(finalContent).toBe(expectedFinal)
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error(

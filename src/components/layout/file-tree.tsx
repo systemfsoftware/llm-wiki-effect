@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react"
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen } from "lucide-react"
-import { message } from "@tauri-apps/plugin-dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { useWikiStore } from "@/stores/wiki-store"
-import type { FileNode } from "@/types/wiki"
-import { useTranslation } from "react-i18next"
-import { listDirectory, openProjectFolder } from "@/commands/fs"
-import { replaceNodeChildren } from "./file-tree-utils"
+import { listDirectory, openProjectFolder } from '@/commands/fs'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { useWikiStore } from '@/stores/wiki-store'
+import type { FileNode } from '@/types/wiki'
+import { message } from '@tauri-apps/plugin-dialog'
+import { ChevronDown, ChevronRight, File, Folder, FolderOpen } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { replaceNodeChildren } from './file-tree-utils'
 
 function TreeNode({
   node,
@@ -43,19 +43,17 @@ function TreeNode({
       <div>
         <button
           onClick={() => void handleToggle()}
-          className="flex w-full items-center gap-1 py-1 text-sm text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+          className='flex w-full items-center gap-1 py-1 text-sm text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
           style={{ paddingLeft }}
         >
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-          )}
-          <Folder className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-          <span className="truncate">{node.name}</span>
+          {expanded
+            ? <ChevronDown className='h-3.5 w-3.5 shrink-0' />
+            : <ChevronRight className='h-3.5 w-3.5 shrink-0' />}
+          <Folder className='h-3.5 w-3.5 shrink-0 text-blue-400' />
+          <span className='truncate'>{node.name}</span>
           {loadingChildren && (
-            <span className="ml-auto pr-2 text-[10px] text-muted-foreground">
-              {t("common.loading", { defaultValue: "Loading..." })}
+            <span className='ml-auto pr-2 text-[10px] text-muted-foreground'>
+              {t('common.loading', { defaultValue: 'Loading...' })}
             </span>
           )}
         </button>
@@ -76,13 +74,13 @@ function TreeNode({
       onClick={() => openPathInPreview(node.path)}
       className={`flex w-full items-center gap-1 py-1 text-sm ${
         isSelected
-          ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+          ? 'bg-accent text-accent-foreground'
+          : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
       }`}
       style={{ paddingLeft: paddingLeft + 14 }}
     >
-      <File className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">{node.name}</span>
+      <File className='h-3.5 w-3.5 shrink-0' />
+      <span className='truncate'>{node.name}</span>
     </button>
   )
 }
@@ -96,6 +94,7 @@ export function FileTree() {
   const loadingPaths = useRef(new Set<string>())
 
   useEffect(() => {
+    if (!project?.id) return
     loadedPaths.current.clear()
     loadingPaths.current.clear()
   }, [project?.id])
@@ -106,16 +105,16 @@ export function FileTree() {
     try {
       await openProjectFolder(project.path)
     } catch (err) {
-      console.error("[FileTree] open project folder failed:", err)
+      console.error('[FileTree] open project folder failed:', err)
       await message(
-        t("fileTree.openProjectFolderFailed", {
-          defaultValue: "Failed to open the project folder.",
+        t('fileTree.openProjectFolderFailed', {
+          defaultValue: 'Failed to open the project folder.',
         }),
         {
-          title: t("fileTree.openProjectFolder", {
-            defaultValue: "Open project folder",
+          title: t('fileTree.openProjectFolder', {
+            defaultValue: 'Open project folder',
           }),
-          kind: "error",
+          kind: 'error',
         },
       )
     }
@@ -137,7 +136,7 @@ export function FileTree() {
         syncPathIndex: false,
       })
     } catch (err) {
-      console.error("[FileTree] load children failed:", err)
+      console.error('[FileTree] load children failed:', err)
     } finally {
       loadingPaths.current.delete(node.path)
     }
@@ -145,17 +144,17 @@ export function FileTree() {
 
   if (!project) {
     return (
-      <div className="flex h-full items-center justify-center p-4 text-sm text-muted-foreground">
-        {t("fileTree.noProject")}
+      <div className='flex h-full items-center justify-center p-4 text-sm text-muted-foreground'>
+        {t('fileTree.noProject')}
       </div>
     )
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      <ScrollArea className="min-h-0 flex-1 overflow-hidden">
-        <div className="p-2">
-          <div className="mb-2 px-2 text-xs font-semibold uppercase text-muted-foreground">
+    <div className='flex h-full min-w-0 flex-col overflow-hidden'>
+      <ScrollArea className='min-h-0 flex-1 overflow-hidden'>
+        <div className='p-2'>
+          <div className='mb-2 px-2 text-xs font-semibold uppercase text-muted-foreground'>
             {project.name}
           </div>
           {fileTree.map((node) => (
@@ -168,16 +167,16 @@ export function FileTree() {
           ))}
         </div>
       </ScrollArea>
-      <div className="shrink-0 border-t p-2">
+      <div className='shrink-0 border-t p-2'>
         <button
-          type="button"
+          type='button'
           onClick={() => void handleOpenProjectFolder()}
-          className="flex w-full items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-accent-foreground"
+          className='flex w-full items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-accent-foreground'
           title={project.path}
         >
-          <FolderOpen className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">
-            {t("fileTree.openProjectFolder", { defaultValue: "Open project folder" })}
+          <FolderOpen className='h-3.5 w-3.5 shrink-0' />
+          <span className='truncate'>
+            {t('fileTree.openProjectFolder', { defaultValue: 'Open project folder' })}
           </span>
         </button>
       </div>

@@ -1,0 +1,93 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    versioning-strategy: "increase"
+    open-pull-requests-limit: 15
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    groups:
+      react-minor-patch:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+        update-types: ["minor", "patch"]
+      react-major:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+        update-types: ["major"]
+      tauri-minor-patch:
+        patterns: ["@tauri-apps/*"]
+        update-types: ["minor", "patch"]
+      tauri-major:
+        patterns: ["@tauri-apps/*"]
+        update-types: ["major"]
+      toolchain-minor-patch:
+        patterns: ["oxlint", "oxlint-tsgolint", "dprint", "husky", "lint-staged", "@commitlint/*"]
+        update-types: ["minor", "patch"]
+      toolchain-major:
+        patterns: ["oxlint", "oxlint-tsgolint", "dprint", "husky", "lint-staged", "@commitlint/*"]
+        update-types: ["major"]
+      testing-minor-patch:
+        patterns: ["vitest", "@vitest/*", "fast-check"]
+        update-types: ["minor", "patch"]
+      testing-major:
+        patterns: ["vitest", "@vitest/*", "fast-check"]
+        update-types: ["major"]
+      types-minor-patch:
+        patterns: ["@types/*"]
+        update-types: ["minor", "patch"]
+      other-minor-patch:
+        patterns: ["*"]
+        exclude-patterns:
+          - "react"
+          - "react-dom"
+          - "@types/*"
+          - "@tauri-apps/*"
+          - "oxlint"
+          - "oxlint-tsgolint"
+          - "dprint"
+          - "husky"
+          - "lint-staged"
+          - "@commitlint/*"
+          - "vitest"
+          - "@vitest/*"
+          - "fast-check"
+        update-types: ["minor", "patch"]
+      other-major:
+        patterns: ["*"]
+        exclude-patterns:
+          - "react"
+          - "react-dom"
+          - "@types/*"
+          - "@tauri-apps/*"
+          - "oxlint"
+          - "oxlint-tsgolint"
+          - "dprint"
+          - "husky"
+          - "lint-staged"
+          - "@commitlint/*"
+          - "vitest"
+          - "@vitest/*"
+          - "fast-check"
+        update-types: ["major"]
+
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      cargo-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

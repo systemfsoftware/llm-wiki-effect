@@ -47,7 +47,7 @@ export async function withProjectLock<T>(
     if (locks.get(projectPath) === tail) {
       // Defer the delete one tick so a caller that just chained on
       // doesn't see us yank the entry mid-chain.
-      Promise.resolve().then(() => {
+      queueMicrotask(() => {
         if (locks.get(projectPath) === tail) {
           locks.delete(projectPath)
         }
@@ -59,6 +59,6 @@ export async function withProjectLock<T>(
 /** Test-only — drop all live locks. Used by `beforeEach` so test
  *  isolation is preserved across files that share the module-level
  *  `locks` map. */
-export function __resetProjectLocksForTesting(): void {
+export function resetProjectLocksForTesting(): void {
   locks.clear()
 }

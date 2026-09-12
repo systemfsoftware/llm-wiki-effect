@@ -1,67 +1,68 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Button } from '@/components/ui/button'
+import i18n from '@/i18n'
+import { setIngestWorkerLimit } from '@/lib/ingest-queue'
+import { OUTPUT_LANGUAGE_OPTIONS } from '@/lib/output-language-options'
+import { loadSourceWatchConfig, loadTheme, saveLanguage, saveTheme } from '@/lib/project-store'
+import { normalizeSourceWatchConfig } from '@/lib/source-watch-config'
+import { applyTheme, type AppTheme } from '@/lib/theme'
+import { useChatStore } from '@/stores/chat-store'
+import { hasAvailableUpdate, useUpdateStore } from '@/stores/update-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import { useZoomStore } from '@/stores/zoom-store'
+import { invoke } from '@tauri-apps/api/core'
+import { disable as disableAutostart, enable as enableAutostart } from '@tauri-apps/plugin-autostart'
 import {
-  Bot,
   Binary,
-  Globe,
-  Languages,
-  Palette,
-  Info,
-  Image as ImageIcon,
-  Network,
-  History,
-  Wrench,
+  Bot,
   Clock,
+  FileText,
   FolderSync,
+  Globe,
+  History,
+  Image as ImageIcon,
+  Info,
+  Languages,
+  Network,
+  Palette,
   Server,
   Settings,
-  FileText,
-} from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { invoke } from "@tauri-apps/api/core"
-import { disable as disableAutostart, enable as enableAutostart } from "@tauri-apps/plugin-autostart"
-import i18n from "@/i18n"
-import { Button } from "@/components/ui/button"
-import { useWikiStore } from "@/stores/wiki-store"
-import { useChatStore } from "@/stores/chat-store"
-import { useUpdateStore, hasAvailableUpdate } from "@/stores/update-store"
-import { useZoomStore } from "@/stores/zoom-store"
-import { loadSourceWatchConfig, saveLanguage, saveTheme, loadTheme } from "@/lib/project-store"
-import { applyTheme, type AppTheme } from "@/lib/theme"
-import type { SettingsDraft, DraftSetter } from "./settings-types"
-import { normalizeSourceWatchConfig } from "@/lib/source-watch-config"
-import { setIngestWorkerLimit } from "@/lib/ingest-queue"
-import { LlmProviderSection } from "./sections/llm-provider-section"
-import { EmbeddingSection } from "./sections/embedding-section"
-import { MultimodalSection } from "./sections/multimodal-section"
-import { WebSearchSection } from "./sections/web-search-section"
-import { OutputSection } from "./sections/output-section"
-import { InterfaceSection } from "./sections/interface-section"
-import { NetworkSection } from "./sections/network-section"
-import { ScheduledImportSection } from "./sections/scheduled-import-section"
-import { SourceWatchSection } from "./sections/source-watch-section"
-import { MineruSection } from "./sections/mineru-section"
-import { ApiServerSection } from "./sections/api-server-section"
-import { GeneralSection } from "./sections/general-section"
-import { ChangelogSection } from "./sections/changelog-section"
-import { MaintenanceSection } from "./sections/maintenance-section"
-import { AboutSection } from "./sections/about-section"
+  Wrench,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { AboutSection } from './sections/about-section'
+import { ApiServerSection } from './sections/api-server-section'
+import { ChangelogSection } from './sections/changelog-section'
+import { EmbeddingSection } from './sections/embedding-section'
+import { GeneralSection } from './sections/general-section'
+import { InterfaceSection } from './sections/interface-section'
+import { LlmProviderSection } from './sections/llm-provider-section'
+import { MaintenanceSection } from './sections/maintenance-section'
+import { MineruSection } from './sections/mineru-section'
+import { MultimodalSection } from './sections/multimodal-section'
+import { NetworkSection } from './sections/network-section'
+import { OutputSection } from './sections/output-section'
+import { ScheduledImportSection } from './sections/scheduled-import-section'
+import { SourceWatchSection } from './sections/source-watch-section'
+import { WebSearchSection } from './sections/web-search-section'
+import type { DraftSetter, SettingsDraft } from './settings-types'
 
 type CategoryId =
-  | "general"
-  | "llm"
-  | "embedding"
-  | "multimodal"
-  | "web-search"
-  | "network"
-  | "source-watch"
-  | "scheduled-import"
-  | "mineru"
-  | "api-server"
-  | "output"
-  | "interface"
-  | "maintenance"
-  | "changelog"
-  | "about"
+  | 'general'
+  | 'llm'
+  | 'embedding'
+  | 'multimodal'
+  | 'web-search'
+  | 'network'
+  | 'source-watch'
+  | 'scheduled-import'
+  | 'mineru'
+  | 'api-server'
+  | 'output'
+  | 'interface'
+  | 'maintenance'
+  | 'changelog'
+  | 'about'
 
 interface Category {
   id: CategoryId
@@ -73,34 +74,34 @@ interface Category {
 }
 
 const CATEGORIES: Category[] = [
-  { id: "general", labelKey: "settings.categories.general", icon: Settings },
-  { id: "llm", labelKey: "settings.categories.llm", icon: Bot },
-  { id: "embedding", labelKey: "settings.categories.embedding", icon: Binary },
-  { id: "multimodal", labelKey: "settings.categories.multimodal", icon: ImageIcon },
-  { id: "web-search", labelKey: "settings.categories.webSearch", icon: Globe },
-  { id: "network", labelKey: "settings.categories.network", icon: Network },
-  { id: "source-watch", labelKey: "settings.categories.sourceWatch", icon: FolderSync },
-  { id: "scheduled-import", labelKey: "settings.categories.scheduledImport", icon: Clock },
-  { id: "mineru", labelKey: "settings.categories.mineru", icon: FileText },
-  { id: "api-server", labelKey: "settings.categories.apiServer", icon: Server },
-  { id: "output", labelKey: "settings.categories.output", icon: Languages },
-  { id: "interface", labelKey: "settings.categories.interface", icon: Palette },
-  { id: "maintenance", labelKey: "settings.categories.maintenance", icon: Wrench },
-  { id: "changelog", labelKey: "settings.categories.changelog", icon: History },
-  { id: "about", labelKey: "settings.categories.about", icon: Info },
+  { id: 'general', labelKey: 'settings.categories.general', icon: Settings },
+  { id: 'llm', labelKey: 'settings.categories.llm', icon: Bot },
+  { id: 'embedding', labelKey: 'settings.categories.embedding', icon: Binary },
+  { id: 'multimodal', labelKey: 'settings.categories.multimodal', icon: ImageIcon },
+  { id: 'web-search', labelKey: 'settings.categories.webSearch', icon: Globe },
+  { id: 'network', labelKey: 'settings.categories.network', icon: Network },
+  { id: 'source-watch', labelKey: 'settings.categories.sourceWatch', icon: FolderSync },
+  { id: 'scheduled-import', labelKey: 'settings.categories.scheduledImport', icon: Clock },
+  { id: 'mineru', labelKey: 'settings.categories.mineru', icon: FileText },
+  { id: 'api-server', labelKey: 'settings.categories.apiServer', icon: Server },
+  { id: 'output', labelKey: 'settings.categories.output', icon: Languages },
+  { id: 'interface', labelKey: 'settings.categories.interface', icon: Palette },
+  { id: 'maintenance', labelKey: 'settings.categories.maintenance', icon: Wrench },
+  { id: 'changelog', labelKey: 'settings.categories.changelog', icon: History },
+  { id: 'about', labelKey: 'settings.categories.about', icon: Info },
 ]
 
 function initialDraft(
-  llm: ReturnType<typeof useWikiStore.getState>["llmConfig"],
-  embed: ReturnType<typeof useWikiStore.getState>["embeddingConfig"],
-  multimodal: ReturnType<typeof useWikiStore.getState>["multimodalConfig"],
-  outputLanguage: ReturnType<typeof useWikiStore.getState>["outputLanguage"],
-  proxy: ReturnType<typeof useWikiStore.getState>["proxyConfig"],
-  scheduledImport: ReturnType<typeof useWikiStore.getState>["scheduledImportConfig"],
-  sourceWatch: ReturnType<typeof useWikiStore.getState>["sourceWatchConfig"],
-  mineru: ReturnType<typeof useWikiStore.getState>["mineruConfig"],
-  apiConfig: ReturnType<typeof useWikiStore.getState>["apiConfig"],
-  generalConfig: ReturnType<typeof useWikiStore.getState>["generalConfig"],
+  llm: ReturnType<typeof useWikiStore.getState>['llmConfig'],
+  embed: ReturnType<typeof useWikiStore.getState>['embeddingConfig'],
+  multimodal: ReturnType<typeof useWikiStore.getState>['multimodalConfig'],
+  outputLanguage: ReturnType<typeof useWikiStore.getState>['outputLanguage'],
+  proxy: ReturnType<typeof useWikiStore.getState>['proxyConfig'],
+  scheduledImport: ReturnType<typeof useWikiStore.getState>['scheduledImportConfig'],
+  sourceWatch: ReturnType<typeof useWikiStore.getState>['sourceWatchConfig'],
+  mineru: ReturnType<typeof useWikiStore.getState>['mineruConfig'],
+  apiConfig: ReturnType<typeof useWikiStore.getState>['apiConfig'],
+  generalConfig: ReturnType<typeof useWikiStore.getState>['generalConfig'],
   maxHistoryMessages: number,
   uiLanguage: string,
   projectPath?: string,
@@ -110,10 +111,10 @@ function initialDraft(
   // Show absolute path: if stored path is empty, show default using project path
   // If stored path is relative (legacy), prepend project path
   // If stored path is absolute, show as-is
-  let displayPath = scheduledImport.path || ""
+  let displayPath = scheduledImport.path || ''
   if (!displayPath && projectPath) {
     displayPath = `${projectPath}/raw/sources`
-  } else if (displayPath && projectPath && !displayPath.startsWith("/") && !displayPath.match(/^[a-zA-Z]:[/\\]/)) {
+  } else if (displayPath && projectPath && !displayPath.startsWith('/') && !displayPath.match(/^[a-zA-Z]:[/\\]/)) {
     // Legacy relative path - prepend project path for display
     displayPath = `${projectPath}/${displayPath}`
   }
@@ -124,8 +125,8 @@ function initialDraft(
     model: llm.model,
     ollamaUrl: llm.ollamaUrl,
     customEndpoint: llm.customEndpoint,
-    azureApiVersion: llm.azureApiVersion ?? "2024-10-21",
-    azureModelFamily: llm.azureModelFamily ?? "auto",
+    azureApiVersion: llm.azureApiVersion ?? '2024-10-21',
+    azureModelFamily: llm.azureModelFamily ?? 'auto',
     maxContextSize: llm.maxContextSize ?? 204800,
     apiMode: llm.apiMode,
     reasoning: llm.reasoning,
@@ -148,8 +149,8 @@ function initialDraft(
     multimodalModel: multimodal.model,
     multimodalOllamaUrl: multimodal.ollamaUrl,
     multimodalCustomEndpoint: multimodal.customEndpoint,
-    multimodalAzureApiVersion: multimodal.azureApiVersion ?? "2024-10-21",
-    multimodalAzureModelFamily: multimodal.azureModelFamily ?? "auto",
+    multimodalAzureApiVersion: multimodal.azureApiVersion ?? '2024-10-21',
+    multimodalAzureModelFamily: multimodal.azureModelFamily ?? 'auto',
     multimodalApiMode: multimodal.apiMode,
     multimodalConcurrency: multimodal.concurrency,
     outputLanguage,
@@ -163,18 +164,17 @@ function initialDraft(
     scheduledImportInterval: scheduledImport.interval,
     sourceWatchConfig: normalizeSourceWatchConfig(sourceWatch),
     mineruEnabled: mineru.enabled,
-    mineruBackend: mineru.backend || "cloud",
-    mineruLocalEndpoint:
-      mineru.localEndpoint || "http://127.0.0.1:8000",
-    mineruLocalToken: mineru.localToken || "",
-    mineruLocalBackend: mineru.localBackend || "hybrid-engine",
-    mineruLocalEffort: mineru.localEffort || "medium",
-    mineruLocalParseMethod: mineru.localParseMethod || "auto",
-    mineruLocalLanguage: mineru.localLanguage || "ch",
+    mineruBackend: mineru.backend || 'cloud',
+    mineruLocalEndpoint: mineru.localEndpoint || 'http://127.0.0.1:8000',
+    mineruLocalToken: mineru.localToken || '',
+    mineruLocalBackend: mineru.localBackend || 'hybrid-engine',
+    mineruLocalEffort: mineru.localEffort || 'medium',
+    mineruLocalParseMethod: mineru.localParseMethod || 'auto',
+    mineruLocalLanguage: mineru.localLanguage || 'ch',
     mineruLocalFormulaEnabled: mineru.localFormulaEnabled !== false,
     mineruLocalTableEnabled: mineru.localTableEnabled !== false,
     mineruLocalImageAnalysis: mineru.localImageAnalysis !== false,
-    mineruLocalServerUrl: mineru.localServerUrl || "",
+    mineruLocalServerUrl: mineru.localServerUrl || '',
     mineruToken: mineru.token,
     mineruModelVersion: mineru.modelVersion,
     apiEnabled: apiConfig.enabled,
@@ -185,7 +185,7 @@ function initialDraft(
     autostart: generalConfig.autostart,
     closeBehavior: generalConfig.closeBehavior,
     uiLanguage,
-    theme: theme ?? "system",
+    theme: theme ?? 'system',
     zoomLevel: zoomLevel ?? useZoomStore.getState().level,
   }
 }
@@ -225,10 +225,10 @@ export function SettingsView() {
   // per version.
   const updateAvailable = useUpdateStore((s) => hasAvailableUpdate(s))
 
-  const [active, setActive] = useState<CategoryId>("llm")
+  const [active, setActive] = useState<CategoryId>('llm')
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [currentTheme, setCurrentTheme] = useState<AppTheme>("system")
+  const [currentTheme, setCurrentTheme] = useState<AppTheme>('system')
   const [draft, setDraftState] = useState<SettingsDraft>(() =>
     initialDraft(
       llmConfig,
@@ -244,34 +244,39 @@ export function SettingsView() {
       maxHistoryMessages,
       i18n.language,
       project?.path,
-    ),
+    )
   )
 
   // Load theme on mount
   useEffect(() => {
-    loadTheme().then((theme) => {
-      if (theme) {
-        setCurrentTheme(theme)
-        setDraftState((prev) => ({ ...prev, theme }))
-      }
-    }).catch(() => {})
+    const applyPersistedTheme = async () => {
+      const theme = await loadTheme()
+      if (!theme) return
+      setCurrentTheme(theme)
+      setDraftState((prev) => ({ ...prev, theme }))
+    }
+    applyPersistedTheme().catch(() => {})
   }, [])
 
   useEffect(() => {
     let cancelled = false
-    loadSourceWatchConfig(project?.id).then((config) => {
-      if (cancelled) return
-      const normalized = normalizeSourceWatchConfig(config)
-      setSourceWatchConfig(normalized)
-      setIngestWorkerLimit(normalized.ingestConcurrency)
-      setDraftState((prev) => ({ ...prev, sourceWatchConfig: normalized }))
-    }).catch(() => {
-      if (cancelled) return
-      const fallback = normalizeSourceWatchConfig()
-      setSourceWatchConfig(fallback)
-      setIngestWorkerLimit(fallback.ingestConcurrency)
-      setDraftState((prev) => ({ ...prev, sourceWatchConfig: fallback }))
-    })
+    const applySourceWatchConfig = async () => {
+      try {
+        const config = await loadSourceWatchConfig(project?.id)
+        if (cancelled) return
+        const normalized = normalizeSourceWatchConfig(config)
+        setSourceWatchConfig(normalized)
+        setIngestWorkerLimit(normalized.ingestConcurrency)
+        setDraftState((prev) => ({ ...prev, sourceWatchConfig: normalized }))
+      } catch {
+        if (cancelled) return
+        const fallback = normalizeSourceWatchConfig()
+        setSourceWatchConfig(fallback)
+        setIngestWorkerLimit(fallback.ingestConcurrency)
+        setDraftState((prev) => ({ ...prev, sourceWatchConfig: fallback }))
+      }
+    }
+    void applySourceWatchConfig()
     return () => {
       cancelled = true
     }
@@ -287,7 +292,39 @@ export function SettingsView() {
   // revert the UI to the previous language.
   // Same applies to zoomLevel — preserve the user's pending value through
   // the resync so mid-save store updates don't revert the input.
-  useEffect(() => {
+  const draftSourceKey = useMemo(
+    () => ({
+      llmConfig,
+      embeddingConfig,
+      multimodalConfig,
+      outputLanguage,
+      proxyConfig,
+      scheduledImportConfig,
+      sourceWatchConfig,
+      mineruConfig,
+      apiConfig,
+      generalConfig,
+      maxHistoryMessages,
+      project,
+    }),
+    [
+      llmConfig,
+      embeddingConfig,
+      multimodalConfig,
+      outputLanguage,
+      proxyConfig,
+      scheduledImportConfig,
+      sourceWatchConfig,
+      mineruConfig,
+      apiConfig,
+      generalConfig,
+      maxHistoryMessages,
+      project,
+    ],
+  )
+  const [syncedDraftSource, setSyncedDraftSource] = useState(draftSourceKey)
+  if (draftSourceKey !== syncedDraftSource) {
+    setSyncedDraftSource(draftSourceKey)
     setDraftState((prev) =>
       initialDraft(
         llmConfig,
@@ -305,31 +342,14 @@ export function SettingsView() {
         project?.path,
         prev.theme,
         prev.zoomLevel,
-      ),
+      )
     )
-  }, [
-    llmConfig,
-    embeddingConfig,
-    multimodalConfig,
-    outputLanguage,
-    proxyConfig,
-    scheduledImportConfig,
-    sourceWatchConfig,
-    mineruConfig,
-    apiConfig,
-    generalConfig,
-    maxHistoryMessages,
-    project,
-  ])
+  }
 
   const setDraft: DraftSetter = useCallback((key, value) => {
     setSaveError(null)
     setDraftState((prev) => ({ ...prev, [key]: value }))
   }, [])
-
-  useEffect(() => {
-    setSaveError(null)
-  }, [active])
 
   const handleSave = useCallback(async () => {
     setSaveError(null)
@@ -355,7 +375,7 @@ export function SettingsView() {
       loadGeneralConfig,
       saveZoomLevel,
       loadZoomLevel,
-    } = await import("@/lib/project-store")
+    } = await import('@/lib/project-store')
 
     const newLlm = {
       provider: draft.provider,
@@ -363,10 +383,10 @@ export function SettingsView() {
       model: draft.model,
       ollamaUrl: draft.ollamaUrl,
       customEndpoint: draft.customEndpoint,
-      azureApiVersion: draft.provider === "azure" ? draft.azureApiVersion.trim() : undefined,
-      azureModelFamily: draft.provider === "azure" ? draft.azureModelFamily : undefined,
+      azureApiVersion: draft.provider === 'azure' ? draft.azureApiVersion.trim() : undefined,
+      azureModelFamily: draft.provider === 'azure' ? draft.azureModelFamily : undefined,
       maxContextSize: draft.maxContextSize,
-      apiMode: draft.provider === "custom" ? draft.apiMode : undefined,
+      apiMode: draft.provider === 'custom' ? draft.apiMode : undefined,
       reasoning: draft.reasoning,
       ingestReasoning: draft.ingestReasoning,
       localCliIsolation: draft.localCliIsolation,
@@ -391,9 +411,9 @@ export function SettingsView() {
       model: draft.multimodalModel,
       ollamaUrl: draft.multimodalOllamaUrl,
       customEndpoint: draft.multimodalCustomEndpoint,
-      azureApiVersion: draft.multimodalProvider === "azure" ? draft.multimodalAzureApiVersion.trim() : undefined,
-      azureModelFamily: draft.multimodalProvider === "azure" ? draft.multimodalAzureModelFamily : undefined,
-      apiMode: draft.multimodalProvider === "custom" ? draft.multimodalApiMode : undefined,
+      azureApiVersion: draft.multimodalProvider === 'azure' ? draft.multimodalAzureApiVersion.trim() : undefined,
+      azureModelFamily: draft.multimodalProvider === 'azure' ? draft.multimodalAzureModelFamily : undefined,
+      apiMode: draft.multimodalProvider === 'custom' ? draft.multimodalApiMode : undefined,
       // Clamp at save time so a hand-edited persisted store with a
       // ridiculous concurrency value (e.g. someone setting 1000 in
       // the JSON) doesn't blow up the captioning pipeline. Caption
@@ -451,7 +471,9 @@ export function SettingsView() {
     setLlmConfig(newLlm)
     setEmbeddingConfig(newEmbed)
     setMultimodalConfig(newMultimodal)
-    setOutputLanguage(draft.outputLanguage as typeof outputLanguage)
+    setOutputLanguage(
+      OUTPUT_LANGUAGE_OPTIONS.find((option) => option.value === draft.outputLanguage)?.value ?? 'auto',
+    )
     setProxyConfig(newProxy)
     setSourceWatchConfig(newSourceWatch)
     setIngestWorkerLimit(newSourceWatch.ingestConcurrency)
@@ -465,14 +487,17 @@ export function SettingsView() {
       await saveLlmConfig(newLlm)
       await saveEmbeddingConfig(newEmbed)
       await saveMultimodalConfig(newMultimodal)
-      await saveOutputLanguage(draft.outputLanguage as typeof outputLanguage, project?.id)
+      await saveOutputLanguage(
+        OUTPUT_LANGUAGE_OPTIONS.find((option) => option.value === draft.outputLanguage)?.value ?? 'auto',
+        project?.id,
+      )
       await saveProxyConfig(newProxy)
       await saveSourceWatchConfig(newSourceWatch, project?.id)
       if (project) {
-        const { startProjectFileSync, stopProjectFileSync } = await import("@/lib/project-file-sync")
+        const { startProjectFileSync, stopProjectFileSync } = await import('@/lib/project-file-sync')
         if (newSourceWatch.enabled) {
           await startProjectFileSync(project, newSourceWatch).catch((err) =>
-            console.error("Failed to start project file sync:", err)
+            console.error('Failed to start project file sync:', err)
           )
         } else {
           await stopProjectFileSync()
@@ -483,14 +508,14 @@ export function SettingsView() {
       // builds a fresh reqwest client per fetch and reqwest reads
       // env vars at build time, so changing them here is enough.
       try {
-        await invoke<string>("set_proxy_env", { config: newProxy })
+        await invoke<string>('set_proxy_env', { config: newProxy })
       } catch (err) {
-        console.warn("[proxy] live update failed; restart will still apply:", err)
+        console.warn('[proxy] live update failed; restart will still apply:', err)
       }
 
       if (project) {
         await saveScheduledImportConfig(project.path, newScheduledImport)
-        const { startScheduledImport } = await import("@/lib/scheduled-import")
+        const { startScheduledImport } = await import('@/lib/scheduled-import')
         // Keep the cross-project scheduler alive even if the current
         // project's own monitor was just disabled.
         startScheduledImport(project, newScheduledImport)
@@ -504,9 +529,9 @@ export function SettingsView() {
       // require an app restart because the server sockets are already open.
       await saveApiConfig(newApiConfig)
       try {
-        await invoke<string>("api_server_reload_config")
+        await invoke<string>('api_server_reload_config')
       } catch (err) {
-        console.warn("[api] failed to reload API server config cache:", err)
+        console.warn('[api] failed to reload API server config cache:', err)
       }
 
       await saveGeneralConfig(newGeneralConfig)
@@ -517,12 +542,12 @@ export function SettingsView() {
           await disableAutostart()
         }
       } catch (err) {
-        console.warn("[general] failed to update autostart:", err)
+        console.warn('[general] failed to update autostart:', err)
       }
       try {
-        await invoke<string>("set_close_behavior", { value: newGeneralConfig.closeBehavior })
+        await invoke<string>('set_close_behavior', { value: newGeneralConfig.closeBehavior })
       } catch (err) {
-        console.warn("[general] failed to update close behavior:", err)
+        console.warn('[general] failed to update close behavior:', err)
       }
 
       if (draft.uiLanguage !== i18n.language) {
@@ -546,9 +571,9 @@ export function SettingsView() {
       setTimeout(() => setSaved(false), 2000)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      console.error("[settings] failed to save settings:", err)
+      console.error('[settings] failed to save settings:', err)
       const resultValue = <T,>(result: PromiseSettledResult<T>, fallback: T): T =>
-        result.status === "fulfilled" ? result.value : fallback
+        result.status === 'fulfilled' ? result.value : fallback
       try {
         const [
           persistedLlm,
@@ -562,23 +587,25 @@ export function SettingsView() {
           persistedApi,
           persistedGeneral,
           persistedZoom,
-        ] = await Promise.allSettled([
-          loadLlmConfig(),
-          loadEmbeddingConfig(),
-          loadMultimodalConfig(),
-          loadOutputLanguage(project?.id),
-          loadProxyConfig(),
-          loadSourceWatchConfig(project?.id),
-          project ? loadScheduledImportConfig(project.path) : Promise.resolve(null),
-          loadMineruConfig(),
-          loadApiConfig(),
-          loadGeneralConfig(),
-          loadZoomLevel(),
-        ] as const)
+        ] = await Promise.allSettled(
+          [
+            loadLlmConfig(),
+            loadEmbeddingConfig(),
+            loadMultimodalConfig(),
+            loadOutputLanguage(project?.id),
+            loadProxyConfig(),
+            loadSourceWatchConfig(project?.id),
+            project ? loadScheduledImportConfig(project.path) : Promise.resolve(null),
+            loadMineruConfig(),
+            loadApiConfig(),
+            loadGeneralConfig(),
+            loadZoomLevel(),
+          ] as const,
+        )
         setLlmConfig(resultValue(persistedLlm, null) ?? llmConfig)
         setEmbeddingConfig(resultValue(persistedEmbedding, null) ?? embeddingConfig)
         setMultimodalConfig(resultValue(persistedMultimodal, null) ?? multimodalConfig)
-        setOutputLanguage((resultValue(persistedOutputLanguage, null) ?? outputLanguage) as typeof outputLanguage)
+        setOutputLanguage(resultValue(persistedOutputLanguage, null) ?? outputLanguage)
         setProxyConfig(resultValue(persistedProxy, null) ?? proxyConfig)
         setSourceWatchConfig(resultValue(persistedSourceWatch, sourceWatchConfig))
         setScheduledImportConfig(resultValue(persistedScheduledImport, null) ?? scheduledImportConfig)
@@ -588,9 +615,9 @@ export function SettingsView() {
         setGeneralConfig(resultValue(persistedGeneral, generalConfig))
         useZoomStore.getState().setLevel(resultValue(persistedZoom, useZoomStore.getState().level))
       } catch (reloadErr) {
-        console.warn("[settings] failed to reload persisted settings after save failure:", reloadErr)
+        console.warn('[settings] failed to reload persisted settings after save failure:', reloadErr)
       }
-      setSaveError(message || "unknown error")
+      setSaveError(message || 'unknown error')
     }
   }, [
     draft,
@@ -622,51 +649,55 @@ export function SettingsView() {
 
   const body = useMemo(() => {
     switch (active) {
-      case "general":
+      case 'general':
         return <GeneralSection draft={draft} setDraft={setDraft} />
-      case "llm":
+      case 'llm':
         // The LLM section manages its own store state (per-provider
         // configs + active preset) and persists directly — it bypasses
         // the shared draft / global Save button.
         return <LlmProviderSection />
-      case "embedding":
+      case 'embedding':
         return <EmbeddingSection draft={draft} setDraft={setDraft} />
-      case "multimodal":
+      case 'multimodal':
         return <MultimodalSection draft={draft} setDraft={setDraft} />
-      case "web-search":
+      case 'web-search':
         return <WebSearchSection />
-      case "network":
+      case 'network':
         return <NetworkSection draft={draft} setDraft={setDraft} />
-      case "source-watch":
+      case 'source-watch':
         return <SourceWatchSection draft={draft} setDraft={setDraft} projectReady={!!project} />
-      case "scheduled-import":
+      case 'scheduled-import':
         return <ScheduledImportSection draft={draft} setDraft={setDraft} />
-      case "mineru":
+      case 'mineru':
         return <MineruSection draft={draft} setDraft={setDraft} />
-      case "api-server":
+      case 'api-server':
         return <ApiServerSection draft={draft} setDraft={setDraft} />
-      case "output":
+      case 'output':
         return <OutputSection draft={draft} setDraft={setDraft} />
-      case "interface":
+      case 'interface':
         return <InterfaceSection draft={draft} setDraft={setDraft} onThemeChange={applyTheme} />
-      case "maintenance":
+      case 'maintenance':
         return <MaintenanceSection />
-      case "changelog":
+      case 'changelog':
         return <ChangelogSection />
-      case "about":
+      case 'about':
         return <AboutSection />
+      default:
+        return null
     }
-  }, [active, draft, setDraft])
+  }, [active, draft, setDraft, project])
 
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* Sidebar — category nav. Matches the IconSidebar's pill-on-accent
-          pattern so the two navigational surfaces feel like one app. */}
-      <aside className="flex w-56 shrink-0 flex-col border-r bg-muted/30">
-        <div className="px-4 pb-2 pt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("settings.title")}
+    <div className='flex h-full overflow-hidden'>
+      {
+        /* Sidebar — category nav. Matches the IconSidebar's pill-on-accent
+          pattern so the two navigational surfaces feel like one app. */
+      }
+      <aside className='flex w-56 shrink-0 flex-col border-r bg-muted/30'>
+        <div className='px-4 pb-2 pt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('settings.title')}
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 pb-3">
+        <nav className='flex-1 overflow-y-auto px-2 pb-3'>
           {CATEGORIES.map((c) => {
             const Icon = c.icon
             const isActive = c.id === active
@@ -676,31 +707,33 @@ export function SettingsView() {
             // the About panel, so the dot follows the About row.
             // Same store, same gating — once dismissed, both
             // disappear together.
-            const showUpdateDot =
-              c.id === "about" && updateAvailable
+            const showUpdateDot = c.id === 'about' && updateAvailable
             return (
               <button
                 key={c.id}
-                type="button"
-                onClick={() => setActive(c.id)}
-                aria-current={isActive ? "page" : undefined}
+                type='button'
+                onClick={() => {
+                  setActive(c.id)
+                  setSaveError(null)
+                }}
+                aria-current={isActive ? 'page' : undefined}
                 className={`group mb-0.5 flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${
                   isActive
-                    ? "bg-foreground/[0.08] font-medium text-foreground ring-1 ring-border/70"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+                    ? 'bg-foreground/[0.08] font-medium text-foreground ring-1 ring-border/70'
+                    : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
                 }`}
               >
                 <Icon
                   className={`h-4 w-4 shrink-0 transition-colors ${
-                    isActive ? "text-primary" : "text-muted-foreground/80 group-hover:text-accent-foreground"
+                    isActive ? 'text-primary' : 'text-muted-foreground/80 group-hover:text-accent-foreground'
                   }`}
                 />
-                <span className="truncate">{t(c.labelKey)}</span>
+                <span className='truncate'>{t(c.labelKey)}</span>
                 {showUpdateDot && (
                   <span
-                    className="ml-auto h-2 w-2 shrink-0 rounded-full bg-red-500"
-                    aria-label={t("nav.updateAvailable")}
-                    title={t("nav.updateAvailable")}
+                    className='ml-auto h-2 w-2 shrink-0 rounded-full bg-red-500'
+                    aria-label={t('nav.updateAvailable')}
+                    title={t('nav.updateAvailable')}
                   />
                 )}
               </button>
@@ -710,26 +743,28 @@ export function SettingsView() {
       </aside>
 
       {/* Content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-8 py-6">
-          <div className="mx-auto max-w-2xl">{body}</div>
+      <div className='flex flex-1 flex-col overflow-hidden'>
+        <div className='flex-1 overflow-y-auto px-8 py-6'>
+          <div className='mx-auto max-w-2xl'>{body}</div>
         </div>
 
-        {/* Global Save bar hidden for sections that persist inline:
+        {
+          /* Global Save bar hidden for sections that persist inline:
             - "llm" saves per-row on every edit (independent per-preset state)
-            - "about" has no draft-bound fields */}
-        {active !== "about" && active !== "llm" && (
-          <div className="shrink-0 border-t bg-background/80 backdrop-blur px-8 py-3">
-            <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
-              <p className={`text-xs ${saveError ? "text-destructive" : "text-muted-foreground"}`}>
+            - "about" has no draft-bound fields */
+        }
+        {active !== 'about' && active !== 'llm' && (
+          <div className='shrink-0 border-t bg-background/80 backdrop-blur px-8 py-3'>
+            <div className='mx-auto flex max-w-2xl items-center justify-between gap-4'>
+              <p className={`text-xs ${saveError ? 'text-destructive' : 'text-muted-foreground'}`}>
                 {saveError
-                  ? t("settings.saveFailed")
+                  ? t('settings.saveFailed')
                   : saved
-                    ? t("settings.savedTick")
-                    : t("settings.changeHint")}
+                  ? t('settings.savedTick')
+                  : t('settings.changeHint')}
               </p>
               <Button onClick={handleSave}>
-                {saved ? t("settings.saved") : t("settings.save")}
+                {saved ? t('settings.saved') : t('settings.save')}
               </Button>
             </div>
           </div>

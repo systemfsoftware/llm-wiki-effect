@@ -1,13 +1,13 @@
-import { useState, useCallback, useMemo, useEffect } from "react"
-import { Search, FileText, ImageIcon, X, ArrowUpRight } from "lucide-react"
-import { useWikiStore } from "@/stores/wiki-store"
-import { readFile } from "@/commands/fs"
-import { searchWiki, tokenizeQuery, type SearchResult, type ImageRef } from "@/lib/search"
-import { useTranslation } from "react-i18next"
-import { normalizePath } from "@/lib/path-utils"
-import { resolveMarkdownImageSrc } from "@/lib/markdown-image-resolver"
-import { findRawSourceForImage, imageUrlToAbsolute } from "@/lib/raw-source-resolver"
-import { isImeComposing } from "@/lib/keyboard-utils"
+import { readFile } from '@/commands/fs'
+import { isImeComposing } from '@/lib/keyboard-utils'
+import { resolveMarkdownImageSrc } from '@/lib/markdown-image-resolver'
+import { normalizePath } from '@/lib/path-utils'
+import { findRawSourceForImage, imageUrlToAbsolute } from '@/lib/raw-source-resolver'
+import { type ImageRef, type SearchResult, searchWiki, tokenizeQuery } from '@/lib/search'
+import { useWikiStore } from '@/stores/wiki-store'
+import { ArrowUpRight, FileText, ImageIcon, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * One image hit displayed in the Images section.
@@ -31,7 +31,7 @@ export function SearchView() {
   const openFileInPreview = useWikiStore((s) => s.openFileInPreview)
   const setPendingScrollImageSrc = useWikiStore((s) => s.setPendingScrollImageSrc)
 
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
@@ -53,7 +53,7 @@ export function SearchView() {
         const found = await searchWiki(normalizePath(project.path), q)
         setResults(found)
       } catch (err) {
-        console.error("Search failed:", err)
+        console.error('Search failed:', err)
         setResults([])
       } finally {
         setSearching(false)
@@ -87,10 +87,9 @@ export function SearchView() {
         if (seen.has(img.url)) continue
         seen.add(img.url)
         const altLower = img.alt.toLowerCase()
-        const altMatchesQuery =
-          tokens.length > 0
-            ? tokens.some((t) => altLower.includes(t))
-            : altLower.includes(fallback)
+        const altMatchesQuery = tokens.length > 0
+          ? tokens.some((token) => altLower.includes(token))
+          : altLower.includes(fallback)
         out.push({
           ...img,
           sourcePath: r.path,
@@ -118,7 +117,7 @@ export function SearchView() {
       const content = await readFile(path)
       openFileInPreview(path, content)
     } catch (err) {
-      console.error("Failed to open search result:", err)
+      console.error('Failed to open search result:', err)
     }
   }
 
@@ -175,137 +174,150 @@ export function SearchView() {
       openFileInPreview(openPath, content)
       setLightbox(null)
     } catch (err) {
-      console.error("Failed to jump to source:", err)
+      console.error('Failed to jump to source:', err)
     }
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 border-b px-4 py-3">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    <div className='flex h-full flex-col overflow-hidden'>
+      <div className='shrink-0 border-b px-4 py-3'>
+        <div className='relative'>
+          <Search className='absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
           <input
-            type="text"
+            type='text'
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (isImeComposing(e)) return
-              if (e.key === "Enter") doSearch(query)
+              if (e.key === 'Enter') void doSearch(query)
             }}
-            placeholder={t("search.placeholderWithShortcut")}
-            className="w-full rounded-md border bg-background py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder={t('search.placeholderWithShortcut')}
+            className='w-full rounded-md border bg-background py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
           />
         </div>
       </div>
 
-      {/*
-       * Body. Two independently scrollable regions: images (capped
-       * height = 2 rows of thumbnails) and pages (fills the rest).
-       * Stacked, no outer scroll — the user asked for "image grid
-       * doesn't push the text list off-screen, both areas scroll
-       * inside themselves."
-       */}
-      {searching ? (
-        <div className="flex-1 p-4 text-center text-sm text-muted-foreground">
-          {t("search.searching")}
-        </div>
-      ) : !hasSearched ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">
-          <Search className="h-8 w-8 text-muted-foreground/30" />
-          <p>{t("search.pressEnter")}</p>
-        </div>
-      ) : results.length === 0 ? (
-        <div className="flex-1 p-4 text-center text-sm text-muted-foreground">
-          {t("search.noResults")} <span className="font-medium">"{query}"</span>
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0 px-3 pt-3 pb-1 text-xs text-muted-foreground">
-            {t("search.pageCount", { count: results.length })}
-            {imageHits.length > 0 && (
+      {
+        /*
+         * Body. Two independently scrollable regions: images (capped
+         * height = 2 rows of thumbnails) and pages (fills the rest).
+         * Stacked, no outer scroll — the user asked for "image grid
+         * doesn't push the text list off-screen, both areas scroll
+         * inside themselves."
+         */
+      }
+      {searching
+        ? (
+          <div className='flex-1 p-4 text-center text-sm text-muted-foreground'>
+            {t('search.searching')}
+          </div>
+        )
+        : !hasSearched
+        ? (
+          <div className='flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground'>
+            <Search className='h-8 w-8 text-muted-foreground/30' />
+            <p>{t('search.pressEnter')}</p>
+          </div>
+        )
+        : results.length === 0
+        ? (
+          <div className='flex-1 p-4 text-center text-sm text-muted-foreground'>
+            {t('search.noResults')} <span className='font-medium'>"{query}"</span>
+          </div>
+        )
+        : (
+          <div className='flex min-h-0 flex-1 flex-col'>
+            <div className='shrink-0 px-3 pt-3 pb-1 text-xs text-muted-foreground'>
+              {t('search.pageCount', { count: results.length })}
+              {imageHits.length > 0 && (
+                <>
+                  {' · '}
+                  {t('search.imageMatchCount', { count: matchingImages.length })}
+                  {supportingImages.length > 0 &&
+                    ` · ${t('search.supportingImageCount', { count: supportingImages.length })}`}
+                </>
+              )}
+            </div>
+
+            {/* ── Images: fixed-height thumbnails, 2 rows visible, scrolls inside ── */}
+            {visibleImages.length > 0 && (
               <>
-                {" · "}
-                {t("search.imageMatchCount", { count: matchingImages.length })}
-                {supportingImages.length > 0 && ` · ${t("search.supportingImageCount", { count: supportingImages.length })}`}
+                <div className='shrink-0 px-3 pt-1'>
+                  <SectionHeader
+                    icon={<ImageIcon className='h-3.5 w-3.5' />}
+                    label={t('search.images')}
+                    count={visibleImages.length}
+                    trailing={supportingImages.length > 0
+                      ? (
+                        <button
+                          type='button'
+                          onClick={() => setShowSupportingImages((s) => !s)}
+                          className='text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline'
+                        >
+                          {showSupportingImages
+                            ? t('search.hideSupporting')
+                            : t('search.showAllSupporting', { count: supportingImages.length })}
+                        </button>
+                      )
+                      : null}
+                  />
+                </div>
+                {
+                  /*
+                   * Cap height at 2-rows-worth of cards. Each `ImageHitCard`
+                   * is fixed at ~176px tall (120px thumbnail + 2-line
+                   * caption + source title + padding); with `gap-2` (8px)
+                   * between rows that's ~360px for two rows. We pad to
+                   * 23rem (368px) so the bottom edge of the second row
+                   * isn't visually flush with the scrollbar / next
+                   * section. Anything beyond 2 rows stays accessible via
+                   * vertical scroll inside this container ONLY — the
+                   * Pages list below keeps its own scroll independent.
+                   */
+                }
+                <div className='max-h-[23rem] shrink-0 overflow-y-auto px-3 pt-2 pb-3'>
+                  <div className='grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4'>
+                    {visibleImages.map((img) => (
+                      <ImageHitCard
+                        key={img.url}
+                        hit={img}
+                        query={query}
+                        onClick={() => setLightbox(img)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </>
             )}
-          </div>
 
-          {/* ── Images: fixed-height thumbnails, 2 rows visible, scrolls inside ── */}
-          {visibleImages.length > 0 && (
-            <>
-              <div className="shrink-0 px-3 pt-1">
-                <SectionHeader
-                  icon={<ImageIcon className="h-3.5 w-3.5" />}
-                  label={t("search.images")}
-                  count={visibleImages.length}
-                  trailing={
-                    supportingImages.length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowSupportingImages((s) => !s)}
-                        className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                      >
-                        {showSupportingImages
-                          ? t("search.hideSupporting")
-                          : t("search.showAllSupporting", { count: supportingImages.length })}
-                      </button>
-                    ) : null
-                  }
-                />
+            {/* ── Pages: takes remaining vertical space, scrolls inside ── */}
+            <div className='shrink-0 px-3 pt-1'>
+              <SectionHeader
+                icon={<FileText className='h-3.5 w-3.5' />}
+                label={t('search.pages')}
+                count={results.length}
+              />
+            </div>
+            <div className='min-h-0 flex-1 overflow-y-auto px-3 pt-2 pb-3'>
+              <div className='flex flex-col gap-1'>
+                {results.map((result) => (
+                  <SearchResultCard
+                    key={result.path}
+                    result={result}
+                    query={query}
+                    onClick={() => handleOpen(result.path)}
+                  />
+                ))}
               </div>
-              {/*
-               * Cap height at 2-rows-worth of cards. Each `ImageHitCard`
-               * is fixed at ~176px tall (120px thumbnail + 2-line
-               * caption + source title + padding); with `gap-2` (8px)
-               * between rows that's ~360px for two rows. We pad to
-               * 23rem (368px) so the bottom edge of the second row
-               * isn't visually flush with the scrollbar / next
-               * section. Anything beyond 2 rows stays accessible via
-               * vertical scroll inside this container ONLY — the
-               * Pages list below keeps its own scroll independent.
-               */}
-              <div className="max-h-[23rem] shrink-0 overflow-y-auto px-3 pt-2 pb-3">
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                  {visibleImages.map((img) => (
-                    <ImageHitCard
-                      key={img.url}
-                      hit={img}
-                      query={query}
-                      onClick={() => setLightbox(img)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ── Pages: takes remaining vertical space, scrolls inside ── */}
-          <div className="shrink-0 px-3 pt-1">
-            <SectionHeader
-              icon={<FileText className="h-3.5 w-3.5" />}
-              label={t("search.pages")}
-              count={results.length}
-            />
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2 pb-3">
-            <div className="flex flex-col gap-1">
-              {results.map((result) => (
-                <SearchResultCard
-                  key={result.path}
-                  result={result}
-                  query={query}
-                  onClick={() => handleOpen(result.path)}
-                />
-              ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Lightbox modal — only mounted when an image is selected.
+      {
+        /* Lightbox modal — only mounted when an image is selected.
        *  Sits at the SearchView root so it overlays everything inside
-       *  this view but doesn't escape into other views' DOM. */}
+       *  this view but doesn't escape into other views' DOM. */
+      }
       {lightbox && (
         <Lightbox
           hit={lightbox}
@@ -334,13 +346,13 @@ function Lightbox({
   // results list scrolling underneath the modal is disorienting.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      if (e.key === 'Escape') onClose()
     }
-    document.addEventListener("keydown", onKey)
+    document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
+    document.body.style.overflow = 'hidden'
     return () => {
-      document.removeEventListener("keydown", onKey)
+      document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
     }
   }, [onClose])
@@ -348,64 +360,64 @@ function Lightbox({
   const src = resolveMarkdownImageSrc(hit.url, projectPath)
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={onClose}
-      // Backdrop is the click target; the inner card stops
-      // propagation so clicks inside don't accidentally close.
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
+      aria-modal='true'
+      className='fixed inset-0 z-50 m-0 flex h-full max-h-none w-full max-w-none items-center justify-center border-0 bg-transparent p-0 text-foreground'
     >
-      <div
-        className="flex max-h-[90vh] w-[90vw] max-w-4xl flex-col overflow-hidden rounded-lg border bg-background shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <button
+        type='button'
+        className='absolute inset-0 cursor-default bg-black/70 backdrop-blur-sm'
+        aria-label={t('common.close')}
+        onClick={onClose}
+      />
+      <div className='relative flex max-h-[90vh] w-[90vw] max-w-4xl flex-col overflow-hidden rounded-lg border bg-background shadow-xl'>
         {/* Header strip — caption + close button. */}
-        <div className="flex items-start justify-between gap-3 border-b px-4 py-2.5">
-          <div className="min-w-0 flex-1">
-            {hit.alt ? (
-              <div className="line-clamp-3 text-sm leading-snug">{hit.alt}</div>
-            ) : (
-              <div className="text-sm italic text-muted-foreground">{t("search.noCaption")}</div>
-            )}
-            <div className="mt-1 truncate text-[11px] text-muted-foreground">
-              {t("search.fromSource", { source: hit.sourceTitle })}
+        <div className='flex items-start justify-between gap-3 border-b px-4 py-2.5'>
+          <div className='min-w-0 flex-1'>
+            {hit.alt
+              ? <div className='line-clamp-3 text-sm leading-snug'>{hit.alt}</div>
+              : <div className='text-sm italic text-muted-foreground'>{t('search.noCaption')}</div>}
+            <div className='mt-1 truncate text-[11px] text-muted-foreground'>
+              {t('search.fromSource', { source: hit.sourceTitle })}
             </div>
           </div>
           <button
-            type="button"
+            type='button'
             onClick={onClose}
-            aria-label={t("common.close")}
-            className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label={t('common.close')}
+            className='shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground'
           >
-            <X className="h-4 w-4" />
+            <X className='h-4 w-4' />
           </button>
         </div>
 
         {/* Image area — flex-1 fills, object-contain preserves aspect. */}
-        <div className="flex min-h-0 flex-1 items-center justify-center bg-muted/30 p-4">
+        <div className='flex min-h-0 flex-1 items-center justify-center bg-muted/30 p-4'>
           <img
             src={src}
-            alt={hit.alt || ""}
-            className="max-h-full max-w-full object-contain"
+            alt={hit.alt || ''}
+            className='max-h-full max-w-full object-contain'
           />
         </div>
 
-        {/* Action strip — single button to jump to source.
+        {
+          /* Action strip — single button to jump to source.
          *  Right-aligned so the eye lands on it after reading the
-         *  caption (left-to-right). */}
-        <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
+         *  caption (left-to-right). */
+        }
+        <div className='flex items-center justify-end gap-2 border-t px-4 py-2.5'>
           <button
-            type="button"
+            type='button'
             onClick={onJumpToSource}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            className='inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90'
           >
-            <ArrowUpRight className="h-3.5 w-3.5" />
-            {t("search.jumpToSource")}
+            <ArrowUpRight className='h-3.5 w-3.5' />
+            {t('search.jumpToSource')}
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   )
 }
 
@@ -421,11 +433,11 @@ function SectionHeader({
   trailing?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between border-b pb-1">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className='flex items-center justify-between border-b pb-1'>
+      <div className='flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground'>
         {icon}
         {label}
-        <span className="text-muted-foreground/60">({count})</span>
+        <span className='text-muted-foreground/60'>({count})</span>
       </div>
       {trailing}
     </div>
@@ -451,47 +463,51 @@ function ImageHitCard({
 
   return (
     <button
-      type="button"
+      type='button'
       onClick={onClick}
       title={hit.alt || hit.sourceTitle}
-      className="group flex h-44 flex-col overflow-hidden rounded-lg border bg-background text-left transition-colors hover:bg-accent"
+      className='group flex h-44 flex-col overflow-hidden rounded-lg border bg-background text-left transition-colors hover:bg-accent'
     >
-      {/*
-       * Fixed thumbnail height (h-30 = 120px). Width fills the grid
-       * cell. `object-cover` keeps the source's aspect ratio while
-       * cropping to fill — preferable to letterboxing for a thumb
-       * grid where users skim by visual identity rather than read
-       * the chart axes. Combined with the parent's fixed h-44 (176px)
-       * and the text block's `flex-1` cap, every card has the SAME
-       * total height regardless of caption length, which keeps the
-       * grid's row alignment clean.
-       */}
-      <div className="h-30 w-full shrink-0 overflow-hidden bg-muted" style={{ height: "7.5rem" }}>
-        {/* `loading="lazy"` matters: a project with hundreds of
+      {
+        /*
+         * Fixed thumbnail height (h-30 = 120px). Width fills the grid
+         * cell. `object-cover` keeps the source's aspect ratio while
+         * cropping to fill — preferable to letterboxing for a thumb
+         * grid where users skim by visual identity rather than read
+         * the chart axes. Combined with the parent's fixed h-44 (176px)
+         * and the text block's `flex-1` cap, every card has the SAME
+         * total height regardless of caption length, which keeps the
+         * grid's row alignment clean.
+         */
+      }
+      <div className='h-30 w-full shrink-0 overflow-hidden bg-muted' style={{ height: '7.5rem' }}>
+        {
+          /* `loading="lazy"` matters: a project with hundreds of
          *  images would otherwise issue a request for every one
-         *  on first render, even when most are scrolled offscreen. */}
+         *  on first render, even when most are scrolled offscreen. */
+        }
         <img
           src={src}
-          alt={hit.alt || ""}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+          alt={hit.alt || ''}
+          loading='lazy'
+          className='h-full w-full object-cover transition-transform group-hover:scale-105'
           // Hide broken-image icon when convertFileSrc can't resolve
           // (network image deleted, project moved, etc.) — leave the
           // bg-muted placeholder visible instead of a sad 🖼️.
           onError={(e) => {
-            ;(e.currentTarget as HTMLImageElement).style.opacity = "0"
+            e.currentTarget.style.opacity = '0'
           }}
         />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-0.5 p-2">
-        {hit.alt ? (
-          <div className="line-clamp-2 text-[11px] leading-snug">
-            <HighlightedText text={hit.alt} query={query} />
-          </div>
-        ) : (
-          <div className="text-[11px] italic text-muted-foreground">{t("search.noCaption")}</div>
-        )}
-        <div className="mt-auto truncate text-[10px] text-muted-foreground">
+      <div className='flex min-h-0 flex-1 flex-col gap-0.5 p-2'>
+        {hit.alt
+          ? (
+            <div className='line-clamp-2 text-[11px] leading-snug'>
+              <HighlightedText text={hit.alt} query={query} />
+            </div>
+          )
+          : <div className='text-[11px] italic text-muted-foreground'>{t('search.noCaption')}</div>}
+        <div className='mt-auto truncate text-[10px] text-muted-foreground'>
           {hit.sourceTitle}
         </div>
       </div>
@@ -508,24 +524,24 @@ function SearchResultCard({
   query: string
   onClick: () => void
 }) {
-  const shortPath = result.path.split("/wiki/").pop() ?? result.path
+  const shortPath = result.path.split('/wiki/').pop() ?? result.path
 
   return (
     <button
-      type="button"
+      type='button'
       onClick={onClick}
-      className="w-full rounded-lg border p-3 text-left text-sm hover:bg-accent transition-colors"
+      className='w-full rounded-lg border p-3 text-left text-sm hover:bg-accent transition-colors'
     >
-      <div className="flex items-start gap-2 mb-1.5">
-        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-        <div className="flex-1 min-w-0">
-          <div className="font-medium truncate">
+      <div className='flex items-start gap-2 mb-1.5'>
+        <FileText className='mt-0.5 h-4 w-4 shrink-0 text-muted-foreground' />
+        <div className='flex-1 min-w-0'>
+          <div className='font-medium truncate'>
             <HighlightedText text={result.title} query={query} />
           </div>
-          <div className="text-[11px] text-muted-foreground truncate">{shortPath}</div>
+          <div className='text-[11px] text-muted-foreground truncate'>{shortPath}</div>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground line-clamp-2">
+      <p className='text-xs text-muted-foreground line-clamp-2'>
         <HighlightedText text={result.snippet} query={query} />
       </p>
     </button>
@@ -544,24 +560,24 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   // (and trivially finds nothing, which is fine).
   const tokens = tokenizeQuery(query)
   const patterns = tokens.length > 0 ? tokens : [query.trim()]
-  const regex = new RegExp(`(${patterns.map(escapeRegex).join("|")})`, "gi")
+  const regex = new RegExp(`(${patterns.map(escapeRegex).join('|')})`, 'gi')
   const parts = text.split(regex)
 
   return (
     <>
       {parts.map((part, i) =>
-        regex.test(part) ? (
-          <mark key={i} className="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">
-            {part}
-          </mark>
-        ) : (
-          <span key={i}>{part}</span>
-        )
+        regex.test(part)
+          ? (
+            <mark key={i} className='bg-yellow-200 dark:bg-yellow-800 rounded px-0.5'>
+              {part}
+            </mark>
+          )
+          : <span key={i}>{part}</span>
       )}
     </>
   )
 }
 
 function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

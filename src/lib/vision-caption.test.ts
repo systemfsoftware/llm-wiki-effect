@@ -3,101 +3,111 @@
  * pin the wire shape (one user message, text+image content blocks,
  * exact prompt) without hitting the network.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `vi.mock` is hoisted to the top of the file before imports run.
 // A plain `const mockStreamChat = vi.fn()` outside the factory
 // would be in a TDZ when the factory executes — `vi.hoisted`
 // hoists the declaration alongside the mock so the factory sees a
 // real fn.
-const { mockStreamChat } = vi.hoisted(() => ({ mockStreamChat: vi.fn() }))
-vi.mock("./llm-client", async () => {
-  const actual = await vi.importActual<typeof import("./llm-client")>("./llm-client")
+const { mockStreamChat } = vi.hoisted(() => ({ mockStreamChat: vi.fn<typeof streamChatFunction>() }))
+vi.mock('./llm-client', async () => {
+  const actual = await vi.importActual<typeof import('./llm-client')>('./llm-client')
   return {
     ...actual,
     streamChat: mockStreamChat,
   }
 })
 
-import { captionImage, CAPTION_PROMPT } from "./vision-caption"
-import type { LlmConfig } from "@/stores/wiki-store"
-import type { ChatMessage } from "./llm-providers"
+import type { LlmConfig } from '@/stores/wiki-store'
+import type { streamChat as streamChatFunction } from './llm-client'
+import type { ChatMessage } from './llm-providers'
+import { CAPTION_PROMPT, captionImage } from './vision-caption'
 
 const cfg: LlmConfig = {
-  provider: "custom",
-  apiKey: "",
-  model: "vl-model",
-  ollamaUrl: "",
-  customEndpoint: "http://example/v1",
-  apiMode: "chat_completions",
+  provider: 'custom',
+  apiKey: '',
+  model: 'vl-model',
+  ollamaUrl: '',
+  customEndpoint: 'http://example/v1',
+  apiMode: 'chat_completions',
   maxContextSize: 8192,
 }
 
-const TINY_B64 = "iVBORw0KGgo="
+const TINY_B64 = 'iVBORw0KGgo='
+
+function textPromptOf(messages: ChatMessage[] | undefined): string {
+  const content = messages?.[0]?.content
+  if (!Array.isArray(content)) throw new Error('expected multimodal content blocks')
+  const block = content[0]
+  if (block?.type !== 'text') throw new Error('expected a text prompt block')
+  return block.text
+}
 
 beforeEach(() => {
   mockStreamChat.mockReset()
 })
 
-describe("captionImage", () => {
-  it("sends one user message with text+image blocks and the pinned prompt", async () => {
+describe('captionImage', () => {
+  it('sends one user message with text+image blocks and the pinned prompt', async () => {
     mockStreamChat.mockImplementation(
       async (
         _config: LlmConfig,
         _messages: ChatMessage[],
         callbacks: { onToken: (t: string) => void; onDone: () => void; onError: (e: Error) => void },
       ) => {
-        callbacks.onToken("a red square")
+        callbacks.onToken('a red square')
         callbacks.onDone()
       },
     )
 
-    const out = await captionImage(TINY_B64, "image/png", cfg)
-    expect(out).toBe("a red square")
+    const out = await captionImage(TINY_B64, 'image/png', cfg)
+    expect(out).toBe('a red square')
 
     expect(mockStreamChat).toHaveBeenCalledTimes(1)
-    const messages = mockStreamChat.mock.calls[0][1] as ChatMessage[]
+    const messages = mockStreamChat.mock.calls[0][1]
     expect(messages).toHaveLength(1)
-    expect(messages[0].role).toBe("user")
-    const blocks = messages[0].content as Array<{ type: string }>
+    expect(messages[0].role).toBe('user')
+    const blocks = messages[0].content
+    if (!Array.isArray(blocks)) throw new Error('expected multimodal content blocks')
     expect(blocks).toHaveLength(2)
-    expect(blocks[0]).toEqual({ type: "text", text: CAPTION_PROMPT })
+    expect(blocks[0]).toEqual({ type: 'text', text: CAPTION_PROMPT })
     expect(blocks[1]).toEqual({
-      type: "image",
-      mediaType: "image/png",
+      type: 'image',
+      mediaType: 'image/png',
       dataBase64: TINY_B64,
     })
   })
 
-  it("joins multiple streamed tokens into one trimmed string", async () => {
+  it('joins multiple streamed tokens into one trimmed string', async () => {
     mockStreamChat.mockImplementation(async (_c, _m, cb) => {
-      cb.onToken("  Red ")
-      cb.onToken("square ")
-      cb.onToken("on white  ")
+      cb.onToken('  Red ')
+      cb.onToken('square ')
+      cb.onToken('on white  ')
       cb.onDone()
     })
 
-    const out = await captionImage(TINY_B64, "image/png", cfg)
+    const out = await captionImage(TINY_B64, 'image/png', cfg)
     // Trailing/leading whitespace removed; INNER spaces preserved.
-    expect(out).toBe("Red square on white")
+    expect(out).toBe('Red square on white')
   })
 
-  it("rethrows when streamChat reports an error (no silent empty caption)", async () => {
+  it('rethrows when streamChat reports an error (no silent empty caption)', async () => {
     mockStreamChat.mockImplementation(async (_c, _m, cb) => {
-      cb.onError(new Error("HTTP 500: model unavailable"))
+      cb.onError(new Error('HTTP 500: model unavailable'))
     })
 
-    await expect(captionImage(TINY_B64, "image/png", cfg)).rejects.toThrow(
+    await expect(captionImage(TINY_B64, 'image/png', cfg)).rejects.toThrow(
       /HTTP 500: model unavailable/,
     )
   })
 
-  it("passes through temperature and maxTokens overrides to streamChat", async () => {
+  it('passes through temperature and maxTokens overrides to streamChat', async () => {
     mockStreamChat.mockImplementation(async (_c, _m, cb) => {
       cb.onDone()
     })
 
-    await captionImage(TINY_B64, "image/png", cfg, undefined, {
+    await captionImage(TINY_B64, 'image/png', cfg, undefined, {
       temperature: 0.3,
       maxTokens: 256,
     })
@@ -106,65 +116,65 @@ describe("captionImage", () => {
     expect(overrides).toEqual({
       temperature: 0.3,
       max_tokens: 256,
-      reasoning: { mode: "off" },
+      reasoning: { mode: 'off' },
     })
   })
 
-  it("uses defaults (temp=0, max_tokens=4096) when no options passed", async () => {
+  it('uses defaults (temp=0, max_tokens=4096) when no options passed', async () => {
     mockStreamChat.mockImplementation(async (_c, _m, cb) => {
       cb.onDone()
     })
 
-    await captionImage(TINY_B64, "image/png", cfg)
+    await captionImage(TINY_B64, 'image/png', cfg)
 
     const overrides = mockStreamChat.mock.calls[0][4]
     expect(overrides).toEqual({
       temperature: 0,
       max_tokens: 4096,
-      reasoning: { mode: "off" },
+      reasoning: { mode: 'off' },
     })
   })
 
-  it("forces reasoning off so main reasoning models produce captions instead of thinking-only streams", async () => {
+  it('forces reasoning off so main reasoning models produce captions instead of thinking-only streams', async () => {
     mockStreamChat.mockImplementation(async (_c, _m, cb) => {
-      cb.onToken("caption")
+      cb.onToken('caption')
       cb.onDone()
     })
 
     const reasoningCfg: LlmConfig = {
       ...cfg,
-      reasoning: { mode: "high" },
+      reasoning: { mode: 'high' },
     }
-    await captionImage(TINY_B64, "image/png", reasoningCfg)
+    await captionImage(TINY_B64, 'image/png', reasoningCfg)
 
     expect(mockStreamChat.mock.calls[0][4]).toMatchObject({
-      reasoning: { mode: "off" },
+      reasoning: { mode: 'off' },
     })
   })
 
-  it("rejects Codex CLI captioning because that transport omits image bytes", async () => {
+  it('rejects Codex CLI captioning because that transport omits image bytes', async () => {
     await expect(
-      captionImage(TINY_B64, "image/png", {
+      captionImage(TINY_B64, 'image/png', {
         ...cfg,
-        provider: "codex-cli",
+        provider: 'codex-cli',
       }),
     ).rejects.toThrow(/does not support image input/)
     expect(mockStreamChat).not.toHaveBeenCalled()
   })
 
-  it("forwards the AbortSignal to streamChat (lets callers cancel batch captioning)", async () => {
+  it('forwards the AbortSignal to streamChat (lets callers cancel batch captioning)', async () => {
     mockStreamChat.mockImplementation(async (_c, _m, cb) => {
       cb.onDone()
     })
 
     const ctl = new AbortController()
-    await captionImage(TINY_B64, "image/png", cfg, ctl.signal)
+    await captionImage(TINY_B64, 'image/png', cfg, ctl.signal)
 
     const passedSignal = mockStreamChat.mock.calls[0][3]
     expect(passedSignal).toBe(ctl.signal)
   })
 
-  it("CAPTION_PROMPT contains the verbatim factual-description directive (regression guard)", () => {
+  it('CAPTION_PROMPT contains the verbatim factual-description directive (regression guard)', () => {
     // Plan-aligned wording — if these phrases drift, captions
     // start hallucinating again. Check the load-bearing fragments.
     expect(CAPTION_PROMPT).toMatch(/factually/)
@@ -173,47 +183,42 @@ describe("captionImage", () => {
     expect(CAPTION_PROMPT).toMatch(/no markdown/)
   })
 
-  it("adds the configured caption language while preserving visible source text", async () => {
-    await captionImage(TINY_B64, "image/png", cfg, undefined, {
-      outputLanguage: "German",
+  it('adds the configured caption language while preserving visible source text', async () => {
+    await captionImage(TINY_B64, 'image/png', cfg, undefined, {
+      outputLanguage: 'German',
     })
-    const messages = mockStreamChat.mock.calls[0]?.[1] as ChatMessage[]
-    const textBlock = Array.isArray(messages?.[0]?.content)
-      ? messages[0].content[0]
-      : null
-    expect(textBlock).toMatchObject({ type: "text" })
-    if (!textBlock || textBlock.type !== "text") {
-      throw new Error("expected text prompt block")
+    const messages = mockStreamChat.mock.calls[0]?.[1]
+    const content = messages?.[0]?.content
+    const textBlock = Array.isArray(content) ? content[0] : null
+    expect(textBlock).toMatchObject({ type: 'text' })
+    if (!textBlock || textBlock.type !== 'text') {
+      throw new Error('expected text prompt block')
     }
-    expect(textBlock.text).toContain("Write the description in German")
-    expect(textBlock.text).toContain("Preserve visible text verbatim")
+    expect(textBlock.text).toContain('Write the description in German')
+    expect(textBlock.text).toContain('Preserve visible text verbatim')
   })
 
-  it("appends the language instruction to the context-aware prompt too", async () => {
-    await captionImage(TINY_B64, "image/png", cfg, undefined, {
-      contextBefore: "Figure 3: Q2 revenue chart",
-      outputLanguage: "German",
+  it('appends the language instruction to the context-aware prompt too', async () => {
+    await captionImage(TINY_B64, 'image/png', cfg, undefined, {
+      contextBefore: 'Figure 3: Q2 revenue chart',
+      outputLanguage: 'German',
     })
-    const messages = mockStreamChat.mock.calls[0]?.[1] as ChatMessage[]
-    const blocks = messages[0].content as Array<{ type: string; text?: string }>
-    const promptText = blocks[0].text ?? ""
-    expect(promptText).toContain("Figure 3: Q2 revenue chart")
-    expect(promptText).toContain("Write the description in German")
+    const promptText = textPromptOf(mockStreamChat.mock.calls[0]?.[1])
+    expect(promptText).toContain('Figure 3: Q2 revenue chart')
+    expect(promptText).toContain('Write the description in German')
   })
 
   it('treats "auto" (and absent) outputLanguage as no language directive', async () => {
-    await captionImage(TINY_B64, "image/png", cfg, undefined, {
-      outputLanguage: "auto",
+    await captionImage(TINY_B64, 'image/png', cfg, undefined, {
+      outputLanguage: 'auto',
     })
-    const messages = mockStreamChat.mock.calls[0]?.[1] as ChatMessage[]
-    const blocks = messages[0].content as Array<{ type: string; text?: string }>
     // "auto" means "follow the source" — resolving it is the caller's
     // job (ingest resolves via detectLanguage), so here it must fall
     // back to the unmodified prompt rather than "Write in auto".
-    expect(blocks[0].text).toBe(CAPTION_PROMPT)
+    expect(textPromptOf(mockStreamChat.mock.calls[0]?.[1])).toBe(CAPTION_PROMPT)
   })
 
-  it("uses the no-context prompt when context is empty / whitespace-only", async () => {
+  it('uses the no-context prompt when context is empty / whitespace-only', async () => {
     mockStreamChat.mockImplementation(async (_c, _m, cb) => {
       cb.onDone()
     })
@@ -221,37 +226,30 @@ describe("captionImage", () => {
     // Empty / whitespace-only counts as "no context" — should NOT
     // upgrade to the longer context prompt with `(none)` blocks
     // (that would just waste tokens telling the model nothing).
-    await captionImage(TINY_B64, "image/png", cfg, undefined, {
-      contextBefore: "  \n  ",
-      contextAfter: "",
+    await captionImage(TINY_B64, 'image/png', cfg, undefined, {
+      contextBefore: '  \n  ',
+      contextAfter: '',
     })
-    const messages = mockStreamChat.mock.calls[0][1] as Array<{
-      content: Array<{ type: string; text?: string }>
-    }>
-    const promptText = messages[0].content[0].text ?? ""
-    expect(promptText).toBe(CAPTION_PROMPT)
+    expect(textPromptOf(mockStreamChat.mock.calls[0][1])).toBe(CAPTION_PROMPT)
   })
 
-  it("switches to the context-aware prompt when EITHER side has content", async () => {
+  it('switches to the context-aware prompt when EITHER side has content', async () => {
     mockStreamChat.mockImplementation(async (_c, _m, cb) => {
       cb.onDone()
     })
 
-    await captionImage(TINY_B64, "image/png", cfg, undefined, {
-      contextBefore: "Figure 3: Q2 revenue chart",
-      contextAfter: "",
+    await captionImage(TINY_B64, 'image/png', cfg, undefined, {
+      contextBefore: 'Figure 3: Q2 revenue chart',
+      contextAfter: '',
     })
-    const messages = mockStreamChat.mock.calls[0][1] as Array<{
-      content: Array<{ type: string; text?: string }>
-    }>
-    const promptText = messages[0].content[0].text ?? ""
+    const promptText = textPromptOf(mockStreamChat.mock.calls[0][1])
     // Pinned framing sentences from the context-aware prompt:
     expect(promptText).toMatch(/Text before image/)
     expect(promptText).toMatch(/Text after image/)
     expect(promptText).toMatch(/MAY help describe the image/)
     expect(promptText).toMatch(/MAY ALSO be unrelated/)
     // The actual context bytes round-trip through the prompt.
-    expect(promptText).toContain("Figure 3: Q2 revenue chart")
+    expect(promptText).toContain('Figure 3: Q2 revenue chart')
     // Empty side becomes `(none)` so the structure is uniform.
     expect(promptText).toMatch(/Text after image ---\s*\(none\)/)
   })

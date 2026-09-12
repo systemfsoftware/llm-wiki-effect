@@ -28,12 +28,8 @@
  * transforms data.
  */
 
-import { parseFrontmatter } from "./frontmatter"
-import {
-  parseFrontmatterArray,
-  mergeArrayFieldsIntoContent,
-  writeFrontmatterArray,
-} from "./sources-merge"
+import { parseFrontmatter } from './frontmatter'
+import { mergeArrayFieldsIntoContent, parseFrontmatterArray, writeFrontmatterArray } from './sources-merge'
 
 // ──────────────────────────────────────────────────────────────────
 // Types
@@ -59,7 +55,7 @@ export interface DuplicateGroup {
   slugs: string[]
   /** Why the model believes these are duplicates. Short prose. */
   reason: string
-  confidence: "high" | "medium" | "low"
+  confidence: 'high' | 'medium' | 'low'
 }
 
 export interface MergeRequest {
@@ -119,7 +115,7 @@ export function extractEntitySummary(
 ): EntitySummary | null {
   const { frontmatter, body } = parseFrontmatter(content)
   if (!frontmatter) return null
-  const type = stringField(frontmatter.type) ?? "unknown"
+  const type = stringField(frontmatter.type) ?? 'unknown'
   const title = stringField(frontmatter.title) ?? slugFromPath(pathRelativeToProject)
   const description = stringField(frontmatter.description) ?? firstBodyParagraph(body)
   const tags = arrayField(frontmatter.tags)
@@ -134,26 +130,26 @@ export function extractEntitySummary(
 }
 
 function slugFromPath(path: string): string {
-  const base = path.split("/").pop() ?? path
-  return base.replace(/\.md$/, "")
+  const base = path.split('/').pop() ?? path
+  return base.replace(/\.md$/, '')
 }
 
 function stringField(v: unknown): string | undefined {
-  if (typeof v === "string" && v.trim() !== "") return v.trim()
+  if (typeof v === 'string' && v.trim() !== '') return v.trim()
   return undefined
 }
 
 function arrayField(v: unknown): string[] {
   if (!Array.isArray(v)) return []
-  return v.filter((x): x is string => typeof x === "string" && x.trim() !== "")
+  return v.filter((x): x is string => typeof x === 'string' && x.trim() !== '')
 }
 
 function firstBodyParagraph(body: string): string | undefined {
-  const lines = body.split("\n").map((l) => l.trim()).filter(Boolean)
+  const lines = body.split('\n').map((l) => l.trim()).filter(Boolean)
   // Skip leading h1/h2 lines so the description isn't just the title again.
   for (const line of lines) {
-    if (line.startsWith("#")) continue
-    if (line.startsWith("|")) continue // table — too noisy
+    if (line.startsWith('#')) continue
+    if (line.startsWith('|')) continue // table — too noisy
     return line
   }
   return undefined
@@ -161,14 +157,15 @@ function firstBodyParagraph(body: string): string | undefined {
 
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s
-  return s.slice(0, max - 1) + "…"
+  return s.slice(0, max - 1) + '…'
 }
 
 // ──────────────────────────────────────────────────────────────────
 // Stage 2: LLM-driven duplicate detection
 // ──────────────────────────────────────────────────────────────────
 
-const DETECTOR_SYSTEM_PROMPT = `You are a wiki maintenance assistant. You will receive a list of entity / concept pages from a wiki. Identify groups of slugs that likely refer to the same underlying topic under different names — for example:
+const DETECTOR_SYSTEM_PROMPT =
+  `You are a wiki maintenance assistant. You will receive a list of entity / concept pages from a wiki. Identify groups of slugs that likely refer to the same underlying topic under different names — for example:
 
 - Same name in two languages (English vs Chinese, etc.)
 - Plural vs singular form (e.g. "dpao" vs "dpaos")
@@ -232,11 +229,13 @@ export async function detectDuplicateGroups(
 
 function buildDetectorUserMessage(summaries: EntitySummary[]): string {
   const lines = summaries.map((s) => {
-    const tagPart = s.tags.length > 0 ? ` [${s.tags.join(", ")}]` : ""
-    const descPart = s.description ? ` — ${s.description}` : ""
+    const tagPart = s.tags.length > 0 ? ` [${s.tags.join(', ')}]` : ''
+    const descPart = s.description ? ` — ${s.description}` : ''
     return `- type=${s.type}, slug=${s.slug}, title=${JSON.stringify(s.title)}${tagPart}${descPart}`
   })
-  return `## Wiki pages to scan (${summaries.length} entries)\n\n${lines.join("\n")}\n\nReturn duplicate groups as JSON only.`
+  return `## Wiki pages to scan (${summaries.length} entries)\n\n${
+    lines.join('\n')
+  }\n\nReturn duplicate groups as JSON only.`
 }
 
 /**
@@ -256,23 +255,21 @@ export function parseDetectorResponse(raw: string): DuplicateGroup[] {
   } catch {
     return []
   }
-  if (!parsed || typeof parsed !== "object") return []
+  if (!parsed || typeof parsed !== 'object') return []
   const groupsRaw = (parsed as { groups?: unknown }).groups
   if (!Array.isArray(groupsRaw)) return []
 
   const out: DuplicateGroup[] = []
   for (const g of groupsRaw) {
-    if (!g || typeof g !== "object") continue
-    const obj = g as Record<string, unknown>
-    const slugs = Array.isArray(obj.slugs)
-      ? obj.slugs.filter((s): s is string => typeof s === "string")
-      : []
+    if (!g || typeof g !== 'object') continue
+    if (!('slugs' in g) || !Array.isArray(g.slugs)) continue
+    const slugs = g.slugs.filter((s: unknown): s is string => typeof s === 'string')
     if (slugs.length < 2) continue
-    const reason = typeof obj.reason === "string" ? obj.reason : ""
-    const confidence: DuplicateGroup["confidence"] =
-      obj.confidence === "high" || obj.confidence === "medium"
-        ? obj.confidence
-        : "low"
+    const reason = 'reason' in g && typeof g.reason === 'string' ? g.reason : ''
+    const confidence: DuplicateGroup['confidence'] =
+      'confidence' in g && (g.confidence === 'high' || g.confidence === 'medium')
+        ? g.confidence
+        : 'low'
     out.push({ slugs, reason, confidence })
   }
   return out
@@ -280,7 +277,7 @@ export function parseDetectorResponse(raw: string): DuplicateGroup[] {
 
 /** Extract the first balanced `{...}` substring from arbitrary text. */
 function extractFirstJsonObject(text: string): string | null {
-  const start = text.indexOf("{")
+  const start = text.indexOf('{')
   if (start < 0) return null
   let depth = 0
   let inString = false
@@ -291,7 +288,7 @@ function extractFirstJsonObject(text: string): string | null {
       escape = false
       continue
     }
-    if (ch === "\\") {
+    if (ch === '\\') {
       escape = true
       continue
     }
@@ -300,8 +297,8 @@ function extractFirstJsonObject(text: string): string | null {
       continue
     }
     if (inString) continue
-    if (ch === "{") depth++
-    else if (ch === "}") {
+    if (ch === '{') depth++
+    else if (ch === '}') {
       depth--
       if (depth === 0) return text.slice(start, i + 1)
     }
@@ -311,14 +308,15 @@ function extractFirstJsonObject(text: string): string | null {
 
 /** Canonical key for a group — lowercased, sorted, comma-joined. */
 function normalizeGroupKey(slugs: string[]): string {
-  return [...slugs].map((s) => s.toLowerCase()).sort().join(",")
+  return [...slugs].map((s) => s.toLowerCase()).sort().join(',')
 }
 
 // ──────────────────────────────────────────────────────────────────
 // Stage 3: merge a confirmed duplicate group
 // ──────────────────────────────────────────────────────────────────
 
-const MERGER_SYSTEM_PROMPT = `You are a wiki maintenance assistant. You will be given several wiki pages that all describe the same entity or concept under different names. Merge them into a single coherent wiki page.
+const MERGER_SYSTEM_PROMPT =
+  `You are a wiki maintenance assistant. You will be given several wiki pages that all describe the same entity or concept under different names. Merge them into a single coherent wiki page.
 
 Output the COMPLETE merged file (frontmatter + body). The first character of your response MUST be "-" (the opening of "---"). No preamble, no explanation outside the file.
 
@@ -330,7 +328,7 @@ Rules:
 - Frontmatter: keep the standard fields (type, title, created, updated, tags, related, sources). The caller will overwrite sources / tags / related / updated with deterministic unions afterward — your job is to produce a sensible body and reasonable frontmatter shape.
 - Pick the most descriptive title. If the inputs use different languages, prefer the language that matches the majority of the body content.`
 
-const FIELDS_TO_UNION = ["sources", "tags", "related"] as const
+const FIELDS_TO_UNION = ['sources', 'tags', 'related'] as const
 
 /**
  * Compute everything needed to merge a confirmed duplicate group:
@@ -353,11 +351,11 @@ export async function mergeDuplicateGroup(
   const canonical = req.group.find((p) => p.slug === req.canonicalSlug)
   if (!canonical) {
     throw new Error(
-      `canonicalSlug "${req.canonicalSlug}" is not in the group: ${req.group.map((p) => p.slug).join(", ")}`,
+      `canonicalSlug "${req.canonicalSlug}" is not in the group: ${req.group.map((p) => p.slug).join(', ')}`,
     )
   }
   if (req.group.length < 2) {
-    throw new Error("mergeDuplicateGroup requires at least 2 pages in the group")
+    throw new Error('mergeDuplicateGroup requires at least 2 pages in the group')
   }
 
   // 1. LLM body merge
@@ -374,7 +372,7 @@ export async function mergeDuplicateGroup(
 
   // 3. Stamp updated to today and force a sensible title.
   const today = (options.today ?? defaultToday)()
-  merged = setFrontmatterScalar(merged, "updated", today)
+  merged = setFrontmatterScalar(merged, 'updated', today)
   // If LLM output's frontmatter parses cleanly we leave its title;
   // if not, the application layer doesn't try to manufacture one.
 
@@ -387,7 +385,7 @@ export async function mergeDuplicateGroup(
       slugRedirects.set(page.slug, req.canonicalSlug)
     }
   }
-  const rewrites: MergeResult["rewrites"] = []
+  const rewrites: MergeResult['rewrites'] = []
   for (const page of req.otherWikiPages) {
     const rewritten = rewriteCrossReferences(page.content, slugRedirects)
     if (rewritten !== page.content) {
@@ -396,7 +394,7 @@ export async function mergeDuplicateGroup(
   }
 
   // 5. Backup: every touched file's PRE-merge content.
-  const backup: MergeResult["backup"] = []
+  const backup: MergeResult['backup'] = []
   for (const page of req.group) {
     backup.push({ path: page.path, content: page.content })
   }
@@ -425,19 +423,21 @@ function buildMergerUserMessage(
   const sections = group.map((p, i) => {
     return [
       `## Page ${i + 1} (slug: ${p.slug})`,
-      "",
+      '',
       p.content,
-      "",
-    ].join("\n")
+      '',
+    ].join('\n')
   })
   return [
     `These ${group.length} wiki pages have been confirmed by the user to describe the same topic.`,
-    `Merge them into a single coherent page (the canonical slug will be "${group[0].slug}" or whichever the caller chose).`,
-    "",
-    sections.join("\n---\n\n"),
-    "",
-    "Now output the merged file. First character must be `-`.",
-  ].join("\n")
+    `Merge them into a single coherent page (the canonical slug will be "${
+      group[0].slug
+    }" or whichever the caller chose).`,
+    '',
+    sections.join('\n---\n\n'),
+    '',
+    'Now output the merged file. First character must be `-`.',
+  ].join('\n')
 }
 
 /**
@@ -462,12 +462,12 @@ export function rewriteCrossReferences(
   // 1. Wikilinks in the body — both [[slug]] and [[slug|alias]].
   for (const [oldSlug, newSlug] of slugRedirects) {
     const escaped = escapeRegex(oldSlug)
-    const re = new RegExp(`\\[\\[${escaped}(\\|[^\\]]+)?\\]\\]`, "g")
-    out = out.replace(re, (_match, alias) => `[[${newSlug}${alias ?? ""}]]`)
+    const re = new RegExp(`\\[\\[${escaped}(\\|[^\\]]+)?\\]\\]`, 'g')
+    out = out.replace(re, (_match, alias) => `[[${newSlug}${alias ?? ''}]]`)
   }
 
   // 2. & 3. `related` field — re-parse and rewrite.
-  const existing = parseFrontmatterArray(out, "related")
+  const existing = parseFrontmatterArray(out, 'related')
   if (existing.length > 0) {
     const rewritten = existing.map((s) => slugRedirects.get(s) ?? s)
     // Deduplicate (case-insensitive, first-seen casing wins)
@@ -483,7 +483,7 @@ export function rewriteCrossReferences(
       unique.length !== existing.length ||
       unique.some((s, i) => s !== existing[i])
     ) {
-      out = writeFrontmatterArray(out, "related", unique)
+      out = writeFrontmatterArray(out, 'related', unique)
     }
   }
 
@@ -491,7 +491,7 @@ export function rewriteCrossReferences(
 }
 
 function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function setFrontmatterScalar(
@@ -502,9 +502,9 @@ function setFrontmatterScalar(
   const m = content.match(/^(---\n)([\s\S]*?)(\n---)/)
   if (!m) return content
   const [, open, body, close] = m
-  const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const newLine = `${field}: ${value}`
-  const lineRe = new RegExp(`^${escaped}:\\s*(?!\\[)([^\\n]*)`, "m")
+  const lineRe = new RegExp(`^${escaped}:\\s*(?!\\[)([^\\n]*)`, 'm')
   if (lineRe.test(body)) {
     const rewritten = body.replace(lineRe, newLine)
     return `${open}${rewritten}${close}${content.slice(m[0].length)}`
@@ -536,13 +536,13 @@ export function rewriteIndexMd(
   removedSlugs: Set<string>,
 ): string {
   if (removedSlugs.size === 0) return content
-  const lines = content.split("\n")
+  const lines = content.split('\n')
   const out: string[] = []
   for (const line of lines) {
     if (lineRefersToSlug(line, removedSlugs)) continue
     out.push(line)
   }
-  return out.join("\n")
+  return out.join('\n')
 }
 
 function lineRefersToSlug(line: string, slugs: Set<string>): boolean {

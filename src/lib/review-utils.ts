@@ -21,8 +21,8 @@ const REVIEW_TITLE_PREFIX_RE =
 export function normalizeReviewTitle(title: string): string {
   return title
     .trimStart()
-    .replace(REVIEW_TITLE_PREFIX_RE, "")
-    .replace(/\s+/g, " ")
+    .replace(REVIEW_TITLE_PREFIX_RE, '')
+    .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase()
 }

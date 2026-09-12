@@ -15,7 +15,7 @@ export function normalizeSelectionReplacement(content: string): string {
  * those offsets always address the same string that selectionStart describes.
  */
 export function normalizeEditableMarkdown(content: string): string {
-  return content.replace(/\r\n?/g, "\n")
+  return content.replace(/\r\n?/g, '\n')
 }
 
 export interface TextSelectionSnapshot {
@@ -25,7 +25,7 @@ export interface TextSelectionSnapshot {
 }
 
 export interface WordDiffPart {
-  type: "equal" | "insert" | "delete"
+  type: 'equal' | 'insert' | 'delete'
   value: string
 }
 
@@ -37,8 +37,8 @@ export function buildWordDiff(original: string, replacement: string): WordDiffPa
   // LCS matrix. The coarse fallback remains truthful and responsive.
   if (left.length * right.length > 250_000) {
     return [
-      ...(original ? [{ type: "delete" as const, value: original }] : []),
-      ...(replacement ? [{ type: "insert" as const, value: replacement }] : []),
+      ...(original ? [{ type: 'delete' as const, value: original }] : []),
+      ...(replacement ? [{ type: 'insert' as const, value: replacement }] : []),
     ]
   }
   const rows = Array.from({ length: left.length + 1 }, () => new Uint32Array(right.length + 1))
@@ -54,11 +54,15 @@ export function buildWordDiff(original: string, replacement: string): WordDiffPa
   let j = 0
   while (i < left.length || j < right.length) {
     if (i < left.length && j < right.length && left[i] === right[j]) {
-      pushDiff(parts, "equal", left[i]); i += 1; j += 1
+      pushDiff(parts, 'equal', left[i])
+      i += 1
+      j += 1
     } else if (j < right.length && (i === left.length || rows[i][j + 1] >= rows[i + 1][j])) {
-      pushDiff(parts, "insert", right[j]); j += 1
+      pushDiff(parts, 'insert', right[j])
+      j += 1
     } else {
-      pushDiff(parts, "delete", left[i]); i += 1
+      pushDiff(parts, 'delete', left[i])
+      i += 1
     }
   }
   return parts
@@ -67,10 +71,12 @@ export function buildWordDiff(original: string, replacement: string): WordDiffPa
 function tokenizeDiff(value: string): string[] {
   // Segment scripts that are commonly written without spaces by character so
   // a short CJK edit does not mark the entire sentence as replaced.
-  return value.match(/\s+|[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]/gu) ?? []
+  return value.match(
+    /\s+|[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]/gu,
+  ) ?? []
 }
 
-function pushDiff(parts: WordDiffPart[], type: WordDiffPart["type"], value: string): void {
+function pushDiff(parts: WordDiffPart[], type: WordDiffPart['type'], value: string): void {
   const previous = parts[parts.length - 1]
   if (previous?.type === type) previous.value += value
   else parts.push({ type, value })
@@ -96,8 +102,8 @@ export function findUniqueTextSelection(
 
   const tokens = selected.split(/\s+/u).filter(Boolean)
   if (tokens.length < 2) return null
-  const pattern = tokens.map(escapeRegExp).join("\\s+")
-  const matches = [...markdown.matchAll(new RegExp(pattern, "gu"))]
+  const pattern = tokens.map(escapeRegExp).join('\\s+')
+  const matches = [...markdown.matchAll(new RegExp(pattern, 'gu'))]
   if (matches.length !== 1 || matches[0].index === undefined) return null
   const start = matches[0].index
   return snapshot(markdown, start, start + matches[0][0].length)
@@ -132,16 +138,18 @@ function domPointToSourceOffset(
   const textPoint = normalizeToTextPoint(container, offset)
   if (!textPoint) return null
   const [target, targetOffset] = textPoint
-  const parent = target.parentElement?.closest<HTMLElement>("[data-source-start][data-source-end]")
+  const parent = target.parentElement?.closest<HTMLElement>('[data-source-start][data-source-end]')
   if (!parent || !root.contains(parent)) return null
   const start = Number(parent.dataset.sourceStart)
   const end = Number(parent.dataset.sourceEnd)
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end > markdown.length || start >= end) return null
+  if (
+    !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end > markdown.length || start >= end
+  ) return null
 
   const walker = document.createTreeWalker(parent, NodeFilter.SHOW_TEXT)
   let cursor = start
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const value = node.nodeValue ?? ""
+    const value = node.nodeValue ?? ''
     if (!value) continue
     const match = findTextFrom(markdown, value, cursor, end)
     if (!match) continue
@@ -152,24 +160,27 @@ function domPointToSourceOffset(
 }
 
 function normalizeToTextPoint(container: Node, offset: number): [Text, number] | null {
-  if (container.nodeType === Node.TEXT_NODE) {
-    const text = container as Text
-    return [text, Math.min(offset, text.data.length)]
+  if (container instanceof Text) {
+    return [container, Math.min(offset, container.data.length)]
   }
-  const element = container as Element
-  const child = element.childNodes[Math.min(offset, element.childNodes.length - 1)]
+  const child = container.childNodes[Math.min(offset, container.childNodes.length - 1)]
   if (!child) return null
   const walker = document.createTreeWalker(child, NodeFilter.SHOW_TEXT)
-  const text = child.nodeType === Node.TEXT_NODE ? child as Text : walker.nextNode() as Text | null
-  return text ? [text, 0] : null
+  const text = child instanceof Text ? child : walker.nextNode()
+  return text instanceof Text ? [text, 0] : null
 }
 
-function findTextFrom(markdown: string, value: string, from: number, to: number): { start: number; end: number } | null {
+function findTextFrom(
+  markdown: string,
+  value: string,
+  from: number,
+  to: number,
+): { start: number; end: number } | null {
   const exact = markdown.indexOf(value, from)
   if (exact >= from && exact + value.length <= to) return { start: exact, end: exact + value.length }
   const tokens = value.trim().split(/\s+/u).filter(Boolean)
   if (tokens.length === 0) return null
-  const match = new RegExp(tokens.map(escapeRegExp).join("\\s+"), "u").exec(markdown.slice(from, to))
+  const match = new RegExp(tokens.map(escapeRegExp).join('\\s+'), 'u').exec(markdown.slice(from, to))
   if (!match?.[0]) return null
   return { start: from + match.index, end: from + match.index + match[0].length }
 }
@@ -183,5 +194,5 @@ function snapshot(markdown: string, start: number, end: number): TextSelectionSn
 }
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

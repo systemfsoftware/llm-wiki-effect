@@ -13,12 +13,12 @@
  *     `{ [id]: { id, path, name, lastOpened } }`
  */
 
-import { load } from "@tauri-apps/plugin-store"
-import { readFile, writeFile } from "@/commands/fs"
-import { normalizePath } from "@/lib/path-utils"
+import { readFile, writeFile } from '@/commands/fs'
+import { normalizePath } from '@/lib/path-utils'
+import { load } from '@tauri-apps/plugin-store'
 
-const STORE_NAME = "app-state.json"
-const REGISTRY_KEY = "projectRegistry"
+const STORE_NAME = 'app-state.json'
+const REGISTRY_KEY = 'projectRegistry'
 
 export interface ProjectIdentity {
   id: string
@@ -27,7 +27,7 @@ export interface ProjectIdentity {
 
 export interface ProjectRegistryEntry {
   id: string
-  path: string       // latest known filesystem path (normalized forward slashes)
+  path: string // latest known filesystem path (normalized forward slashes)
   name: string
   lastOpened: number
 }
@@ -48,9 +48,12 @@ export async function ensureProjectId(projectPath: string): Promise<string> {
   const path = identityPath(projectPath)
   try {
     const raw = await readFile(path)
-    const parsed = JSON.parse(raw) as ProjectIdentity
-    if (parsed?.id && typeof parsed.id === "string") {
-      return parsed.id
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed === 'object' && parsed !== null && 'id' in parsed) {
+      const id = parsed.id
+      if (typeof id === 'string' && id) {
+        return id
+      }
     }
   } catch {
     // missing or corrupt — fall through to create
@@ -62,7 +65,7 @@ export async function ensureProjectId(projectPath: string): Promise<string> {
   try {
     await writeFile(path, JSON.stringify(identity, null, 2))
   } catch (err) {
-    console.warn("[project-identity] failed to write identity file:", err)
+    console.warn('[project-identity] failed to write identity file:', err)
   }
   return identity.id
 }

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react"
-import { FolderOpen, Plus, Clock, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { getRecentProjects, removeFromRecentProjects } from "@/lib/project-store"
-import type { WikiProject } from "@/types/wiki"
-import { useTranslation } from "react-i18next"
+import { Button } from '@/components/ui/button'
+import { getRecentProjects, removeFromRecentProjects } from '@/lib/project-store'
+import type { WikiProject } from '@/types/wiki'
+import { Clock, FolderOpen, Plus, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface WelcomeScreenProps {
   onCreateProject: () => void
@@ -31,57 +31,57 @@ export function WelcomeScreen({
   }
 
   return (
-    <div className="flex h-full items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-8 px-4">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold">{t("app.title")}</h1>
-          <p className="mt-2 text-muted-foreground">
-            {t("app.subtitle")}
+    <div className='flex h-full items-center justify-center bg-background'>
+      <div className='flex flex-col items-center gap-8 px-4'>
+        <div className='text-center'>
+          <h1 className='text-3xl font-bold'>{t('app.title')}</h1>
+          <p className='mt-2 text-muted-foreground'>
+            {t('app.subtitle')}
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className='flex gap-3'>
           <Button onClick={onCreateProject}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("welcome.newProject")}
+            <Plus className='mr-2 h-4 w-4' />
+            {t('welcome.newProject')}
           </Button>
-          <Button variant="outline" onClick={onOpenProject}>
-            <FolderOpen className="mr-2 h-4 w-4" />
-            {t("welcome.openProject")}
+          <Button variant='outline' onClick={onOpenProject}>
+            <FolderOpen className='mr-2 h-4 w-4' />
+            {t('welcome.openProject')}
           </Button>
         </div>
 
         {recentProjects.length > 0 && (
-          <div className="w-full max-w-md">
-            <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              {t("welcome.recentProjects")}
+          <div className='w-full max-w-md'>
+            <div className='mb-2 flex items-center gap-2 text-sm text-muted-foreground'>
+              <Clock className='h-3.5 w-3.5' />
+              {t('welcome.recentProjects')}
             </div>
-            <div className="rounded-lg border">
+            <div className='rounded-lg border'>
               {recentProjects.map((proj) => (
-                <button
+                <div
                   key={proj.path}
-                  onClick={() => onSelectProject(proj)}
-                  className="group flex w-full items-center justify-between border-b px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-accent"
+                  className='group flex w-full items-center justify-between border-b transition-colors last:border-b-0 hover:bg-accent'
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{proj.name}</div>
-                    <div className="truncate text-xs text-muted-foreground">
+                  <button
+                    type='button'
+                    onClick={() => onSelectProject(proj)}
+                    className='min-w-0 flex-1 px-4 py-3 text-left'
+                  >
+                    <div className='truncate text-sm font-medium'>{proj.name}</div>
+                    <div className='truncate text-xs text-muted-foreground'>
                       {proj.path}
                     </div>
-                  </div>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => handleRemoveRecent(e, proj.path)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRemoveRecent(e as unknown as React.MouseEvent, proj.path)
-                    }}
-                    className="ml-2 shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-destructive/10 group-hover:opacity-100"
+                  </button>
+                  <button
+                    type='button'
+                    onClick={(e) => void handleRemoveRecent(e, proj.path)}
+                    aria-label={`${t('welcome.removeRecent', 'Remove')} ${proj.name}`}
+                    className='mr-4 ml-2 shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-destructive/10 group-hover:opacity-100'
                   >
-                    <X className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </button>
+                    <X className='h-3.5 w-3.5 text-muted-foreground' />
+                  </button>
+                </div>
               ))}
             </div>
           </div>

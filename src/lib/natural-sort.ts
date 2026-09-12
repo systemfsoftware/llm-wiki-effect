@@ -1,6 +1,6 @@
 const NATURAL_COLLATOR = new Intl.Collator(undefined, {
   numeric: true,
-  sensitivity: "base",
+  sensitivity: 'base',
 })
 
 export function naturalCompare(a: string, b: string): number {

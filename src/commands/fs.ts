@@ -1,7 +1,7 @@
-import { invoke } from "@tauri-apps/api/core"
-import type { FileNode, WikiProject } from "@/types/wiki"
-import { ensureProjectId, upsertProjectInfo } from "@/lib/project-identity"
-import { isAbsolutePath } from "@/lib/path-utils"
+import { isAbsolutePath } from '@/lib/path-utils'
+import { ensureProjectId, upsertProjectInfo } from '@/lib/project-identity'
+import type { FileNode, WikiProject } from '@/types/wiki'
+import { invoke } from '@tauri-apps/api/core'
 
 /** Raw shape returned by the Rust commands — id is attached client-side. */
 interface RawProject {
@@ -13,25 +13,25 @@ export async function readFile(
   path: string,
   options?: { extractImages?: boolean },
 ): Promise<string> {
-  return invoke<string>("read_file", {
+  return invoke<string>('read_file', {
     path,
     extractImages: options?.extractImages,
   })
 }
 
 export async function writeFile(path: string, contents: string): Promise<void> {
-  assertAbsoluteFsPath("writeFile", path)
-  return invoke<void>("write_file", { path, contents })
+  assertAbsoluteFsPath('writeFile', path)
+  return invoke<void>('write_file', { path, contents })
 }
 
 export async function writeFileBase64(path: string, base64: string): Promise<void> {
-  assertAbsoluteFsPath("writeFileBase64", path)
-  return invoke<void>("write_file_base64", { path, base64 })
+  assertAbsoluteFsPath('writeFileBase64', path)
+  return invoke<void>('write_file_base64', { path, base64 })
 }
 
 export async function writeFileAtomic(path: string, contents: string): Promise<void> {
-  assertAbsoluteFsPath("writeFileAtomic", path)
-  return invoke<void>("write_file_atomic", { path, contents })
+  assertAbsoluteFsPath('writeFileAtomic', path)
+  return invoke<void>('write_file_atomic', { path, contents })
 }
 
 /**
@@ -66,10 +66,9 @@ export async function listDirectory(
   path: string,
   includeHiddenOrOptions: boolean | ListDirectoryOptions = false,
 ): Promise<FileNode[]> {
-  const options =
-    typeof includeHiddenOrOptions === "boolean"
-      ? { includeHidden: includeHiddenOrOptions }
-      : includeHiddenOrOptions
+  const options = typeof includeHiddenOrOptions === 'boolean'
+    ? { includeHidden: includeHiddenOrOptions }
+    : includeHiddenOrOptions
   const includeHidden = options.includeHidden ?? false
   const maxDepth = options.maxDepth
   const requestKey = JSON.stringify([path, includeHidden, maxDepth ?? null])
@@ -79,7 +78,7 @@ export async function listDirectory(
     return pending.request.then(cloneFileNodes)
   }
 
-  const request = invoke<FileNode[]>("list_directory", {
+  const request = invoke<FileNode[]>('list_directory', {
     path,
     includeHidden,
     maxDepth,
@@ -93,52 +92,52 @@ export async function listDirectory(
 
 export async function copyFile(
   source: string,
-  destination: string
+  destination: string,
 ): Promise<void> {
-  return invoke("copy_file", { source, destination })
+  return invoke('copy_file', { source, destination })
 }
 
 export async function copyDirectory(
   source: string,
-  destination: string
+  destination: string,
 ): Promise<string[]> {
-  return invoke<string[]>("copy_directory", { source, destination })
+  return invoke<string[]>('copy_directory', { source, destination })
 }
 
 export async function preprocessFile(path: string): Promise<string> {
-  return invoke<string>("preprocess_file", { path })
+  return invoke<string>('preprocess_file', { path })
 }
 
 export async function deleteFile(path: string): Promise<void> {
-  return invoke("delete_file", { path })
+  return invoke('delete_file', { path })
 }
 
 export async function findRelatedWikiPages(
   projectPath: string,
-  sourceName: string
+  sourceName: string,
 ): Promise<string[]> {
-  return invoke<string[]>("find_related_wiki_pages", { projectPath, sourceName })
+  return invoke<string[]>('find_related_wiki_pages', { projectPath, sourceName })
 }
 
 export async function createDirectory(path: string): Promise<void> {
-  assertAbsoluteFsPath("createDirectory", path)
-  return invoke<void>("create_directory", { path })
+  assertAbsoluteFsPath('createDirectory', path)
+  return invoke<void>('create_directory', { path })
 }
 
 export async function fileExists(path: string): Promise<boolean> {
-  return invoke<boolean>("file_exists", { path })
+  return invoke<boolean>('file_exists', { path })
 }
 
 export async function getFileModifiedTime(path: string): Promise<number> {
-  return invoke<number>("get_file_modified_time", { path })
+  return invoke<number>('get_file_modified_time', { path })
 }
 
 export async function getFileSize(path: string): Promise<number> {
-  return invoke<number>("get_file_size", { path })
+  return invoke<number>('get_file_size', { path })
 }
 
 export async function getFileMd5(path: string): Promise<string> {
-  return invoke<string>("get_file_md5", { path })
+  return invoke<string>('get_file_md5', { path })
 }
 
 export interface FileHistoryEntry {
@@ -162,30 +161,30 @@ export interface FileHistorySettings {
 }
 
 export async function getFileHistorySettings(projectPath: string): Promise<FileHistorySettings> {
-  return invoke<FileHistorySettings>("get_file_history_settings", { projectPath })
+  return invoke<FileHistorySettings>('get_file_history_settings', { projectPath })
 }
 
 export async function setFileHistorySettings(
   projectPath: string,
   settings: FileHistorySettings,
 ): Promise<FileHistorySettings> {
-  return invoke<FileHistorySettings>("set_file_history_settings", { projectPath, settings })
+  return invoke<FileHistorySettings>('set_file_history_settings', { projectPath, settings })
 }
 
 export async function getFileHistoryStats(projectPath: string): Promise<FileHistoryStats> {
-  return invoke<FileHistoryStats>("get_file_history_stats", { projectPath })
+  return invoke<FileHistoryStats>('get_file_history_stats', { projectPath })
 }
 
 export async function clearFileHistory(projectPath: string): Promise<void> {
-  return invoke<void>("clear_file_history", { projectPath })
+  return invoke<void>('clear_file_history', { projectPath })
 }
 
 export async function listFileHistory(projectPath: string, filePath: string): Promise<FileHistoryEntry[]> {
-  return invoke<FileHistoryEntry[]>("list_file_history", { projectPath, filePath })
+  return invoke<FileHistoryEntry[]>('list_file_history', { projectPath, filePath })
 }
 
 export async function restoreFileHistory(projectPath: string, filePath: string, entryId: string): Promise<string> {
-  return invoke<string>("restore_file_history", { projectPath, filePath, entryId })
+  return invoke<string>('restore_file_history', { projectPath, filePath, entryId })
 }
 
 export async function applyTextSelectionEdit(input: {
@@ -196,7 +195,7 @@ export async function applyTextSelectionEdit(input: {
   suffix: string
   replacement: string
 }): Promise<string> {
-  return invoke<string>("apply_text_selection_edit", input)
+  return invoke<string>('apply_text_selection_edit', input)
 }
 
 export interface PageLinkEntry {
@@ -212,7 +211,7 @@ export interface PageLinksResponse {
 }
 
 export async function getPageLinks(projectPath: string, filePath: string): Promise<PageLinksResponse> {
-  return invoke<PageLinksResponse>("get_page_links", { projectPath, filePath })
+  return invoke<PageLinksResponse>('get_page_links', { projectPath, filePath })
 }
 
 export async function createMissingWikiPage(
@@ -220,7 +219,7 @@ export async function createMissingWikiPage(
   title: string,
   content?: string,
 ): Promise<string> {
-  return invoke<string>("create_missing_wiki_page", { projectPath, title, content })
+  return invoke<string>('create_missing_wiki_page', { projectPath, title, content })
 }
 
 function assertAbsoluteFsPath(operation: string, path: string): void {
@@ -242,46 +241,46 @@ export interface FileBase64 {
  * valid UTF-8 — `readFile` would corrupt them).
  */
 export async function readFileAsBase64(path: string): Promise<FileBase64> {
-  return invoke<FileBase64>("read_file_as_base64", { path })
+  return invoke<FileBase64>('read_file_as_base64', { path })
 }
 
 export async function createProject(
   name: string,
   path: string,
 ): Promise<WikiProject> {
-  const raw = await invoke<RawProject>("create_project", { name, path })
+  const raw = await invoke<RawProject>('create_project', { name, path })
   const id = await ensureProjectId(raw.path)
   await upsertProjectInfo(id, raw.path, raw.name)
   return { id, name: raw.name, path: raw.path }
 }
 
 export async function openProject(path: string): Promise<WikiProject> {
-  const raw = await invoke<RawProject>("open_project", { path })
+  const raw = await invoke<RawProject>('open_project', { path })
   const id = await ensureProjectId(raw.path)
   await upsertProjectInfo(id, raw.path, raw.name)
   return { id, name: raw.name, path: raw.path }
 }
 
 export async function openProjectFolder(path: string): Promise<void> {
-  return invoke<void>("open_project_folder", { path })
+  return invoke<void>('open_project_folder', { path })
 }
 
 export async function openPathInProject(projectPath: string, targetPath: string): Promise<void> {
-  return invoke<void>("open_path_in_project", { projectPath, targetPath })
+  return invoke<void>('open_path_in_project', { projectPath, targetPath })
 }
 
 export async function clipServerStatus(): Promise<string> {
-  return invoke<string>("clip_server_status")
+  return invoke<string>('clip_server_status')
 }
 
 export async function apiServerStatus(): Promise<string> {
-  return invoke<string>("api_server_status")
+  return invoke<string>('api_server_status')
 }
 
 export async function apiServerReloadConfig(): Promise<string> {
-  return invoke<string>("api_server_reload_config")
+  return invoke<string>('api_server_reload_config')
 }
 
 export async function mcpServerEntryPath(): Promise<string> {
-  return invoke<string>("mcp_server_entry_path")
+  return invoke<string>('mcp_server_entry_path')
 }

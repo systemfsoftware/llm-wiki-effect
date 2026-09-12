@@ -1,14 +1,14 @@
-import type { FileNode } from "@/types/wiki"
-import { normalizePath } from "@/lib/path-utils"
+import { normalizePath } from '@/lib/path-utils'
+import type { FileNode } from '@/types/wiki'
 
-const HIDDEN_SOURCE_ENTRY_NAMES = new Set([".cache", ".DS_Store"])
-const SENSITIVE_CONFIG_EXTENSIONS = new Set(["env", "json", "toml", "yaml", "yml", "xml"])
+const HIDDEN_SOURCE_ENTRY_NAMES = new Set(['.cache', '.DS_Store'])
+const SENSITIVE_CONFIG_EXTENSIONS = new Set(['env', 'json', 'toml', 'yaml', 'yml', 'xml'])
 const SENSITIVE_CONFIG_DIR_NAMES = new Set([
-  ".claude",
-  ".codex",
-  ".cursor",
-  ".gemini",
-  ".mcp",
+  '.claude',
+  '.codex',
+  '.cursor',
+  '.gemini',
+  '.mcp',
 ])
 
 export function isHiddenRawSourceEntryName(name: string): boolean {
@@ -29,9 +29,9 @@ export function filterRawSourceTree(nodes: FileNode[]): FileNode[] {
 }
 
 export function isSensitiveConfigSourceFile(path: string): boolean {
-  const parts = normalizePath(path).split("/").filter(Boolean)
-  const name = parts[parts.length - 1] ?? ""
-  const ext = name.includes(".") ? name.split(".").pop()?.toLowerCase() : ""
+  const parts = normalizePath(path).split('/').filter(Boolean)
+  const name = parts[parts.length - 1] ?? ''
+  const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() : ''
   return Boolean(
     ext &&
       SENSITIVE_CONFIG_EXTENSIONS.has(ext) &&

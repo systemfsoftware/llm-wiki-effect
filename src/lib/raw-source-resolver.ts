@@ -19,13 +19,10 @@
  *     user moved / deleted the original after ingest, leaving only
  *     the wiki summary). Callers fall back gracefully.
  */
-import { listDirectory } from "@/commands/fs"
-import {
-  sourceIdentityForPath,
-  sourceSummarySlugCandidatesFromIdentity,
-} from "@/lib/source-identity"
-import type { FileNode } from "@/types/wiki"
-import { filterRawSourceTree } from "@/lib/source-filter"
+import { listDirectory } from '@/commands/fs'
+import { filterRawSourceTree } from '@/lib/source-filter'
+import { sourceIdentityForPath, sourceSummarySlugCandidatesFromIdentity } from '@/lib/source-identity'
+import type { FileNode } from '@/types/wiki'
 
 export async function findRawSourceForImage(
   imageUrl: string,
@@ -35,10 +32,10 @@ export async function findRawSourceForImage(
   //   1. ABSOLUTE: `/Users/.../wiki/media/<slug>/img-N.png`
   //   2. WIKI-RELATIVE: `media/<slug>/img-N.png`
   // Match `media/<slug>/` either at the URL start or after any `/`.
-  const m = imageUrl.replace(/\\/g, "/").match(/(?:^|\/)media\/([^/]+)\//)
+  const m = imageUrl.replace(/\\/g, '/').match(/(?:^|\/)media\/([^/]+)\//)
   if (!m) return null
   const slug = m[1]
-  const normalizedProjectPath = projectPath.replace(/\/+$/, "")
+  const normalizedProjectPath = projectPath.replace(/\/+$/, '')
 
   let tree: FileNode[]
   try {
@@ -61,7 +58,7 @@ export async function findRawSourceForImage(
 
       // Backward compatibility for media folders created before nested source
       // identities were encoded into the slug.
-      const stem = node.name.replace(/\.[^.]+$/, "")
+      const stem = node.name.replace(/\.[^.]+$/, '')
       if (stem === slug) return node.path
     }
     return null
@@ -84,11 +81,10 @@ export function imageUrlToAbsolute(
   imageUrl: string,
   projectPath: string,
 ): string {
-  const isAbsolute =
-    imageUrl.startsWith("/") ||
+  const isAbsolute = imageUrl.startsWith('/') ||
     /^[a-zA-Z]:/.test(imageUrl) ||
-    imageUrl.startsWith("\\\\")
+    imageUrl.startsWith('\\\\')
   if (isAbsolute) return imageUrl
-  const cleaned = imageUrl.replace(/^\.\//, "")
-  return `${projectPath.replace(/\/+$/, "")}/wiki/${cleaned}`
+  const cleaned = imageUrl.replace(/^\.\//, '')
+  return `${projectPath.replace(/\/+$/, '')}/wiki/${cleaned}`
 }

@@ -1,9 +1,9 @@
-import { invoke } from "@tauri-apps/api/core"
-import type { SourceWatchConfig } from "@/stores/wiki-store"
-import { normalizeSourceWatchConfig } from "@/lib/source-watch-config"
+import { normalizeSourceWatchConfig } from '@/lib/source-watch-config'
+import type { SourceWatchConfig } from '@/stores/wiki-store'
+import { invoke } from '@tauri-apps/api/core'
 
-export type FileChangeKind = "created" | "modified" | "deleted"
-export type FileChangeStatus = "pending" | "processing" | "done" | "failed" | "superseded"
+export type FileChangeKind = 'created' | 'modified' | 'deleted'
+export type FileChangeStatus = 'pending' | 'processing' | 'done' | 'failed' | 'superseded'
 
 export interface FileChangeTask {
   id: string
@@ -42,7 +42,7 @@ export function startProjectFileWatcher(
   projectPath: string,
   sourceWatchConfig?: SourceWatchConfig,
 ): Promise<FileChangeRescanResult> {
-  return invoke<FileChangeRescanResult>("start_project_file_watcher", {
+  return invoke<FileChangeRescanResult>('start_project_file_watcher', {
     projectId,
     projectPath,
     sourceWatchConfig: normalizeSourceWatchConfig(sourceWatchConfig),
@@ -50,7 +50,7 @@ export function startProjectFileWatcher(
 }
 
 export function stopProjectFileWatcher(): Promise<void> {
-  return invoke<void>("stop_project_file_watcher")
+  return invoke<void>('stop_project_file_watcher')
 }
 
 export function rescanProjectFiles(
@@ -58,7 +58,7 @@ export function rescanProjectFiles(
   projectPath: string,
   sourceWatchConfig?: SourceWatchConfig,
 ): Promise<FileChangeRescanResult> {
-  return invoke<FileChangeRescanResult>("rescan_project_files", {
+  return invoke<FileChangeRescanResult>('rescan_project_files', {
     projectId,
     projectPath,
     sourceWatchConfig: normalizeSourceWatchConfig(sourceWatchConfig),
@@ -66,7 +66,7 @@ export function rescanProjectFiles(
 }
 
 export function getFileChangeQueue(projectPath: string): Promise<FileChangeQueue> {
-  return invoke<FileChangeQueue>("get_file_change_queue", { projectPath })
+  return invoke<FileChangeQueue>('get_file_change_queue', { projectPath })
 }
 
 export function retryFileChangeTask(
@@ -74,7 +74,7 @@ export function retryFileChangeTask(
   projectPath: string,
   taskId: string,
 ): Promise<FileChangeQueue> {
-  return invoke<FileChangeQueue>("retry_file_change_task", { projectId, projectPath, taskId })
+  return invoke<FileChangeQueue>('retry_file_change_task', { projectId, projectPath, taskId })
 }
 
 export function ignoreFileChangeTask(
@@ -82,5 +82,5 @@ export function ignoreFileChangeTask(
   projectPath: string,
   taskId: string,
 ): Promise<FileChangeQueue> {
-  return invoke<FileChangeQueue>("ignore_file_change_task", { projectId, projectPath, taskId })
+  return invoke<FileChangeQueue>('ignore_file_change_task', { projectId, projectPath, taskId })
 }

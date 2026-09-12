@@ -13,50 +13,50 @@
  * fallback doesn't regress silently (you'd only notice via a vitest
  * run crash with "window is not defined").
  */
-import { describe, it, expect } from "vitest"
-import { getHttpFetch, isFetchNetworkError, withProxyTlsSettings } from "./tauri-fetch"
+import { describe, expect, it } from 'vitest'
+import { getHttpFetch, isFetchNetworkError, withProxyTlsSettings } from './tauri-fetch'
 
-describe("withProxyTlsSettings", () => {
-  it("enables invalid-certificate acceptance only for an active proxy", () => {
+describe('withProxyTlsSettings', () => {
+  it('enables invalid-certificate acceptance only for an active proxy', () => {
     const init = withProxyTlsSettings(
-      { method: "POST" },
+      { method: 'POST' },
       {
         enabled: true,
-        url: "http://proxy.corp:8080",
+        url: 'http://proxy.corp:8080',
         bypassLocal: true,
         acceptInvalidCerts: true,
       },
     )
     expect(init).toMatchObject({
-      method: "POST",
+      method: 'POST',
       danger: { acceptInvalidCerts: true },
     })
   })
 
-  it("does not weaken TLS when the proxy is disabled or invalid", () => {
-    const original = { method: "GET" } as const
+  it('does not weaken TLS when the proxy is disabled or invalid', () => {
+    const original = { method: 'GET' } as const
     expect(withProxyTlsSettings(original, {
       enabled: false,
-      url: "http://proxy.corp:8080",
+      url: 'http://proxy.corp:8080',
       bypassLocal: true,
       acceptInvalidCerts: true,
     })).toBe(original)
     expect(withProxyTlsSettings(original, {
       enabled: true,
-      url: "not-a-url",
+      url: 'not-a-url',
       bypassLocal: true,
       acceptInvalidCerts: true,
     })).toBe(original)
   })
 
-  it("preserves other plugin danger settings", () => {
+  it('preserves other plugin danger settings', () => {
     const init = withProxyTlsSettings(
       {
         danger: { acceptInvalidHostnames: true },
       } as RequestInit & { danger: { acceptInvalidHostnames: boolean } },
       {
         enabled: true,
-        url: "https://proxy.corp:443",
+        url: 'https://proxy.corp:443',
         bypassLocal: false,
         acceptInvalidCerts: true,
       },
@@ -68,11 +68,11 @@ describe("withProxyTlsSettings", () => {
   })
 })
 
-describe("getHttpFetch — Node fallback", () => {
-  it("returns a callable function under Node (typeof window === undefined)", async () => {
-    expect(typeof window).toBe("undefined")
+describe('getHttpFetch — Node fallback', () => {
+  it('returns a callable function under Node (typeof window === undefined)', async () => {
+    expect(typeof window).toBe('undefined')
     const fn = await getHttpFetch()
-    expect(typeof fn).toBe("function")
+    expect(typeof fn).toBe('function')
   })
 
   it("does not throw 'window is not defined' when invoked under Node", async () => {
@@ -82,50 +82,50 @@ describe("getHttpFetch — Node fallback", () => {
     // without the plugin's browser-only globals blowing up. A real
     // network error or a fetch rejection is fine; a ReferenceError
     // for `window` is the regression we're catching.
+    let failure: unknown
     try {
-      await fn("http://127.0.0.1:1/", { method: "GET" })
+      await fn('http://127.0.0.1:1/', { method: 'GET' })
     } catch (err) {
-      if (err instanceof ReferenceError && /window/i.test(err.message)) {
-        throw new Error(
-          `Node fallback regressed — getHttpFetch() returned something that touches window: ${err.message}`,
-        )
-      }
-      // Any other error (ECONNREFUSED / TypeError) is expected and fine.
+      failure = err
     }
+    expect(
+      failure instanceof ReferenceError && /window/i.test(failure.message),
+      `Node fallback regressed — getHttpFetch() returned something that touches window: ${String(failure)}`,
+    ).toBe(false)
   })
 
-  it("is cached: two calls return the same function reference", async () => {
+  it('is cached: two calls return the same function reference', async () => {
     const a = await getHttpFetch()
     const b = await getHttpFetch()
     expect(a).toBe(b)
   })
 })
 
-describe("isFetchNetworkError", () => {
+describe('isFetchNetworkError', () => {
   it("recognizes WebKit 'Load failed'", () => {
-    const err = new Error("Load failed")
+    const err = new Error('Load failed')
     expect(isFetchNetworkError(err)).toBe(true)
   })
 
-  it("recognizes Chromium TypeError", () => {
-    const err = new TypeError("Failed to fetch")
+  it('recognizes Chromium TypeError', () => {
+    const err = new TypeError('Failed to fetch')
     expect(isFetchNetworkError(err)).toBe(true)
   })
 
-  it("rejects AbortError (user cancel) — retries there would loop the cancellation", () => {
-    const err = new Error("The user aborted a request.")
-    err.name = "AbortError"
+  it('rejects AbortError (user cancel) — retries there would loop the cancellation', () => {
+    const err = new Error('The user aborted a request.')
+    err.name = 'AbortError'
     expect(isFetchNetworkError(err)).toBe(false)
   })
 
-  it("rejects non-Error values (null / string / undefined)", () => {
+  it('rejects non-Error values (null / string / undefined)', () => {
     expect(isFetchNetworkError(null)).toBe(false)
-    expect(isFetchNetworkError("oops")).toBe(false)
+    expect(isFetchNetworkError('oops')).toBe(false)
     expect(isFetchNetworkError(undefined)).toBe(false)
   })
 
   it("matches generic 'network error' substring for less-common backends", () => {
-    const err = new Error("there was a network error while connecting")
+    const err = new Error('there was a network error while connecting')
     expect(isFetchNetworkError(err)).toBe(true)
   })
 })

@@ -17,21 +17,21 @@
  * Skipped when the endpoint isn't reachable in <2s. Lives in
  * `.real-llm.` so the fast suite ignores it.
  */
-import { describe, it, expect, vi } from "vitest"
+import { describe, expect, it, vi } from 'vitest'
 
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn().mockResolvedValue(undefined),
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn<(cmd: string, args?: unknown) => Promise<unknown>>().mockResolvedValue(undefined),
 }))
-vi.mock("@/commands/fs", () => ({
-  readFile: vi.fn(),
-  listDirectory: vi.fn(),
+vi.mock('@/commands/fs', () => ({
+  readFile: vi.fn<(path: string, options?: { extractImages?: boolean }) => Promise<string>>(),
+  listDirectory: vi.fn<(path: string) => Promise<unknown>>(),
 }))
 
-import { captionImage } from "./vision-caption"
-import type { LlmConfig } from "@/stores/wiki-store"
+import type { LlmConfig } from '@/stores/wiki-store'
+import { captionImage } from './vision-caption'
 
-const DEFAULT_ENDPOINT = "http://192.168.1.218:1234/v1"
-const DEFAULT_MODEL = "qwen3.5-4b"
+const DEFAULT_ENDPOINT = 'http://192.168.1.218:1234/v1'
+const DEFAULT_MODEL = 'qwen3.5-4b'
 const ENDPOINT = process.env.VISION_ENDPOINT ?? DEFAULT_ENDPOINT
 const MODEL = process.env.VISION_MODEL ?? DEFAULT_MODEL
 const REACHABILITY_TIMEOUT_MS = 2000
@@ -41,13 +41,13 @@ const TEST_TIMEOUT_MS = 180_000
 // Pinned base64 of the raw bytes (NOT a data: URL — that framing
 // is added by the OpenAI provider translator).
 const RED_PNG_64_B64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAb0lEQVR4nO3PAQkAAAyEwO9feoshgnABdLep8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3IPanc8OLDQitxAAAAAElFTkSuQmCC"
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAb0lEQVR4nO3PAQkAAAyEwO9feoshgnABdLep8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3IPanc8OLDQitxAAAAAElFTkSuQmCC'
 
 async function isEndpointReachable(url: string, timeoutMs: number): Promise<boolean> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    await fetch(url.replace(/\/+$/, "") + "/models", { signal: controller.signal })
+    await fetch(url.replace(/\/+$/, '') + '/models', { signal: controller.signal })
     return true
   } catch {
     return false
@@ -56,7 +56,7 @@ async function isEndpointReachable(url: string, timeoutMs: number): Promise<bool
   }
 }
 
-describe("captionImage E2E (real LLM)", () => {
+describe('captionImage E2E (real LLM)', () => {
   it(
     "returns a non-empty caption mentioning 'red' for a solid-red image",
     async () => {
@@ -67,20 +67,20 @@ describe("captionImage E2E (real LLM)", () => {
       }
 
       const cfg: LlmConfig = {
-        provider: "custom",
-        apiKey: "",
+        provider: 'custom',
+        apiKey: '',
         model: MODEL,
-        ollamaUrl: "",
+        ollamaUrl: '',
         customEndpoint: ENDPOINT,
-        apiMode: "chat_completions",
+        apiMode: 'chat_completions',
         maxContextSize: 8192,
       }
 
-      const caption = await captionImage(RED_PNG_64_B64, "image/png", cfg)
+      const caption = await captionImage(RED_PNG_64_B64, 'image/png', cfg)
       console.log(`[vision-caption.real-llm] caption: "${caption}"`)
 
-      expect(caption.length, "caption is non-empty").toBeGreaterThan(0)
-      const mentionsRed = /\bred\b/i.test(caption) || caption.includes("红")
+      expect(caption.length, 'caption is non-empty').toBeGreaterThan(0)
+      const mentionsRed = /\bred\b/i.test(caption) || caption.includes('红')
       expect(
         mentionsRed,
         `expected caption to mention "red" or "红"; got: "${caption}"`,

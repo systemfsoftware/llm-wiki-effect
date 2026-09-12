@@ -24,42 +24,56 @@
  * the Rust side has its own 15-test suite. We only exercise the
  * TypeScript HTTP layer + the semantic contract here.
  */
-import { describe, it, expect, vi, beforeAll } from "vitest"
-import { createServer, type Server } from "node:http"
-import type { AddressInfo } from "node:net"
+import type { listDirectory, readFile } from '@/commands/fs'
+import { createServer, type Server } from 'node:http'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+
+interface VectorUpsertArgs {
+  pageId: string
+  chunks: Array<{
+    chunk_index: number
+    chunk_text: string
+    heading_path: string
+    embedding: number[]
+  }>
+}
+
+interface VectorSearchArgs {
+  queryEmbedding: number[]
+  topK: number
+}
 
 // A scriptable `invoke` stub so individual tests can (a) capture what
 // embedPage tries to write to LanceDB, and (b) swap in an in-memory
 // implementation of vector_search_chunks so we can exercise
 // searchByEmbedding end-to-end without a real LanceDB instance.
-const mockInvoke = vi.fn<(cmd: string, args?: unknown) => Promise<unknown>>()
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (cmd: string, args?: unknown) => mockInvoke(cmd, args),
+const mockInvoke = vi.fn<(cmd: string, args?: VectorUpsertArgs | VectorSearchArgs) => Promise<unknown>>()
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (cmd: string, args?: VectorUpsertArgs | VectorSearchArgs) => mockInvoke(cmd, args),
 }))
 
-vi.mock("@/commands/fs", () => ({
-  readFile: vi.fn(),
-  listDirectory: vi.fn(),
+vi.mock('@/commands/fs', () => ({
+  readFile: vi.fn<typeof readFile>(),
+  listDirectory: vi.fn<typeof listDirectory>(),
 }))
 
 import {
   embedPage,
   fetchEmbedding,
-  looksLikeOversizeError,
   getLastEmbeddingError,
+  looksLikeOversizeError,
   searchByEmbedding,
-} from "./embedding"
+} from './embedding'
 
-const ENABLED =
-  process.env.RUN_LLM_TESTS === "1" &&
+const ENABLED = process.env.RUN_LLM_TESTS === '1' &&
   !!process.env.EMBEDDING_ENDPOINT &&
   !!process.env.EMBEDDING_MODEL
 
 const cfg = {
   enabled: true,
-  endpoint: process.env.EMBEDDING_ENDPOINT ?? "",
-  apiKey: process.env.EMBEDDING_API_KEY ?? "",
-  model: process.env.EMBEDDING_MODEL ?? "",
+  endpoint: process.env.EMBEDDING_ENDPOINT ?? '',
+  apiKey: process.env.EMBEDDING_API_KEY ?? '',
+  model: process.env.EMBEDDING_MODEL ?? '',
 }
 
 /** Cosine similarity — defined here (not imported) so the ranking
@@ -79,38 +93,41 @@ function cosineSim(a: number[], b: number[]): number {
 
 const TEST_TIMEOUT_MS = 2 * 60 * 1000
 
-describe("real-embedding endpoint contract", () => {
+describe('real-embedding endpoint contract', () => {
   it.skipIf(!ENABLED)(
-    "returns a finite-number vector of consistent dim for short input",
+    'returns a finite-number vector of consistent dim for short input',
     async () => {
-      const v1 = await fetchEmbedding("hello world", cfg)
+      const v1 = await fetchEmbedding('hello world', cfg)
       expect(v1, `fetchEmbedding failed: ${getLastEmbeddingError()}`).not.toBeNull()
       expect(Array.isArray(v1)).toBe(true)
-      expect(v1!.length).toBeGreaterThan(0)
+      if (v1 === null) throw new Error(`fetchEmbedding failed: ${getLastEmbeddingError()}`)
+      expect(v1.length).toBeGreaterThan(0)
       // Every element must be a finite number — NaN / Infinity in the
       // returned vector would poison LanceDB's distance math.
-      for (const x of v1!) {
-        expect(typeof x).toBe("number")
+      for (const x of v1) {
+        expect(typeof x).toBe('number')
         expect(Number.isFinite(x)).toBe(true)
       }
 
       // Two more calls to pin dim consistency — a regression that
       // flipped between two endpoints or two models would show up as
       // length drift here.
-      const v2 = await fetchEmbedding("another sentence", cfg)
-      const v3 = await fetchEmbedding("a third one", cfg)
-      expect(v2!.length).toBe(v1!.length)
-      expect(v3!.length).toBe(v1!.length)
+      const v2 = await fetchEmbedding('another sentence', cfg)
+      const v3 = await fetchEmbedding('a third one', cfg)
+      if (v2 === null || v3 === null) throw new Error(`fetchEmbedding failed: ${getLastEmbeddingError()}`)
+      expect(v2.length).toBe(v1.length)
+      expect(v3.length).toBe(v1.length)
     },
     TEST_TIMEOUT_MS,
   )
 
   it.skipIf(!ENABLED)(
-    "embeds the same text twice to near-identical vectors (determinism)",
+    'embeds the same text twice to near-identical vectors (determinism)',
     async () => {
-      const text = "Rotary positional embeddings in Transformers."
-      const a = (await fetchEmbedding(text, cfg))!
-      const b = (await fetchEmbedding(text, cfg))!
+      const text = 'Rotary positional embeddings in Transformers.'
+      const a = await fetchEmbedding(text, cfg)
+      const b = await fetchEmbedding(text, cfg)
+      if (a === null || b === null) throw new Error(`fetchEmbedding failed: ${getLastEmbeddingError()}`)
       const sim = cosineSim(a, b)
       // Most servers are deterministic (sim ≈ 1.0). Some add a tiny
       // bit of quantization noise. Anything below 0.99 means the
@@ -122,13 +139,13 @@ describe("real-embedding endpoint contract", () => {
   )
 
   it.skipIf(!ENABLED)(
-    "embeds semantically-similar sentences to closer vectors than unrelated ones",
+    'embeds semantically-similar sentences to closer vectors than unrelated ones',
     async () => {
       // A ~ B (both about RoPE / positional encoding in Transformers)
       // C: an unrelated dessert topic.
-      const A = "Rotary positional embeddings are a Transformer position-encoding scheme."
-      const B = "RoPE is a rotary positional embedding method commonly used in LLM attention."
-      const C = "Chocolate ice cream is a classic dessert flavor made from cream, sugar, and cocoa."
+      const A = 'Rotary positional embeddings are a Transformer position-encoding scheme.'
+      const B = 'RoPE is a rotary positional embedding method commonly used in LLM attention.'
+      const C = 'Chocolate ice cream is a classic dessert flavor made from cream, sugar, and cocoa.'
 
       const [vA, vB, vC] = await Promise.all([
         fetchEmbedding(A, cfg),
@@ -138,10 +155,13 @@ describe("real-embedding endpoint contract", () => {
       expect(vA).not.toBeNull()
       expect(vB).not.toBeNull()
       expect(vC).not.toBeNull()
+      if (vA === null || vB === null || vC === null) {
+        throw new Error(`fetchEmbedding failed: ${getLastEmbeddingError()}`)
+      }
 
-      const simAB = cosineSim(vA!, vB!)
-      const simAC = cosineSim(vA!, vC!)
-      const simBC = cosineSim(vB!, vC!)
+      const simAB = cosineSim(vA, vB)
+      const simAC = cosineSim(vA, vC)
+      const simBC = cosineSim(vB, vC)
 
       // eslint-disable-next-line no-console
       console.log(
@@ -159,18 +179,18 @@ describe("real-embedding endpoint contract", () => {
   )
 
   it.skipIf(!ENABLED)(
-    "oversize phrase heuristic matches what the real server returns on oversize input",
+    'oversize phrase heuristic matches what the real server returns on oversize input',
     async () => {
       // Blast the endpoint with a deliberately-huge input via raw
       // fetch (bypassing fetchEmbedding's auto-halve). If the server
       // accepts it, we have nothing to validate — skip. If it rejects,
       // the error body must match `looksLikeOversizeError`, otherwise
       // the heuristic is missing a phrase used by this server.
-      const huge = "a".repeat(500_000)
+      const huge = 'a'.repeat(500_000)
       const resp = await fetch(cfg.endpoint, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           ...(cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {}),
         },
         body: JSON.stringify({ model: cfg.model, input: huge }),
@@ -190,36 +210,38 @@ describe("real-embedding endpoint contract", () => {
 
       expect(
         looksLikeOversizeError(resp.status, body),
-        `Heuristic missed the real server's oversize phrasing. status=${resp.status} body=${body.slice(0, 300)}. Add the missing phrase to looksLikeOversizeError.`,
+        `Heuristic missed the real server's oversize phrasing. status=${resp.status} body=${
+          body.slice(0, 300)
+        }. Add the missing phrase to looksLikeOversizeError.`,
       ).toBe(true)
     },
     TEST_TIMEOUT_MS,
   )
 
   it.skipIf(!ENABLED)(
-    "auto-halve recovers or surfaces the specific error on the real endpoint (best-effort — many large-context servers silently truncate)",
+    'auto-halve recovers or surfaces the specific error on the real endpoint (best-effort — many large-context servers silently truncate)',
     async () => {
-      const bigText = "The quick brown fox jumps over the lazy dog. ".repeat(5_000)
+      const bigText = 'The quick brown fox jumps over the lazy dog. '.repeat(5_000)
       const v = await fetchEmbedding(bigText, cfg)
+      const err = getLastEmbeddingError()
+      const acceptedFinite = v !== null && Number.isFinite(v[0]) && err === null
+      const rejectedWithOversizeError = v === null && (err ?? '').includes('Endpoint rejected input even at')
 
-      if (v !== null) {
-        expect(Number.isFinite(v[0])).toBe(true)
-        expect(getLastEmbeddingError()).toBeNull()
+      if (v === null) {
+        // eslint-disable-next-line no-console
+        console.log(`[real-embedding] auto-halve gave up: ${err}`)
+      } else {
         // eslint-disable-next-line no-console
         console.log(
           `[real-embedding] NOTE: endpoint accepted ~225k-char input without rejecting — real halving path was NOT exercised against this server. ` +
             `See the "fake small-context server" test below for the end-to-end halving proof.`,
         )
-        return
       }
 
-      const err = getLastEmbeddingError()!
-      // eslint-disable-next-line no-console
-      console.log(`[real-embedding] auto-halve gave up: ${err}`)
       expect(
-        err,
-        "fetchEmbedding returned null on oversize input but error isn't the oversize-specific message — looksLikeOversizeError missed the server's phrasing",
-      ).toContain("Endpoint rejected input even at")
+        acceptedFinite || rejectedWithOversizeError,
+        'oversize-input contract failed: the endpoint neither accepted the input cleanly nor rejected it with the oversize-specific message',
+      ).toBe(true)
     },
     TEST_TIMEOUT_MS,
   )
@@ -261,18 +283,22 @@ async function startFakeEmbeddingServer(
   let server: Server | null = null
   const sizes: number[] = []
   const url = await new Promise<string>((resolve, reject) => {
-    server = createServer((req, res) => {
+    const listening = createServer((req, res) => {
       const chunks: Buffer[] = []
-      req.on("data", (c: Buffer) => chunks.push(c))
-      req.on("end", () => {
+      req.on('data', (c: Buffer) => chunks.push(c))
+      req.on('end', () => {
         try {
-          const body = JSON.parse(Buffer.concat(chunks).toString("utf-8")) as {
-            input: string
+          const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf-8'))
+          if (
+            typeof parsed !== 'object' || parsed === null || !('input' in parsed) || typeof parsed.input !== 'string'
+          ) {
+            throw new Error('expected an input string in the request body')
           }
+          const body = { input: parsed.input }
           sizes.push(body.input.length)
           if (body.input.length > maxInputChars) {
             res.statusCode = 400
-            res.setHeader("Content-Type", "application/json")
+            res.setHeader('Content-Type', 'application/json')
             res.end(
               JSON.stringify({
                 error: `input length ${body.input.length} exceeds maximum context ${maxInputChars}`,
@@ -282,7 +308,7 @@ async function startFakeEmbeddingServer(
           }
           const vec = Array.from({ length: dim }, (_, i) => Math.sin(i + 1) * 0.1)
           res.statusCode = 200
-          res.setHeader("Content-Type", "application/json")
+          res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({ data: [{ embedding: vec }] }))
         } catch (err) {
           res.statusCode = 500
@@ -290,10 +316,15 @@ async function startFakeEmbeddingServer(
         }
       })
     })
-    server.on("error", reject)
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server!.address() as AddressInfo
-      resolve(`http://127.0.0.1:${addr.port}/v1/embeddings`)
+    server = listening
+    listening.on('error', reject)
+    listening.listen(0, '127.0.0.1', () => {
+      const address = listening.address()
+      if (typeof address !== 'object' || address === null) {
+        reject(new Error('fake embedding server did not bind a TCP address'))
+        return
+      }
+      resolve(`http://127.0.0.1:${address.port}/v1/embeddings`)
     })
   })
   return {
@@ -308,15 +339,15 @@ async function startFakeEmbeddingServer(
   }
 }
 
-describe("fetchEmbedding against a fake small-context server (real TCP)", () => {
-  it("halves an oversize input and eventually succeeds", async () => {
+describe('fetchEmbedding against a fake small-context server (real TCP)', () => {
+  it('halves an oversize input and eventually succeeds', async () => {
     const server = await startFakeEmbeddingServer(/* maxInputChars */ 200)
     try {
       const smallCfg = {
         enabled: true,
         endpoint: server.url,
-        apiKey: "",
-        model: "fake-embed",
+        apiKey: '',
+        model: 'fake-embed',
       }
       // 800 chars of "a" → must halve 800 → 400 → 200 (3 attempts:
       // first 2 rejected, third accepted at the boundary). Proves:
@@ -324,9 +355,10 @@ describe("fetchEmbedding against a fake small-context server (real TCP)", () => 
       //   (b) the request body is re-serialized cleanly on each retry
       //   (c) the response parser correctly handles the error body
       //       on rejects AND the success body on acceptance
-      const v = await fetchEmbedding("a".repeat(800), smallCfg)
+      const v = await fetchEmbedding('a'.repeat(800), smallCfg)
       expect(v, `halving failed: ${getLastEmbeddingError()}`).not.toBeNull()
-      expect(v!.length).toBe(8)
+      if (v === null) throw new Error(`halving failed: ${getLastEmbeddingError()}`)
+      expect(v.length).toBe(8)
       expect(getLastEmbeddingError()).toBeNull()
       expect(server.requestSizes()).toEqual([800, 400, 200])
     } finally {
@@ -344,22 +376,23 @@ describe("fetchEmbedding against a fake small-context server (real TCP)", () => 
       const smallCfg = {
         enabled: true,
         endpoint: server.url,
-        apiKey: "",
-        model: "fake-embed",
+        apiKey: '',
+        model: 'fake-embed',
       }
-      const v = await fetchEmbedding("a".repeat(2048), smallCfg)
+      const v = await fetchEmbedding('a'.repeat(2048), smallCfg)
       expect(v).toBeNull()
       expect(server.requestSizes()).toEqual([2048, 1024, 512, 256])
 
-      const err = getLastEmbeddingError()!
-      expect(err).toContain("Endpoint rejected input even at 256 chars")
-      expect(err).toContain("Lower Settings → Embedding → Max Chunk Chars")
+      const err = getLastEmbeddingError()
+      if (err === null) throw new Error('expected an oversize error message to be recorded')
+      expect(err).toContain('Endpoint rejected input even at 256 chars')
+      expect(err).toContain('Lower Settings → Embedding → Max Chunk Chars')
     } finally {
       await server.close()
     }
   })
 
-  it("stops halving at the 64-char floor and reports the specific error (128 → 64, no further)", async () => {
+  it('stops halving at the 64-char floor and reports the specific error (128 → 64, no further)', async () => {
     // Server rejects everything over 0 chars, so every attempt fails.
     // Input 128 → halve to 64 → 64 is NOT > 64 so loop exits. Exactly
     // 2 server hits.
@@ -368,14 +401,15 @@ describe("fetchEmbedding against a fake small-context server (real TCP)", () => 
       const smallCfg = {
         enabled: true,
         endpoint: server.url,
-        apiKey: "",
-        model: "fake-embed",
+        apiKey: '',
+        model: 'fake-embed',
       }
-      const v = await fetchEmbedding("a".repeat(128), smallCfg)
+      const v = await fetchEmbedding('a'.repeat(128), smallCfg)
       expect(v).toBeNull()
       expect(server.requestSizes()).toEqual([128, 64])
-      const err = getLastEmbeddingError()!
-      expect(err).toContain("Endpoint rejected input even at 64 chars")
+      const err = getLastEmbeddingError()
+      if (err === null) throw new Error('expected an oversize error message to be recorded')
+      expect(err).toContain('Endpoint rejected input even at 64 chars')
     } finally {
       await server.close()
     }
@@ -427,8 +461,8 @@ function cosineScore(a: number[], b: number[]): number {
 // the tail-sum blending a chance to kick in.
 const FIXTURES: Array<{ id: string; title: string; content: string }> = [
   {
-    id: "rope",
-    title: "RoPE 旋转位置编码",
+    id: 'rope',
+    title: 'RoPE 旋转位置编码',
     content: `---
 title: "RoPE 旋转位置编码"
 type: concept
@@ -465,8 +499,8 @@ RoPE 只改变 Q 和 K 的旋转,不影响 Value,所以它可以和 Flash Attent
 kernel 无缝叠加。这两项技术共同支撑了大部分现代长上下文模型的推理流程。`,
   },
   {
-    id: "flash-attention",
-    title: "Flash Attention",
+    id: 'flash-attention',
+    title: 'Flash Attention',
     content: `---
 title: "Flash Attention"
 type: concept
@@ -507,8 +541,8 @@ standard implementation exactly.
 | FlashAttn v3    | Hopper H100 TMA + async softmax         |`,
   },
   {
-    id: "ice-cream",
-    title: "Chocolate Ice Cream",
+    id: 'ice-cream',
+    title: 'Chocolate Ice Cream',
     content: `---
 title: "Chocolate Ice Cream"
 type: recipe
@@ -540,8 +574,8 @@ notes. Pairs well with espresso, hot fudge, or a simple shortbread
 cookie on the side.`,
   },
   {
-    id: "tea-ceremony-ja",
-    title: "日本茶道",
+    id: 'tea-ceremony-ja',
+    title: '日本茶道',
     content: `---
 title: "日本茶道"
 type: culture
@@ -567,9 +601,9 @@ type: culture
   },
 ]
 
-describe("real-embedding RAG pipeline — multi-page retrieval", () => {
+describe('real-embedding RAG pipeline — multi-page retrieval', () => {
   const CHUNK_STORE: StoredChunk[] = []
-  const PROJECT_PATH = "/tmp/real-llm-rag"
+  const PROJECT_PATH = '/tmp/real-llm-rag'
   let beforeAllError: Error | null = null
 
   beforeAll(async () => {
@@ -580,16 +614,11 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
       // search delegates to cosine-sim over that store. No other
       // Tauri commands are called by the pipeline.
       mockInvoke.mockImplementation(async (cmd, args) => {
-        if (cmd === "vector_upsert_chunks") {
-          const payload = args as {
-            pageId: string
-            chunks: Array<{
-              chunk_index: number
-              chunk_text: string
-              heading_path: string
-              embedding: number[]
-            }>
+        if (cmd === 'vector_upsert_chunks') {
+          if (args === undefined || !('chunks' in args)) {
+            throw new Error('expected vector_upsert_chunks to receive a chunks payload')
           }
+          const payload = args
           // Delete existing chunks for this page, then append. Mirrors
           // the Rust side's delete-then-add semantics.
           for (let i = CHUNK_STORE.length - 1; i >= 0; i--) {
@@ -607,11 +636,11 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
           }
           return undefined
         }
-        if (cmd === "vector_search_chunks") {
-          const { queryEmbedding, topK } = args as {
-            queryEmbedding: number[]
-            topK: number
+        if (cmd === 'vector_search_chunks') {
+          if (args === undefined || !('queryEmbedding' in args)) {
+            throw new Error('expected vector_search_chunks to receive a queryEmbedding payload')
           }
+          const { queryEmbedding, topK } = args
           return CHUNK_STORE.map((c) => ({
             chunk_id: c.chunk_id,
             page_id: c.page_id,
@@ -639,7 +668,7 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
   }, 3 * 60 * 1000)
 
   // ── Contract tests on the captured upsert payloads ─────────────
-  it.skipIf(!ENABLED)("embedded every fixture page with ≥ 2 chunks and valid vectors", () => {
+  it.skipIf(!ENABLED)('embedded every fixture page with ≥ 2 chunks and valid vectors', () => {
     if (beforeAllError) throw beforeAllError
 
     // Every fixture must contribute at least 2 chunks to the store,
@@ -669,7 +698,7 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
     // pages all have H1/H2/H3 structure, and the preamble that sits
     // directly under the H1 still inherits "# Title".
     const noHeading = CHUNK_STORE.filter((c) => c.heading_path.length === 0)
-    expect(noHeading, `chunks missing heading path: ${noHeading.map((c) => c.chunk_id).join(", ")}`).toHaveLength(0)
+    expect(noHeading, `chunks missing heading path: ${noHeading.map((c) => c.chunk_id).join(', ')}`).toHaveLength(0)
   })
 
   // ── Semantic retrieval queries — the actual RAG quality test ────
@@ -680,11 +709,11 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
    * for the chunk scan) and assert the expected page ranks first.
    */
   const queries: Array<{ q: string; expectedTop: string; lang: string }> = [
-    { q: "positional encoding in transformer attention", expectedTop: "rope", lang: "en" },
-    { q: "how to reduce attention memory and avoid OOM at long context", expectedTop: "flash-attention", lang: "en" },
-    { q: "homemade dessert with heavy cream and cocoa", expectedTop: "ice-cream", lang: "en" },
-    { q: "抹茶 仪式 禅宗", expectedTop: "tea-ceremony-ja", lang: "zh" },
-    { q: "旋转位置编码如何注入位置信息", expectedTop: "rope", lang: "zh" },
+    { q: 'positional encoding in transformer attention', expectedTop: 'rope', lang: 'en' },
+    { q: 'how to reduce attention memory and avoid OOM at long context', expectedTop: 'flash-attention', lang: 'en' },
+    { q: 'homemade dessert with heavy cream and cocoa', expectedTop: 'ice-cream', lang: 'en' },
+    { q: '抹茶 仪式 禅宗', expectedTop: 'tea-ceremony-ja', lang: 'zh' },
+    { q: '旋转位置编码如何注入位置信息', expectedTop: 'rope', lang: 'zh' },
   ]
 
   for (const { q, expectedTop, lang } of queries) {
@@ -694,7 +723,7 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
         if (beforeAllError) throw beforeAllError
 
         const out = await searchByEmbedding(PROJECT_PATH, q, cfg, 3)
-        const ordered = out.map((p) => `${p.id}(${p.score.toFixed(3)})`).join(" > ")
+        const ordered = out.map((p) => `${p.id}(${p.score.toFixed(3)})`).join(' > ')
         // eslint-disable-next-line no-console
         console.log(`[RAG] "${q}" → ${ordered}`)
 
@@ -707,27 +736,31 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
         // The winning page must be meaningfully ahead of the runner-up,
         // not a coin-flip tie. 5% of the top score is a modest margin
         // that still catches "barely winning by noise".
-        if (out.length >= 2) {
-          const gap = out[0].score - out[1].score
-          expect(
-            gap,
-            `top-1 score gap too small (${gap.toFixed(4)}) — ${ordered}`,
-          ).toBeGreaterThan(out[0].score * 0.05)
-        }
+        expect(
+          out.length,
+          `expected at least 2 ranked pages for "${q}", got ${out.length}`,
+        ).toBeGreaterThanOrEqual(2)
+        const gap = out[0].score - out[1].score
+        expect(
+          gap,
+          `top-1 score gap too small (${gap.toFixed(4)}) — ${ordered}`,
+        ).toBeGreaterThan(out[0].score * 0.05)
 
         // The winning page should expose matched chunks with the
         // highest-similarity chunk actually coming from the expected
         // page — i.e. the retrieval isn't winning because of blended
         // tail noise.
-        expect(out[0].matchedChunks, "winning page missing matchedChunks").toBeTruthy()
-        expect(out[0].matchedChunks![0].score).toBeGreaterThan(0.3)
+        expect(out[0].matchedChunks, 'winning page missing matchedChunks').toBeTruthy()
+        const matchedChunks = out[0].matchedChunks
+        if (!matchedChunks) throw new Error('winning page missing matchedChunks')
+        expect(matchedChunks[0].score).toBeGreaterThan(0.3)
       },
       TEST_TIMEOUT_MS,
     )
   }
 
   it.skipIf(!ENABLED)(
-    "heading-path enrichment: query naming the H2 of a chunk routes to that chunk",
+    'heading-path enrichment: query naming the H2 of a chunk routes to that chunk',
     async () => {
       if (beforeAllError) throw beforeAllError
       // "IO-aware tiling" is the exact H2 inside flash-attention. The
@@ -735,13 +768,15 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
       // being prefixed into the embedded input, retrieval would likely
       // miss it. Asserting this specific chunk wins its page verifies
       // the `enrichChunkForEmbedding` contribution end-to-end.
-      const out = await searchByEmbedding(PROJECT_PATH, "IO-aware tiling block size SRAM", cfg, 3)
-      expect(out[0].id).toBe("flash-attention")
-      const topChunk = out[0].matchedChunks![0]
+      const out = await searchByEmbedding(PROJECT_PATH, 'IO-aware tiling block size SRAM', cfg, 3)
+      expect(out[0].id).toBe('flash-attention')
+      const matchedChunks = out[0].matchedChunks
+      if (!matchedChunks) throw new Error('expected matched chunks on the winning page')
+      const topChunk = matchedChunks[0]
       expect(
         topChunk.headingPath,
         `top chunk's heading path doesn't name IO-aware tiling: ${topChunk.headingPath}`,
-      ).toContain("IO-aware")
+      ).toContain('IO-aware')
     },
     TEST_TIMEOUT_MS,
   )
@@ -765,23 +800,23 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
     mustBeBelow: Record<string, number>
   }> = [
     {
-      q: "positional encoding in transformer attention",
-      expectedTop: "rope",
+      q: 'positional encoding in transformer attention',
+      expectedTop: 'rope',
       // Ice cream and tea ceremony have nothing to do with Transformers.
       // Past real runs scored them 0.22 / 0.30 respectively — 0.5 is a
       // conservative ceiling that still catches a serious regression.
-      mustBeBelow: { "ice-cream": 0.5, "tea-ceremony-ja": 0.5 },
+      mustBeBelow: { 'ice-cream': 0.5, 'tea-ceremony-ja': 0.5 },
     },
     {
-      q: "homemade dessert with heavy cream and cocoa",
-      expectedTop: "ice-cream",
+      q: 'homemade dessert with heavy cream and cocoa',
+      expectedTop: 'ice-cream',
       // RoPE / Flash Attention should be the bottom here.
-      mustBeBelow: { rope: 0.5, "flash-attention": 0.5 },
+      mustBeBelow: { rope: 0.5, 'flash-attention': 0.5 },
     },
     {
-      q: "抹茶 仪式 禅宗",
-      expectedTop: "tea-ceremony-ja",
-      mustBeBelow: { rope: 0.5, "flash-attention": 0.5 },
+      q: '抹茶 仪式 禅宗',
+      expectedTop: 'tea-ceremony-ja',
+      mustBeBelow: { rope: 0.5, 'flash-attention': 0.5 },
     },
   ]
 
@@ -802,11 +837,16 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
             score,
             `"${id}" missing from search output for query "${q}" — expected to appear with a low score`,
           ).toBeDefined()
+          if (score === undefined) {
+            throw new Error(`"${id}" missing from search output for query "${q}"`)
+          }
           expect(
-            score!,
-            `"${id}" scored ${score?.toFixed(3)} for query "${q}", above the ${ceiling} ceiling. Full ordering: ${out
-              .map((p) => `${p.id}(${p.score.toFixed(3)})`)
-              .join(" > ")}`,
+            score,
+            `"${id}" scored ${score?.toFixed(3)} for query "${q}", above the ${ceiling} ceiling. Full ordering: ${
+              out
+                .map((p) => `${p.id}(${p.score.toFixed(3)})`)
+                .join(' > ')
+            }`,
           ).toBeLessThan(ceiling)
         }
       },
@@ -815,7 +855,7 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
   }
 
   it.skipIf(!ENABLED)(
-    "out-of-domain query: top score is lower than in-domain queries (confidence signal)",
+    'out-of-domain query: top score is lower than in-domain queries (confidence signal)',
     async () => {
       if (beforeAllError) throw beforeAllError
       // No fixture page discusses JVM garbage collection. The top
@@ -826,13 +866,13 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
       // anything here is a match."
       const inDomain = await searchByEmbedding(
         PROJECT_PATH,
-        "positional encoding in transformer attention",
+        'positional encoding in transformer attention',
         cfg,
         3,
       )
       const outOfDomain = await searchByEmbedding(
         PROJECT_PATH,
-        "JVM generational garbage collector tuning G1 vs ZGC",
+        'JVM generational garbage collector tuning G1 vs ZGC',
         cfg,
         3,
       )
@@ -843,18 +883,20 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
       )
       expect(
         outOfDomain[0].score,
-        `out-of-domain query's top score (${outOfDomain[0].score.toFixed(3)}) should be lower than in-domain (${inDomain[0].score.toFixed(3)}). If they tie, retrieval has no confidence signal.`,
+        `out-of-domain query's top score (${outOfDomain[0].score.toFixed(3)}) should be lower than in-domain (${
+          inDomain[0].score.toFixed(3)
+        }). If they tie, retrieval has no confidence signal.`,
       ).toBeLessThan(inDomain[0].score - 0.2)
     },
     TEST_TIMEOUT_MS,
   )
 
   it.skipIf(!ENABLED)(
-    "exact title query ranks the named page first with a very high score",
+    'exact title query ranks the named page first with a very high score',
     async () => {
       if (beforeAllError) throw beforeAllError
-      const out = await searchByEmbedding(PROJECT_PATH, "Flash Attention", cfg, 3)
-      expect(out[0].id).toBe("flash-attention")
+      const out = await searchByEmbedding(PROJECT_PATH, 'Flash Attention', cfg, 3)
+      expect(out[0].id).toBe('flash-attention')
       // An exact title match should comfortably clear 0.8. Lower
       // would indicate a regression in title-prefix enrichment.
       expect(out[0].score).toBeGreaterThan(0.8)
@@ -862,17 +904,17 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
     TEST_TIMEOUT_MS,
   )
 
-  it.skipIf(!ENABLED)("topK cutoff: requesting 2 returns exactly 2 pages (not more, not fewer)", async () => {
+  it.skipIf(!ENABLED)('topK cutoff: requesting 2 returns exactly 2 pages (not more, not fewer)', async () => {
     if (beforeAllError) throw beforeAllError
-    const out = await searchByEmbedding(PROJECT_PATH, "attention memory", cfg, 2)
+    const out = await searchByEmbedding(PROJECT_PATH, 'attention memory', cfg, 2)
     expect(out).toHaveLength(2)
   })
 
   it.skipIf(!ENABLED)(
-    "topK larger than corpus returns every page exactly once (no duplicates, no synthetic padding)",
+    'topK larger than corpus returns every page exactly once (no duplicates, no synthetic padding)',
     async () => {
       if (beforeAllError) throw beforeAllError
-      const out = await searchByEmbedding(PROJECT_PATH, "knowledge", cfg, 100)
+      const out = await searchByEmbedding(PROJECT_PATH, 'knowledge', cfg, 100)
       // 4 fixture pages → exactly 4 results, no dup page_ids.
       expect(out).toHaveLength(FIXTURES.length)
       const ids = out.map((p) => p.id).sort()
@@ -882,55 +924,55 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
   )
 
   it.skipIf(!ENABLED)(
-    "re-embedding the same pageId replaces its chunks (no accumulation / duplication)",
+    're-embedding the same pageId replaces its chunks (no accumulation / duplication)',
     async () => {
       if (beforeAllError) throw beforeAllError
 
       // Use a scratch pageId that isn't one of the canonical FIXTURES
       // so we don't contaminate state for other tests in this block.
-      const scratchId = "scratch-replace-test"
-      const original = `# Original\n\n${"Original body about Transformer decoders. ".repeat(20)}`
-      const updated = `# Updated\n\n${"Updated body about kangaroo migration patterns across Australia. ".repeat(20)}`
+      const scratchId = 'scratch-replace-test'
+      const original = `# Original\n\n${'Original body about Transformer decoders. '.repeat(20)}`
+      const updated = `# Updated\n\n${'Updated body about kangaroo migration patterns across Australia. '.repeat(20)}`
 
       try {
         // First ingest.
-        await embedPage(PROJECT_PATH, scratchId, "Original", original, cfg)
+        await embedPage(PROJECT_PATH, scratchId, 'Original', original, cfg)
         const firstCount = CHUNK_STORE.filter((c) => c.page_id === scratchId).length
-        expect(firstCount, "first ingest produced zero chunks").toBeGreaterThan(0)
-        const originalSample = CHUNK_STORE.find((c) => c.page_id === scratchId)!.chunk_text
-        expect(originalSample).toContain("Original body about Transformer")
+        expect(firstCount, 'first ingest produced zero chunks').toBeGreaterThan(0)
+        const originalChunk = CHUNK_STORE.find((c) => c.page_id === scratchId)
+        if (!originalChunk) throw new Error('first ingest stored no chunk for the scratch page')
+        const originalSample = originalChunk.chunk_text
+        expect(originalSample).toContain('Original body about Transformer')
 
         // Re-ingest with completely different content under the SAME id.
-        await embedPage(PROJECT_PATH, scratchId, "Updated", updated, cfg)
+        await embedPage(PROJECT_PATH, scratchId, 'Updated', updated, cfg)
         const afterChunks = CHUNK_STORE.filter((c) => c.page_id === scratchId)
 
         // If delete-then-append regressed to pure append, we'd see
         // firstCount + newCount chunks. The contract is: only the
         // updated content remains.
         expect(
-          afterChunks.some((c) => c.chunk_text.includes("Original body about Transformer")),
-          "old chunks not purged — saw Original content after re-embed, indicating append semantics instead of replace",
+          afterChunks.some((c) => c.chunk_text.includes('Original body about Transformer')),
+          'old chunks not purged — saw Original content after re-embed, indicating append semantics instead of replace',
         ).toBe(false)
         expect(
-          afterChunks.some((c) => c.chunk_text.includes("kangaroo migration")),
-          "new content missing from store after re-embed",
+          afterChunks.some((c) => c.chunk_text.includes('kangaroo migration')),
+          'new content missing from store after re-embed',
         ).toBe(true)
 
         // Retrieval signal: a query that matched the OLD content must
         // no longer rank the scratch page first.
         const oldQueryOut = await searchByEmbedding(
           PROJECT_PATH,
-          "Transformer decoder body",
+          'Transformer decoder body',
           cfg,
           FIXTURES.length + 1,
         )
-        const scratchRank = oldQueryOut.findIndex((p) => p.id === scratchId)
-        if (scratchRank >= 0) {
-          expect(
-            oldQueryOut[scratchRank].score,
-            `scratch page still scored high (${oldQueryOut[scratchRank].score}) for old-content query — replace semantics likely broken`,
-          ).toBeLessThan(0.6)
-        }
+        const scratchScore = oldQueryOut.find((p) => p.id === scratchId)?.score ?? 0
+        expect(
+          scratchScore,
+          `scratch page still scored high (${scratchScore}) for old-content query — replace semantics likely broken`,
+        ).toBeLessThan(0.6)
       } finally {
         // Always clean up so a failure mid-test doesn't leak state
         // into the "empty query" test at the end of the describe.
@@ -943,27 +985,29 @@ describe("real-embedding RAG pipeline — multi-page retrieval", () => {
   )
 
   it.skipIf(!ENABLED)(
-    "empty / whitespace-only query: does not crash; returns an array with only finite scores",
+    'empty / whitespace-only query: does not crash; returns an array with only finite scores',
     async () => {
       if (beforeAllError) throw beforeAllError
       // The UI gates search on a non-empty trimmed query, but the
       // library MUST NOT crash on degenerate input. A regression
       // here would be a runtime error, not just a bad ranking.
-      const emptyOut = await searchByEmbedding(PROJECT_PATH, "", cfg, 5)
-      const whitespaceOut = await searchByEmbedding(PROJECT_PATH, "   \n\t", cfg, 5)
+      const emptyOut = await searchByEmbedding(PROJECT_PATH, '', cfg, 5)
+      const whitespaceOut = await searchByEmbedding(PROJECT_PATH, '   \n\t', cfg, 5)
 
       // Contract: return type is always Array (never undefined/null),
       // so callers can `.map` / `.length` without guards.
-      expect(Array.isArray(emptyOut), "empty query returned non-array").toBe(true)
-      expect(Array.isArray(whitespaceOut), "whitespace query returned non-array").toBe(true)
+      expect(Array.isArray(emptyOut), 'empty query returned non-array').toBe(true)
+      expect(Array.isArray(whitespaceOut), 'whitespace query returned non-array').toBe(true)
 
-      for (const [label, out] of [
-        ["empty", emptyOut],
-        ["whitespace", whitespaceOut],
-      ] as const) {
+      for (
+        const [label, out] of [
+          ['empty', emptyOut],
+          ['whitespace', whitespaceOut],
+        ] as const
+      ) {
         for (const p of out) {
           expect(Number.isFinite(p.score), `${label}: NaN/Infinity score leaked into ${p.id}`).toBe(true)
-          expect(typeof p.id, `${label}: non-string page id`).toBe("string")
+          expect(typeof p.id, `${label}: non-string page id`).toBe('string')
           expect(p.id.length, `${label}: empty page id`).toBeGreaterThan(0)
         }
       }

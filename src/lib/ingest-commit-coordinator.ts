@@ -1,4 +1,4 @@
-import type { IngestCommitRunner } from "@/lib/ingest"
+import type { IngestCommitRunner } from '@/lib/ingest'
 
 interface CommitReservation {
   runCommit: IngestCommitRunner

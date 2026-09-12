@@ -38,24 +38,22 @@
  * showing the syntax literally isn't rewritten.
  */
 export function transformImageEmbeds(body: string): string {
-  if (!body.includes("![[")) return body
+  if (!body.includes('![[')) return body
 
   const parts = body.split(/(```[\s\S]*?```)/g)
   return parts
-    .map((part, idx) =>
-      idx % 2 === 1 ? part : transformImageEmbedsOutsideCode(part),
-    )
-    .join("")
+    .map((part, idx) => idx % 2 === 1 ? part : transformImageEmbedsOutsideCode(part))
+    .join('')
 }
 
 const IMAGE_EMBED_RE = /!\[\[([^\]|\n]+)(?:\|([^\]\n]*))?\]\]/g
 
 function transformImageEmbedsOutsideCode(text: string): string {
-  if (!text.includes("![[")) return text
+  if (!text.includes('![[')) return text
   const parts = text.split(/(`[^`\n]+`)/g)
   return parts
     .map((part, idx) => (idx % 2 === 1 ? part : replaceImageEmbeds(part)))
-    .join("")
+    .join('')
 }
 
 function replaceImageEmbeds(text: string): string {
@@ -63,10 +61,10 @@ function replaceImageEmbeds(text: string): string {
     IMAGE_EMBED_RE,
     (_match, rawTarget: string, rawAlias?: string) => {
       const target = rawTarget.trim()
-      const alias = rawAlias?.trim() ?? ""
+      const alias = rawAlias?.trim() ?? ''
       // Sanitize alt text so `]` doesn't terminate the markdown image
       // alt bracket early.
-      const alt = alias.replace(/]/g, ")")
+      const alt = alias.replace(/]/g, ')')
       // Wrap the URL in <…> so spaces / parens / non-ASCII in the
       // path don't break the CommonMark image parser. The resolver
       // strips no angle brackets — react-markdown removes them while
@@ -77,7 +75,7 @@ function replaceImageEmbeds(text: string): string {
 }
 
 export function transformWikilinks(body: string): string {
-  if (!body.includes("[[")) return body
+  if (!body.includes('[[')) return body
 
   // Split on triple-backtick fences. The capturing group keeps
   // the fence content in the output. Odd indices are inside a
@@ -85,25 +83,25 @@ export function transformWikilinks(body: string): string {
   const parts = body.split(/(```[\s\S]*?```)/g)
   return parts
     .map((part, idx) => (idx % 2 === 1 ? part : transformOutsideCode(part)))
-    .join("")
+    .join('')
 }
 
 const WIKILINK_RE = /\[\[([^\]|\n]+)(?:\|([^\]\n]*))?\]\]/g
 
 function transformOutsideCode(text: string): string {
-  if (!text.includes("[[")) return text
+  if (!text.includes('[[')) return text
 
   // Split on inline-code spans so backticked content is preserved.
   const parts = text.split(/(`[^`\n]+`)/g)
   return parts
     .map((part, idx) => (idx % 2 === 1 ? part : replaceWikilinks(part)))
-    .join("")
+    .join('')
 }
 
 function replaceWikilinks(text: string): string {
   return text.replace(WIKILINK_RE, (_match, rawTarget: string, rawAlias?: string) => {
     const target = rawTarget.trim()
-    const alias = rawAlias?.trim() ?? ""
+    const alias = rawAlias?.trim() ?? ''
     const label = alias.length > 0 ? alias : target
     // Encode the target so spaces / parens / hashes don't break the
     // markdown link parser. encodeURIComponent is overkill for a
@@ -111,7 +109,7 @@ function replaceWikilinks(text: string): string {
     const href = `#${encodeURIComponent(target)}`
     // Escape any closing brackets in the label that would otherwise
     // terminate the markdown link text.
-    const escapedLabel = label.replace(/\[/g, "\\[").replace(/\]/g, "\\]")
+    const escapedLabel = label.replace(/\[/g, '\\[').replace(/\]/g, '\\]')
     return `[${escapedLabel}](${href})`
   })
 }

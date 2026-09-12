@@ -1,35 +1,35 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createTempProject, readFileRaw, realFs, writeFileRaw } from "@/test-helpers/fs-temp"
+import { createTempProject, readFileRaw, realFs, writeFileRaw } from '@/test-helpers/fs-temp'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock("@/commands/fs", () => realFs)
+vi.mock('@/commands/fs', () => realFs)
 
-import { deleteSourceFiles } from "./source-lifecycle"
+import { deleteSourceFiles } from './source-lifecycle'
 
-describe("source lifecycle source deletion", () => {
+describe('source lifecycle source deletion', () => {
   let tmp: { path: string; cleanup: () => Promise<void> } | undefined
 
   beforeEach(async () => {
-    tmp = await createTempProject("source-lifecycle-delete")
-    await writeFileRaw(`${tmp.path}/raw/sources/project-a/config.yaml`, "name: alpha\n")
-    await writeFileRaw(`${tmp.path}/raw/sources/project-b/config.yaml`, "name: beta\n")
-    await writeFileRaw(`${tmp.path}/wiki/log.md`, "# Wiki Log\n")
+    tmp = await createTempProject('source-lifecycle-delete')
+    await writeFileRaw(`${tmp.path}/raw/sources/project-a/config.yaml`, 'name: alpha\n')
+    await writeFileRaw(`${tmp.path}/raw/sources/project-b/config.yaml`, 'name: beta\n')
+    await writeFileRaw(`${tmp.path}/wiki/log.md`, '# Wiki Log\n')
     await writeFileRaw(
       `${tmp.path}/wiki/concepts/shared.md`,
       [
-        "---",
+        '---',
         'sources: ["project-a/config.yaml", "project-b/config.yaml"]',
-        "---",
-        "# Shared",
-      ].join("\n"),
+        '---',
+        '# Shared',
+      ].join('\n'),
     )
     await writeFileRaw(
       `${tmp.path}/wiki/concepts/project-b-only.md`,
       [
-        "---",
+        '---',
         'sources: ["project-b/config.yaml"]',
-        "---",
-        "# Project B",
-      ].join("\n"),
+        '---',
+        '# Project B',
+      ].join('\n'),
     )
   })
 
@@ -38,8 +38,8 @@ describe("source lifecycle source deletion", () => {
     tmp = undefined
   })
 
-  it("does not remove path-aware source references that only share a basename", async () => {
-    if (!tmp) throw new Error("missing temp project")
+  it('does not remove path-aware source references that only share a basename', async () => {
+    if (!tmp) throw new Error('missing temp project')
 
     const result = await deleteSourceFiles(
       tmp.path,

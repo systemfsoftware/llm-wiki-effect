@@ -1,7 +1,7 @@
-import type { MessageImage } from "@/stores/chat-store"
+import type { MessageImage } from '@/stores/chat-store'
 
 /** Image MIME types every vision-capable provider on our wire accepts. */
-export const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const
+export const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const
 
 /** Per-image size cap. base64 inflates bytes ~33% and chat history is
  *  persisted to JSON, so we keep this conservative. */
@@ -24,16 +24,16 @@ export function isAcceptedImageType(type: string): boolean {
 export function fileToMessageImage(file: File | Blob): Promise<MessageImage> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read image"))
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image'))
     reader.onload = () => {
       const result = reader.result
-      if (typeof result !== "string") {
-        reject(new Error("Unexpected FileReader result"))
+      if (typeof result !== 'string') {
+        reject(new Error('Unexpected FileReader result'))
         return
       }
-      const comma = result.indexOf(",")
+      const comma = result.indexOf(',')
       const dataBase64 = comma >= 0 ? result.slice(comma + 1) : result
-      resolve({ mediaType: file.type || "image/png", dataBase64 })
+      resolve({ mediaType: file.type || 'image/png', dataBase64 })
     }
     reader.readAsDataURL(file)
   })

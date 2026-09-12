@@ -23,12 +23,17 @@ src-tauri/gen/
 .env.local
 .env.*.local
 
-# Internal docs (not shipped)
-docs/
-AGENTS.md
-
 # Benchmark and test data (local only)
 tests/
+
+# Tool outputs
+coverage/
+reports/
+.turbo/
+.direnv/
+result
+result-*
+.mcp.json
 
 # Editor directories and files
 .vscode/*

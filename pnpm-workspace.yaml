@@ -1,10 +1,22 @@
 packages:
+  # The root is the desktop app, and changesets can only version what the
+  # workspace lists, so it is named explicitly.
+  - "."
   - mcp-server
 
 # Versions shared by more than one package live here so the root app and the
 # MCP server cannot drift apart. `rolldown` is pinned to the same range vite
 # resolves so the MCP server is bundled by exactly one copy of the bundler.
 catalog:
+  "@changesets/cli": ^3.0.2
+  "@commitlint/cli": ^21.2.2
+  "@commitlint/config-conventional": ^21.2.2
+  "@commitlint/types": ^21.2.0
+  dprint: 0.54.0
+  husky: ^9.1.7
+  lint-staged: ^17.1.0
+  oxlint: ^1.82.0
+  oxlint-tsgolint: 7.0.2001
   rolldown: ~1.2.6
   typescript: ^5.7.3
 
@@ -14,6 +26,9 @@ catalogMode: prefer
 # ago, so a freshly hijacked release cannot reach the lockfile on install.
 minimumReleaseAge: 1440
 
-# Dependency install scripts stay blocked (pnpm's default). If a package ever
-# needs to run one, add an `allowBuilds:` entry here with a written reason, and
-# never widen it to a wildcard.
+# Dependency install scripts stay blocked (pnpm's default). `dprint` is the one
+# exception: its npm package is a launcher that fetches the platform binary in a
+# postinstall, and the version is pinned exactly (0.54.0) so the script cannot
+# pull a release the tree was not formatted with. Never widen this to a wildcard.
+allowBuilds:
+  dprint: true

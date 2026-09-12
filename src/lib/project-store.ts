@@ -1,13 +1,30 @@
-import { load } from "@tauri-apps/plugin-store"
-import type { WikiProject } from "@/types/wiki"
-import type { ApiConfig, CustomLlmPreset, GeneralConfig, LlmConfig, SearchApiConfig, EmbeddingConfig, MineruConfig, MultimodalConfig, OutputLanguage, ProjectLlmOverride, ProviderConfigs, ProxyConfig, ScheduledImportConfig, SourceWatchConfig, TaskModelRoutingConfig } from "@/stores/wiki-store"
-import { normalizeSourceWatchConfig } from "@/lib/source-watch-config"
-import { normalizePath } from "@/lib/path-utils"
-import { DEFAULT_ZOOM_LEVEL, clampZoomLevel } from "@/stores/zoom-store"
+import { normalizePath } from '@/lib/path-utils'
+import { normalizeSourceWatchConfig } from '@/lib/source-watch-config'
+import type {
+  ApiConfig,
+  CustomLlmPreset,
+  EmbeddingConfig,
+  GeneralConfig,
+  LlmConfig,
+  MineruConfig,
+  MineruLocalBackend,
+  MultimodalConfig,
+  OutputLanguage,
+  ProjectLlmOverride,
+  ProviderConfigs,
+  ProxyConfig,
+  ScheduledImportConfig,
+  SearchApiConfig,
+  SourceWatchConfig,
+  TaskModelRoutingConfig,
+} from '@/stores/wiki-store'
+import { clampZoomLevel, DEFAULT_ZOOM_LEVEL } from '@/stores/zoom-store'
+import type { WikiProject } from '@/types/wiki'
+import { load } from '@tauri-apps/plugin-store'
 
-const STORE_NAME = "app-state.json"
-const RECENT_PROJECTS_KEY = "recentProjects"
-const LAST_PROJECT_KEY = "lastProject"
+const STORE_NAME = 'app-state.json'
+const RECENT_PROJECTS_KEY = 'recentProjects'
+const LAST_PROJECT_KEY = 'lastProject'
 
 async function getStore() {
   return load(STORE_NAME, { autoSave: true, defaults: {} })
@@ -32,7 +49,7 @@ export async function saveLastProject(project: WikiProject): Promise<void> {
 }
 
 export async function addToRecentProjects(
-  project: WikiProject
+  project: WikiProject,
 ): Promise<void> {
   const store = await getStore()
   const existing = (await store.get<WikiProject[]>(RECENT_PROJECTS_KEY)) ?? []
@@ -41,12 +58,12 @@ export async function addToRecentProjects(
   await store.set(RECENT_PROJECTS_KEY, updated)
 }
 
-const LLM_CONFIG_KEY = "llmConfig"
-const PROVIDER_CONFIGS_KEY = "providerConfigs"
-const ACTIVE_PRESET_KEY = "activePresetId"
-const TASK_MODEL_ROUTING_KEY = "taskModelRouting"
-const PROJECT_LLM_OVERRIDES_KEY = "projectLlmOverrides"
-const CUSTOM_LLM_PRESETS_KEY = "customLlmPresets"
+const LLM_CONFIG_KEY = 'llmConfig'
+const PROVIDER_CONFIGS_KEY = 'providerConfigs'
+const ACTIVE_PRESET_KEY = 'activePresetId'
+const TASK_MODEL_ROUTING_KEY = 'taskModelRouting'
+const PROJECT_LLM_OVERRIDES_KEY = 'projectLlmOverrides'
+const CUSTOM_LLM_PRESETS_KEY = 'customLlmPresets'
 let projectLlmOverrideWrite = Promise.resolve()
 let customLlmPresetWrite = Promise.resolve()
 
@@ -74,7 +91,7 @@ export async function saveCustomLlmPresets(presets: CustomLlmPreset[]): Promise<
   const normalized = normalizeCustomLlmPresets(presets)
   const write = customLlmPresetWrite.then(async () => {
     const store = await getStore()
-    await store.set(CUSTOM_LLM_PRESETS_KEY, normalized)
+    return store.set(CUSTOM_LLM_PRESETS_KEY, normalized)
   })
   customLlmPresetWrite = write.catch(() => {})
   await write
@@ -87,17 +104,19 @@ export async function loadCustomLlmPresets(): Promise<CustomLlmPreset[]> {
 
 function normalizeCustomLlmPresets(value: unknown): CustomLlmPreset[] {
   if (!Array.isArray(value)) return []
+  const entries: unknown[] = value
   const seen = new Set<string>()
   const normalized: CustomLlmPreset[] = []
-  for (const entry of value) {
+  for (const entry of entries) {
     if (normalized.length >= 50) break
-    const candidate = entry as Partial<CustomLlmPreset> | null
-    if (!candidate || typeof candidate !== "object") continue
-    if (typeof candidate.id !== "string" || !/^custom-[A-Za-z0-9-]{1,80}$/.test(candidate.id)) continue
-    const label = typeof candidate.label === "string" ? candidate.label.trim().slice(0, 80) : ""
-    if (!label || seen.has(candidate.id)) continue
-    seen.add(candidate.id)
-    normalized.push({ id: candidate.id, label })
+    if (typeof entry !== 'object' || entry === null) continue
+    const id = 'id' in entry ? entry.id : undefined
+    if (typeof id !== 'string' || !/^custom-[A-Za-z0-9-]{1,80}$/.test(id)) continue
+    const rawLabel = 'label' in entry ? entry.label : undefined
+    const label = typeof rawLabel === 'string' ? rawLabel.trim().slice(0, 80) : ''
+    if (!label || seen.has(id)) continue
+    seen.add(id)
+    normalized.push({ id, label })
   }
   return normalized
 }
@@ -122,8 +141,8 @@ export async function loadTaskModelRouting(): Promise<TaskModelRoutingConfig | n
   const saved = await store.get<Partial<TaskModelRoutingConfig>>(TASK_MODEL_ROUTING_KEY)
   if (!saved) return null
   return {
-    chatPresetId: typeof saved.chatPresetId === "string" ? saved.chatPresetId : null,
-    ingestPresetId: typeof saved.ingestPresetId === "string" ? saved.ingestPresetId : null,
+    chatPresetId: typeof saved.chatPresetId === 'string' ? saved.chatPresetId : null,
+    ingestPresetId: typeof saved.ingestPresetId === 'string' ? saved.ingestPresetId : null,
   }
 }
 
@@ -137,7 +156,7 @@ export async function saveProjectLlmOverride(
   const write = projectLlmOverrideWrite.then(async () => {
     const store = await getStore()
     const existing = (await store.get<Record<string, ProjectLlmOverride>>(PROJECT_LLM_OVERRIDES_KEY)) ?? {}
-    await store.set(PROJECT_LLM_OVERRIDES_KEY, { ...existing, [projectId]: config })
+    return store.set(PROJECT_LLM_OVERRIDES_KEY, { ...existing, [projectId]: config })
   })
   projectLlmOverrideWrite = write.catch(() => {})
   await write
@@ -149,13 +168,13 @@ export async function loadProjectLlmOverride(projectId: string): Promise<Project
   const saved = existing?.[projectId]
   return {
     enabled: saved?.enabled === true,
-    presetId: typeof saved?.presetId === "string" ? saved.presetId : null,
-    model: typeof saved?.model === "string" ? saved.model : "",
+    presetId: typeof saved?.presetId === 'string' ? saved.presetId : null,
+    model: typeof saved?.model === 'string' ? saved.model : '',
     profile: saved?.profile,
   }
 }
 
-const SEARCH_API_KEY = "searchApiConfig"
+const SEARCH_API_KEY = 'searchApiConfig'
 
 export async function saveSearchApiConfig(config: SearchApiConfig): Promise<void> {
   const store = await getStore()
@@ -167,7 +186,7 @@ export async function loadSearchApiConfig(): Promise<SearchApiConfig | null> {
   return (await store.get<SearchApiConfig>(SEARCH_API_KEY)) ?? null
 }
 
-const EMBEDDING_KEY = "embeddingConfig"
+const EMBEDDING_KEY = 'embeddingConfig'
 
 export async function saveEmbeddingConfig(config: EmbeddingConfig): Promise<void> {
   const store = await getStore()
@@ -179,7 +198,7 @@ export async function loadEmbeddingConfig(): Promise<EmbeddingConfig | null> {
   return (await store.get<EmbeddingConfig>(EMBEDDING_KEY)) ?? null
 }
 
-const MULTIMODAL_KEY = "multimodalConfig"
+const MULTIMODAL_KEY = 'multimodalConfig'
 
 export async function saveMultimodalConfig(config: MultimodalConfig): Promise<void> {
   const store = await getStore()
@@ -191,54 +210,54 @@ export async function loadMultimodalConfig(): Promise<MultimodalConfig | null> {
   return (await store.get<MultimodalConfig>(MULTIMODAL_KEY)) ?? null
 }
 
-const MINERU_KEY = "mineruConfig"
-const DEFAULT_LOCAL_MINERU_ENDPOINT = "http://127.0.0.1:8000"
+const MINERU_KEY = 'mineruConfig'
+const DEFAULT_LOCAL_MINERU_ENDPOINT = 'http://127.0.0.1:8000'
 const LOCAL_MINERU_BACKENDS = new Set([
-  "pipeline",
-  "vlm-engine",
-  "hybrid-engine",
-  "vlm-http-client",
-  "hybrid-http-client",
+  'pipeline',
+  'vlm-engine',
+  'hybrid-engine',
+  'vlm-http-client',
+  'hybrid-http-client',
 ])
 
-function normalizeMineruConfig(config: MineruConfig): MineruConfig {
+export type MineruConfigInput = { [K in keyof MineruConfig]?: unknown }
+
+function isLocalMineruBackend(value: unknown): value is MineruLocalBackend {
+  return typeof value === 'string' && LOCAL_MINERU_BACKENDS.has(value)
+}
+
+function normalizeMineruConfig(config: MineruConfigInput): MineruConfig {
   return {
     enabled: config.enabled === true,
-    backend: config.backend === "local" ? "local" : "cloud",
-    localEndpoint:
-      typeof config.localEndpoint === "string" && config.localEndpoint.trim()
-        ? config.localEndpoint.trim()
-        : DEFAULT_LOCAL_MINERU_ENDPOINT,
-    localToken: typeof config.localToken === "string" ? config.localToken.trim() : "",
-    localBackend: LOCAL_MINERU_BACKENDS.has(config.localBackend ?? "")
-      ? config.localBackend
-      : "hybrid-engine",
-    localEffort: config.localEffort === "high" ? "high" : "medium",
-    localParseMethod:
-      config.localParseMethod === "txt" || config.localParseMethod === "ocr"
-        ? config.localParseMethod
-        : "auto",
-    localLanguage:
-      typeof config.localLanguage === "string" && config.localLanguage.trim()
-        ? config.localLanguage.trim()
-        : "ch",
+    backend: config.backend === 'local' ? 'local' : 'cloud',
+    localEndpoint: typeof config.localEndpoint === 'string' && config.localEndpoint.trim()
+      ? config.localEndpoint.trim()
+      : DEFAULT_LOCAL_MINERU_ENDPOINT,
+    localToken: typeof config.localToken === 'string' ? config.localToken.trim() : '',
+    localBackend: isLocalMineruBackend(config.localBackend) ? config.localBackend : 'hybrid-engine',
+    localEffort: config.localEffort === 'high' ? 'high' : 'medium',
+    localParseMethod: config.localParseMethod === 'txt' || config.localParseMethod === 'ocr'
+      ? config.localParseMethod
+      : 'auto',
+    localLanguage: typeof config.localLanguage === 'string' && config.localLanguage.trim()
+      ? config.localLanguage.trim()
+      : 'ch',
     localFormulaEnabled: config.localFormulaEnabled !== false,
     localTableEnabled: config.localTableEnabled !== false,
     localImageAnalysis: config.localImageAnalysis !== false,
-    localServerUrl:
-      typeof config.localServerUrl === "string" ? config.localServerUrl.trim() : "",
-    token: typeof config.token === "string" ? config.token : "",
-    modelVersion: config.modelVersion === "pipeline" ? "pipeline" : "vlm",
+    localServerUrl: typeof config.localServerUrl === 'string' ? config.localServerUrl.trim() : '',
+    token: typeof config.token === 'string' ? config.token : '',
+    modelVersion: config.modelVersion === 'pipeline' ? 'pipeline' : 'vlm',
   }
 }
 
 function normalizeZoomLevel(level: unknown): number {
-  return typeof level === "number" && Number.isFinite(level)
+  return typeof level === 'number' && Number.isFinite(level)
     ? clampZoomLevel(level)
     : DEFAULT_ZOOM_LEVEL
 }
 
-export const __projectStoreTest = {
+export const projectStoreTest = {
   normalizeMineruConfig,
   normalizeZoomLevel,
   normalizeCustomLlmPresets,
@@ -259,7 +278,7 @@ export async function loadMineruConfig(): Promise<MineruConfig | null> {
 // (src-tauri/src/proxy.rs), which reads this exact field name from
 // the same `app-state.json` store at app launch to translate the
 // config into HTTP_PROXY / HTTPS_PROXY / NO_PROXY env vars.
-const PROXY_CONFIG_KEY = "proxyConfig"
+const PROXY_CONFIG_KEY = 'proxyConfig'
 
 export async function saveProxyConfig(config: ProxyConfig): Promise<void> {
   const store = await getStore()
@@ -284,7 +303,7 @@ export async function loadProxyConfig(): Promise<ProxyConfig | null> {
 // `api_server` module reads `parsed.get("apiConfig")` from this same
 // `app-state.json` on every request (5s cache). Rename one side and
 // the API silently goes back to "no token configured = 401 forever".
-const API_CONFIG_KEY = "apiConfig"
+const API_CONFIG_KEY = 'apiConfig'
 
 export async function saveApiConfig(config: ApiConfig): Promise<void> {
   const store = await getStore()
@@ -302,21 +321,20 @@ export async function loadApiConfig(): Promise<ApiConfig | null> {
   return (await store.get<ApiConfig>(API_CONFIG_KEY)) ?? null
 }
 
-const GENERAL_CONFIG_KEY = "generalConfig"
+const GENERAL_CONFIG_KEY = 'generalConfig'
 
 export const DEFAULT_GENERAL_CONFIG: GeneralConfig = {
   autostart: false,
-  closeBehavior: "minimize",
+  closeBehavior: 'minimize',
 }
 
 export function normalizeGeneralConfig(config?: Partial<GeneralConfig> | null): GeneralConfig {
   const closeBehavior = config?.closeBehavior
   return {
-    autostart: typeof config?.autostart === "boolean" ? config.autostart : DEFAULT_GENERAL_CONFIG.autostart,
-    closeBehavior:
-      closeBehavior === "ask" || closeBehavior === "minimize" || closeBehavior === "exit"
-        ? closeBehavior
-        : DEFAULT_GENERAL_CONFIG.closeBehavior,
+    autostart: typeof config?.autostart === 'boolean' ? config.autostart : DEFAULT_GENERAL_CONFIG.autostart,
+    closeBehavior: closeBehavior === 'ask' || closeBehavior === 'minimize' || closeBehavior === 'exit'
+      ? closeBehavior
+      : DEFAULT_GENERAL_CONFIG.closeBehavior,
   }
 }
 
@@ -332,13 +350,13 @@ export async function loadGeneralConfig(): Promise<GeneralConfig> {
   return normalizeGeneralConfig(config)
 }
 
-const SCHEDULED_IMPORT_KEY_PREFIX = "scheduledImportConfig:"
+const SCHEDULED_IMPORT_KEY_PREFIX = 'scheduledImportConfig:'
 
 function scheduledImportKey(projectPath: string): string {
   return `${SCHEDULED_IMPORT_KEY_PREFIX}${normalizePath(projectPath)}`
 }
 
-const SCHEDULED_IMPORT_GLOBAL_KEY = "scheduledImportConfig"
+const SCHEDULED_IMPORT_GLOBAL_KEY = 'scheduledImportConfig'
 
 export async function saveScheduledImportConfig(projectPath: string, config: ScheduledImportConfig): Promise<void> {
   const store = await getStore()
@@ -362,7 +380,7 @@ export async function loadScheduledImportConfig(projectPath: string): Promise<Sc
 }
 
 export async function removeFromRecentProjects(
-  path: string
+  path: string,
 ): Promise<void> {
   const store = await getStore()
   const existing = (await store.get<WikiProject[]>(RECENT_PROJECTS_KEY)) ?? []
@@ -380,7 +398,7 @@ export async function removeFromRecentProjects(
   }
 }
 
-const LANGUAGE_KEY = "language"
+const LANGUAGE_KEY = 'language'
 
 export async function saveLanguage(lang: string): Promise<void> {
   const store = await getStore()
@@ -392,22 +410,22 @@ export async function loadLanguage(): Promise<string | null> {
   return (await store.get<string>(LANGUAGE_KEY)) ?? null
 }
 
-const THEME_KEY = "theme"
+const THEME_KEY = 'theme'
 
-export async function saveTheme(theme: "light" | "dark" | "system"): Promise<void> {
+export async function saveTheme(theme: 'light' | 'dark' | 'system'): Promise<void> {
   const store = await getStore()
   await store.set(THEME_KEY, theme)
 }
 
-export async function loadTheme(): Promise<"light" | "dark" | "system" | null> {
+export async function loadTheme(): Promise<'light' | 'dark' | 'system' | null> {
   const store = await getStore()
-  return (await store.get<"light" | "dark" | "system">(THEME_KEY)) ?? null
+  return (await store.get<'light' | 'dark' | 'system'>(THEME_KEY)) ?? null
 }
 
-const OUTPUT_LANGUAGE_KEY = "outputLanguage"
-const PROJECT_OUTPUT_LANGUAGE_KEY = "projectOutputLanguages"
-const PROJECT_FILE_SYNC_KEY = "projectFileSyncEnabled"
-const SOURCE_WATCH_CONFIG_KEY = "sourceWatchConfig"
+const OUTPUT_LANGUAGE_KEY = 'outputLanguage'
+const PROJECT_OUTPUT_LANGUAGE_KEY = 'projectOutputLanguages'
+const PROJECT_FILE_SYNC_KEY = 'projectFileSyncEnabled'
+const SOURCE_WATCH_CONFIG_KEY = 'sourceWatchConfig'
 
 export async function saveOutputLanguage(lang: OutputLanguage, projectId?: string): Promise<void> {
   const store = await getStore()
@@ -441,10 +459,10 @@ export async function saveProjectFileSyncEnabled(enabled: boolean, projectId?: s
 export async function loadProjectFileSyncEnabled(projectId?: string): Promise<boolean> {
   const store = await getStore()
   const settings = await store.get<Record<string, boolean>>(PROJECT_FILE_SYNC_KEY)
-  if (projectId && settings && typeof settings[projectId] === "boolean") {
+  if (projectId && settings && typeof settings[projectId] === 'boolean') {
     return settings[projectId]
   }
-  if (settings && typeof settings.default === "boolean") {
+  if (settings && typeof settings.default === 'boolean') {
     return settings.default
   }
   return true
@@ -456,7 +474,7 @@ export async function saveSourceWatchConfig(config: SourceWatchConfig, projectId
   const existing = (await store.get<Record<string, SourceWatchConfig>>(SOURCE_WATCH_CONFIG_KEY)) ?? {}
   await store.set(SOURCE_WATCH_CONFIG_KEY, {
     ...existing,
-    [projectId ?? "default"]: normalized,
+    [projectId ?? 'default']: normalized,
   })
   await store.save()
 }
@@ -479,7 +497,7 @@ export async function loadSourceWatchConfig(projectId?: string): Promise<SourceW
 // survives restarts), and the version the user explicitly dismissed
 // (so we don't re-nag on every restart until a newer version is out).
 
-const UPDATE_CHECK_STATE_KEY = "updateCheckState"
+const UPDATE_CHECK_STATE_KEY = 'updateCheckState'
 
 export interface PersistedUpdateCheckState {
   enabled: boolean
@@ -501,7 +519,7 @@ export async function loadUpdateCheckState(): Promise<PersistedUpdateCheckState 
   )
 }
 
-const ZOOM_LEVEL_KEY = "zoomLevel"
+const ZOOM_LEVEL_KEY = 'zoomLevel'
 
 export async function saveZoomLevel(level: number): Promise<void> {
   const store = await getStore()

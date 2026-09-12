@@ -1,6 +1,6 @@
-import { streamChat } from "./llm-client"
-import type { LlmConfig } from "@/stores/wiki-store"
-import { buildLanguageDirective } from "./output-language"
+import type { LlmConfig } from '@/stores/wiki-store'
+import { streamChat } from './llm-client'
+import { buildLanguageDirective } from './output-language'
 
 export interface OptimizedTopic {
   topic: string
@@ -20,39 +20,41 @@ export async function optimizeResearchTopic(
   purpose: string,
 ): Promise<OptimizedTopic> {
   const prompt = [
-    "You are a research assistant. Given a knowledge gap found in a personal wiki, generate a precise research topic and search queries.",
-    "",
+    'You are a research assistant. Given a knowledge gap found in a personal wiki, generate a precise research topic and search queries.',
+    '',
     buildLanguageDirective(`${gapTitle} ${gapDescription} ${purpose} ${overview}`),
-    "",
-    "## Wiki Context",
-    purpose ? `### Purpose\n${purpose}` : "",
-    overview ? `### Current Overview\n${overview}` : "",
-    "",
-    "## Knowledge Gap",
+    '',
+    '## Wiki Context',
+    purpose ? `### Purpose\n${purpose}` : '',
+    overview ? `### Current Overview\n${overview}` : '',
+    '',
+    '## Knowledge Gap',
     `Type: ${gapType}`,
     `Title: ${gapTitle}`,
     `Description: ${gapDescription}`,
-    "",
-    "## Task",
+    '',
+    '## Task',
     "Generate a research topic and search queries that are specific to this wiki's domain and purpose.",
-    "The topic should precisely describe what information would fill this knowledge gap.",
-    "The search queries should be optimized for web search engines — keyword-rich, specific, not generic.",
-    "",
-    "## Output Format (STRICT — follow exactly, no other text)",
-    "Respond with EXACTLY 4 lines, no more:",
-    "TOPIC: <one sentence — MUST be in the mandatory output language declared above>",
-    "QUERY: <query 1 — may use English keywords if they better match search engines>",
-    "QUERY: <query 2>",
-    "QUERY: <query 3>",
-  ].filter(Boolean).join("\n")
+    'The topic should precisely describe what information would fill this knowledge gap.',
+    'The search queries should be optimized for web search engines — keyword-rich, specific, not generic.',
+    '',
+    '## Output Format (STRICT — follow exactly, no other text)',
+    'Respond with EXACTLY 4 lines, no more:',
+    'TOPIC: <one sentence — MUST be in the mandatory output language declared above>',
+    'QUERY: <query 1 — may use English keywords if they better match search engines>',
+    'QUERY: <query 2>',
+    'QUERY: <query 3>',
+  ].filter(Boolean).join('\n')
 
-  let result = ""
+  let result = ''
 
   await streamChat(
     llmConfig,
-    [{ role: "user", content: prompt }],
+    [{ role: 'user', content: prompt }],
     {
-      onToken: (token) => { result += token },
+      onToken: (token) => {
+        result += token
+      },
       onDone: () => {},
       onError: () => {},
     },

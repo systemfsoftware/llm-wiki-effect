@@ -10,35 +10,37 @@
  * flushAndSuspendAutoSave() must (1) persist the real current state to disk and
  * (2) suspend the subscriptions so the subsequent clear-to-empty does not write.
  */
-import { describe, it, expect, beforeEach, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type {
+  saveChatHistory as persistChatHistory,
+  saveChatPreferences as persistChatPreferences,
+  saveLintItems as persistLintItems,
+  saveReviewItems as persistReviewItems,
+} from './persist'
 
 const { saveReviewItems, saveLintItems, saveChatHistory, saveChatPreferences } = vi.hoisted(() => ({
-  saveReviewItems: vi.fn().mockResolvedValue(undefined),
-  saveLintItems: vi.fn().mockResolvedValue(undefined),
-  saveChatHistory: vi.fn().mockResolvedValue(undefined),
-  saveChatPreferences: vi.fn().mockResolvedValue(undefined),
+  saveReviewItems: vi.fn<typeof persistReviewItems>().mockResolvedValue(undefined),
+  saveLintItems: vi.fn<typeof persistLintItems>().mockResolvedValue(undefined),
+  saveChatHistory: vi.fn<typeof persistChatHistory>().mockResolvedValue(undefined),
+  saveChatPreferences: vi.fn<typeof persistChatPreferences>().mockResolvedValue(undefined),
 }))
 
-vi.mock("./persist", () => ({ saveReviewItems, saveLintItems, saveChatHistory, saveChatPreferences }))
+vi.mock('./persist', () => ({ saveReviewItems, saveLintItems, saveChatHistory, saveChatPreferences }))
 
-import {
-  setupAutoSave,
-  flushAndSuspendAutoSave,
-  resumeAutoSave,
-  runWithSuspendedAutoSave,
-} from "./auto-save"
-import { useReviewStore } from "@/stores/review-store"
-import { useLintStore } from "@/stores/lint-store"
-import { useChatStore } from "@/stores/chat-store"
-import { useWikiStore } from "@/stores/wiki-store"
-import type { ReviewItem } from "@/stores/review-store"
+import { useChatStore } from '@/stores/chat-store'
+import { useLintStore } from '@/stores/lint-store'
+import { useReviewStore } from '@/stores/review-store'
+import type { ReviewItem } from '@/stores/review-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import { flushAndSuspendAutoSave, resumeAutoSave, runWithSuspendedAutoSave, setupAutoSave } from './auto-save'
 
 function setProjectPath(path: string | null): void {
-  useWikiStore.setState({ project: path ? ({ id: "p", name: "p", path } as never) : null })
+  useWikiStore.setState({ project: path ? { id: 'p', name: 'p', path } : null })
 }
 
 function review(id: string): ReviewItem {
-  return { id, type: "missing-page", title: id, description: "", options: [], resolved: false, createdAt: 0 }
+  return { id, type: 'missing-page', title: id, description: '', options: [], resolved: false, createdAt: 0 }
 }
 
 let registered = false
@@ -60,19 +62,19 @@ beforeEach(() => {
   }
 })
 
-describe("auto-save project-switch guard", () => {
-  it("flushes current review state to the outgoing project before suspend", async () => {
-    setProjectPath("/proj/A")
-    useReviewStore.setState({ items: [review("a1"), review("a2")] })
+describe('auto-save project-switch guard', () => {
+  it('flushes current review state to the outgoing project before suspend', async () => {
+    setProjectPath('/proj/A')
+    useReviewStore.setState({ items: [review('a1'), review('a2')] })
 
     await flushAndSuspendAutoSave()
 
-    expect(saveReviewItems).toHaveBeenCalledWith("/proj/A", [review("a1"), review("a2")])
+    expect(saveReviewItems).toHaveBeenCalledWith('/proj/A', [review('a1'), review('a2')])
   })
 
-  it("does NOT persist the empty store after suspend (the data-loss bug)", async () => {
-    setProjectPath("/proj/A")
-    useReviewStore.setState({ items: [review("a1")] })
+  it('does NOT persist the empty store after suspend (the data-loss bug)', async () => {
+    setProjectPath('/proj/A')
+    useReviewStore.setState({ items: [review('a1')] })
 
     await flushAndSuspendAutoSave()
     saveReviewItems.mockClear()
@@ -87,24 +89,24 @@ describe("auto-save project-switch guard", () => {
     expect(saveLintItems).not.toHaveBeenCalled()
   })
 
-  it("resumes persisting after resumeAutoSave", () => {
-    setProjectPath("/proj/B")
-    flushAndSuspendAutoSave()
+  it('resumes persisting after resumeAutoSave', () => {
+    setProjectPath('/proj/B')
+    void flushAndSuspendAutoSave()
     resumeAutoSave()
 
-    useReviewStore.setState({ items: [review("b1")] })
+    useReviewStore.setState({ items: [review('b1')] })
     vi.runAllTimers()
 
-    expect(saveReviewItems).toHaveBeenCalledWith("/proj/B", [review("b1")])
+    expect(saveReviewItems).toHaveBeenCalledWith('/proj/B', [review('b1')])
   })
 
-  it("runs the failure cleanup before resuming auto-save", async () => {
-    setProjectPath("/proj/A")
-    useReviewStore.setState({ items: [review("a1")] })
+  it('runs the failure cleanup before resuming auto-save', async () => {
+    setProjectPath('/proj/A')
+    useReviewStore.setState({ items: [review('a1')] })
 
     await expect(runWithSuspendedAutoSave(
       async () => {
-        throw new Error("open failed")
+        throw new Error('open failed')
       },
       () => {
         // This store mutation must still be suppressed. If the helper resumed
@@ -113,7 +115,7 @@ describe("auto-save project-switch guard", () => {
         useReviewStore.setState({ items: [] })
         setProjectPath(null)
       },
-    )).rejects.toThrow("open failed")
+    )).rejects.toThrow('open failed')
 
     saveReviewItems.mockClear()
     saveLintItems.mockClear()
@@ -133,43 +135,43 @@ describe("auto-save project-switch guard", () => {
     expect(saveChatPreferences).not.toHaveBeenCalled()
   })
 
-  it("skips chat flush while streaming", async () => {
-    setProjectPath("/proj/A")
+  it('skips chat flush while streaming', async () => {
+    setProjectPath('/proj/A')
     useChatStore.setState({ isStreaming: true })
 
     await flushAndSuspendAutoSave()
 
     expect(saveChatHistory).not.toHaveBeenCalled()
-    expect(saveChatPreferences).toHaveBeenCalledWith("/proj/A", {
+    expect(saveChatPreferences).toHaveBeenCalledWith('/proj/A', {
       useWebSearch: false,
       useAnyTxtSearch: false,
-      agentMode: "standard",
-      retrievalMode: "standard",
+      agentMode: 'standard',
+      retrievalMode: 'standard',
       selectedSkills: [],
       disabledSkills: [],
     })
     expect(saveReviewItems).toHaveBeenCalled()
   })
 
-  it("persists chat search preferences on flush", async () => {
-    setProjectPath("/proj/A")
+  it('persists chat search preferences on flush', async () => {
+    setProjectPath('/proj/A')
     useChatStore.setState({
       useWebSearch: true,
       useAnyTxtSearch: true,
-      agentMode: "local_first",
-      retrievalMode: "smart",
-      selectedSkills: ["reviewer"],
+      agentMode: 'local_first',
+      retrievalMode: 'smart',
+      selectedSkills: ['reviewer'],
       disabledSkills: [],
     })
 
     await flushAndSuspendAutoSave()
 
-    expect(saveChatPreferences).toHaveBeenCalledWith("/proj/A", {
+    expect(saveChatPreferences).toHaveBeenCalledWith('/proj/A', {
       useWebSearch: true,
       useAnyTxtSearch: true,
-      agentMode: "local_first",
-      retrievalMode: "smart",
-      selectedSkills: ["reviewer"],
+      agentMode: 'local_first',
+      retrievalMode: 'smart',
+      selectedSkills: ['reviewer'],
       disabledSkills: [],
     })
   })

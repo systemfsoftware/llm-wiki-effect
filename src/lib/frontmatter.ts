@@ -1,4 +1,4 @@
-import yaml from "js-yaml"
+import { JSON_SCHEMA, load } from 'js-yaml'
 
 export type FrontmatterValue = string | string[]
 
@@ -36,7 +36,7 @@ const MAX_PREFIX_LINES_BEFORE_FRONTMATTER = 6
 
 export function parseFrontmatter(content: string): FrontmatterParseResult {
   const located = locateFrontmatterBlock(content)
-  if (!located) return { frontmatter: null, body: content, rawBlock: "" }
+  if (!located) return { frontmatter: null, body: content, rawBlock: '' }
 
   const { yamlPayload, rawBlock, body } = located
 
@@ -48,10 +48,10 @@ export function parseFrontmatter(content: string): FrontmatterParseResult {
   // beyond that is reported as no-frontmatter.
   let parsed: unknown
   try {
-    parsed = yaml.load(yamlPayload, { schema: yaml.JSON_SCHEMA })
+    parsed = load(yamlPayload, { schema: JSON_SCHEMA })
   } catch {
     try {
-      parsed = yaml.load(repairWikilinkLists(yamlPayload), { schema: yaml.JSON_SCHEMA })
+      parsed = load(repairWikilinkLists(yamlPayload), { schema: JSON_SCHEMA })
     } catch {
       return { frontmatter: null, body, rawBlock }
     }
@@ -114,7 +114,7 @@ function locateFrontmatterBlock(
   const prefix = content.slice(0, openIdx)
   const prefixIsYamlFence = /^\s*```(?:yaml|yml)?\s*\r?\n$/i.test(prefix)
   if (prefixIsYamlFence) {
-    const stripped = bodyAfterFm.replace(/^\s*```\s*(?:\r?\n|$)/, "")
+    const stripped = bodyAfterFm.replace(/^\s*```\s*(?:\r?\n|$)/, '')
     return {
       yamlPayload: fallback[1],
       rawBlock,
@@ -155,20 +155,20 @@ function lineNumberAt(s: string, index: number): number {
  */
 function repairWikilinkLists(payload: string): string {
   return payload
-    .split("\n")
+    .split('\n')
     .map((line) => {
       const m = line.match(/^(\s*[A-Za-z_][\w-]*\s*:\s*)(\[\[[^\]]+\]\](?:\s*,\s*\[\[[^\]]+\]\])+)\s*$/)
       if (!m) return line
       const prefix = m[1]
       const items = m[2]
-        .split(",")
+        .split(',')
         .map((s) => s.trim())
         .filter(Boolean)
         .map((s) => `"${s}"`)
-        .join(", ")
+        .join(', ')
       return `${prefix}[${items}]`
     })
-    .join("\n")
+    .join('\n')
 }
 
 /**
@@ -178,9 +178,9 @@ function repairWikilinkLists(payload: string): string {
  * still surfaces in the UI rather than silently disappearing.
  */
 function normalize(parsed: unknown): Record<string, FrontmatterValue> | null {
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
   const out: Record<string, FrontmatterValue> = {}
-  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(parsed)) {
     if (Array.isArray(value)) {
       out[key] = value.map((v) => stringifyScalar(v))
       continue
@@ -191,14 +191,14 @@ function normalize(parsed: unknown): Record<string, FrontmatterValue> | null {
 }
 
 function stringifyScalar(v: unknown): string {
-  if (v === null || v === undefined) return ""
-  if (typeof v === "string") return v
-  if (typeof v === "number" || typeof v === "boolean") return String(v)
+  if (v === null || v === undefined) return ''
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
   if (v instanceof Date) return v.toISOString().slice(0, 10)
   // Object / nested array → JSON so the user still sees something.
   try {
     return JSON.stringify(v)
   } catch {
-    return String(v)
+    return Object.prototype.toString.call(v)
   }
 }

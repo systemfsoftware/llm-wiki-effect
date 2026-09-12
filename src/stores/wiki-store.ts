@@ -1,13 +1,13 @@
-import { create } from "zustand"
-import type { WikiProject, FileNode } from "@/types/wiki"
-import { DEFAULT_SOURCE_WATCH_CONFIG } from "@/lib/source-watch-config"
+import { DEFAULT_GRAPH_FILTERS, type GraphFilterState } from '@/lib/graph-filters'
+import type { OutputLanguage } from '@/lib/output-language-options'
+import { DEFAULT_SOURCE_WATCH_CONFIG } from '@/lib/source-watch-config'
 import {
   buildProjectPathIndexFromTree,
   createEmptyProjectPathIndex,
   type ProjectPathIndex,
-} from "@/lib/wiki-page-resolver"
-import { DEFAULT_GRAPH_FILTERS, type GraphFilterState } from "@/lib/graph-filters"
-import type { OutputLanguage } from "@/lib/output-language-options"
+} from '@/lib/wiki-page-resolver'
+import type { FileNode, WikiProject } from '@/types/wiki'
+import { create } from 'zustand'
 
 /**
  * Wire protocol used when `provider === "custom"`. Other providers have a
@@ -15,9 +15,9 @@ import type { OutputLanguage } from "@/lib/output-language-options"
  * etc.), so this field is ignored for them. `undefined` defaults to
  * `chat_completions` for backward compatibility with pre-0.3.7 configs.
  */
-export type CustomApiMode = "chat_completions" | "anthropic_messages"
-export type AzureModelFamily = "auto" | "gpt5"
-export type ReasoningMode = "auto" | "off" | "low" | "medium" | "high" | "max" | "custom"
+export type CustomApiMode = 'chat_completions' | 'anthropic_messages'
+export type AzureModelFamily = 'auto' | 'gpt5'
+export type ReasoningMode = 'auto' | 'off' | 'low' | 'medium' | 'high' | 'max' | 'custom'
 
 export interface ReasoningConfig {
   mode: ReasoningMode
@@ -25,7 +25,7 @@ export interface ReasoningConfig {
 }
 
 interface LlmConfig {
-  provider: "openai" | "anthropic" | "google" | "azure" | "ollama" | "custom" | "minimax" | "claude-code" | "codex-cli"
+  provider: 'openai' | 'anthropic' | 'google' | 'azure' | 'ollama' | 'custom' | 'minimax' | 'claude-code' | 'codex-cli'
   apiKey: string
   model: string
   ollamaUrl: string
@@ -61,38 +61,38 @@ interface LlmConfig {
 }
 
 export type SearchProvider =
-  | "tavily"
-  | "serpapi"
-  | "searxng"
-  | "ollama"
-  | "brave"
-  | "bocha"
-  | "firecrawl"
-  | "none"
-export type DeepResearchSource = "web" | "anytxt" | "both"
+  | 'tavily'
+  | 'serpapi'
+  | 'searxng'
+  | 'ollama'
+  | 'brave'
+  | 'bocha'
+  | 'firecrawl'
+  | 'none'
+export type DeepResearchSource = 'web' | 'anytxt' | 'both'
 export type SerpApiEngine =
-  | "google"
-  | "google_news"
-  | "google_scholar"
-  | "google_patents"
-  | "bing"
-  | "duckduckgo"
-  | "google_images"
-  | "google_videos"
-  | "youtube"
-  | string
+  | 'google'
+  | 'google_news'
+  | 'google_scholar'
+  | 'google_patents'
+  | 'bing'
+  | 'duckduckgo'
+  | 'google_images'
+  | 'google_videos'
+  | 'youtube'
+  | (string & {})
 export type SearXngCategory =
-  | "general"
-  | "news"
-  | "science"
-  | "it"
-  | "images"
-  | "videos"
-  | "files"
-  | "map"
-  | "music"
-  | "social media"
-  | string
+  | 'general'
+  | 'news'
+  | 'science'
+  | 'it'
+  | 'images'
+  | 'videos'
+  | 'files'
+  | 'map'
+  | 'music'
+  | 'social media'
+  | (string & {})
 
 export interface SearchProviderOverride {
   apiKey?: string
@@ -103,7 +103,7 @@ export interface SearchProviderOverride {
   ollamaUrl?: string
 }
 
-export type SearchProviderConfigs = Partial<Record<Exclude<SearchProvider, "none">, SearchProviderOverride>>
+export type SearchProviderConfigs = Partial<Record<Exclude<SearchProvider, 'none'>, SearchProviderOverride>>
 
 export interface AnyTxtConfig {
   enabled?: boolean
@@ -237,9 +237,9 @@ interface ApiConfig {
   token: string
 }
 
-export type CloseBehavior = "ask" | "minimize" | "exit"
+export type CloseBehavior = 'ask' | 'minimize' | 'exit'
 
-export type GraphColorMode = "type" | "community"
+export type GraphColorMode = 'type' | 'community'
 
 export interface GraphUiState {
   colorMode: GraphColorMode
@@ -250,7 +250,7 @@ export interface GraphUiState {
 
 export function createDefaultGraphUiState(): GraphUiState {
   return {
-    colorMode: "type",
+    colorMode: 'type',
     filters: {
       ...DEFAULT_GRAPH_FILTERS,
       hiddenTypes: new Set(),
@@ -282,20 +282,20 @@ interface SourceWatchConfig {
   maxFileSizeMb: number
 }
 
-export type MineruModelVersion = "pipeline" | "vlm"
+export type MineruModelVersion = 'pipeline' | 'vlm'
 export type MineruLocalBackend =
-  | "pipeline"
-  | "vlm-engine"
-  | "hybrid-engine"
-  | "vlm-http-client"
-  | "hybrid-http-client"
-export type MineruParseMethod = "auto" | "txt" | "ocr"
-export type MineruEffort = "medium" | "high"
+  | 'pipeline'
+  | 'vlm-engine'
+  | 'hybrid-engine'
+  | 'vlm-http-client'
+  | 'hybrid-http-client'
+export type MineruParseMethod = 'auto' | 'txt' | 'ocr'
+export type MineruEffort = 'medium' | 'high'
 
 export interface MineruConfig {
   enabled: boolean
   /** Parsing backend: MinerU cloud API (default) or a self-hosted local service. */
-  backend?: "cloud" | "local"
+  backend?: 'cloud' | 'local'
   /** Base URL of a compatible self-hosted MinerU HTTP wrapper. */
   localEndpoint?: string
   /** Optional Bearer token used only for the self-hosted MinerU service. */
@@ -317,7 +317,7 @@ interface MultimodalConfig {
   /** Reuse `llmConfig` for caption calls. When true, the fields
    *  below are ignored. */
   useMainLlm: boolean
-  provider: LlmConfig["provider"]
+  provider: LlmConfig['provider']
   apiKey: string
   model: string
   ollamaUrl: string
@@ -337,7 +337,7 @@ interface MultimodalConfig {
 export interface ProviderOverride {
   apiKey?: string
   model?: string
-  baseUrl?: string           // customEndpoint for custom presets, ollamaUrl for ollama
+  baseUrl?: string // customEndpoint for custom presets, ollamaUrl for ollama
   azureApiVersion?: string
   azureModelFamily?: AzureModelFamily
   apiMode?: CustomApiMode
@@ -377,7 +377,7 @@ export interface ProjectLlmOverride {
    * providerConfigs[presetId], so rotating a key never requires rewriting
    * every project override and credentials are not duplicated per project.
    */
-  profile?: Omit<LlmConfig, "apiKey" | "customHeaders">
+  profile?: Omit<LlmConfig, 'apiKey' | 'customHeaders'>
 }
 
 export interface ExternalPreview {
@@ -407,7 +407,7 @@ interface WikiState {
    * preview must return there instead of leaving an empty wiki surface.
    * This is transient navigation state and must not be persisted.
    */
-  previewReturnView: Exclude<WikiState["activeView"], "wiki"> | null
+  previewReturnView: Exclude<WikiState['activeView'], 'wiki'> | null
   /**
    * One-shot scroll target for the markdown preview. When the user
    * clicks an image in search results and chooses "jump to source",
@@ -423,7 +423,7 @@ interface WikiState {
    * one wiki-relative) still works.
    */
   pendingScrollImageSrc: string | null
-  activeView: "chat" | "wiki" | "sources" | "search" | "graph" | "lint" | "review" | "skills" | "settings"
+  activeView: 'chat' | 'wiki' | 'sources' | 'search' | 'graph' | 'lint' | 'review' | 'skills' | 'settings'
   llmConfig: LlmConfig
   /** Persisted global/default config, kept separate while a project override is effective. */
   globalLlmConfig: LlmConfig
@@ -457,7 +457,7 @@ interface WikiState {
   closePreview: () => void
   setExternalPreview: (preview: ExternalPreview | null) => void
   setPendingScrollImageSrc: (src: string | null) => void
-  setActiveView: (view: WikiState["activeView"]) => void
+  setActiveView: (view: WikiState['activeView']) => void
   setLlmConfig: (config: LlmConfig) => void
   setGlobalLlmConfig: (config: LlmConfig) => void
   setProviderConfigs: (configs: ProviderConfigs) => void
@@ -485,32 +485,32 @@ export const useWikiStore = create<WikiState>((set) => ({
   fileTree: [],
   projectPathIndex: createEmptyProjectPathIndex(),
   selectedFile: null,
-  fileContent: "",
+  fileContent: '',
   previewContentPath: null,
   externalPreview: null,
   previewReturnView: null,
   pendingScrollImageSrc: null,
-  activeView: "wiki",
+  activeView: 'wiki',
   llmConfig: {
-    provider: "openai",
-    apiKey: "",
+    provider: 'openai',
+    apiKey: '',
     maxContextSize: 204800,
-    model: "",
-    ollamaUrl: "http://localhost:11434",
-    customEndpoint: "",
-    azureApiVersion: "2024-10-21",
-    reasoning: { mode: "auto" },
+    model: '',
+    ollamaUrl: 'http://localhost:11434',
+    customEndpoint: '',
+    azureApiVersion: '2024-10-21',
+    reasoning: { mode: 'auto' },
     localCliIsolation: false,
   },
   globalLlmConfig: {
-    provider: "openai",
-    apiKey: "",
+    provider: 'openai',
+    apiKey: '',
     maxContextSize: 204800,
-    model: "",
-    ollamaUrl: "http://localhost:11434",
-    customEndpoint: "",
-    azureApiVersion: "2024-10-21",
-    reasoning: { mode: "auto" },
+    model: '',
+    ollamaUrl: 'http://localhost:11434',
+    customEndpoint: '',
+    azureApiVersion: '2024-10-21',
+    reasoning: { mode: 'auto' },
     localCliIsolation: false,
   },
   providerConfigs: {},
@@ -523,7 +523,7 @@ export const useWikiStore = create<WikiState>((set) => ({
   projectLlmOverride: {
     enabled: false,
     presetId: null,
-    model: "",
+    model: '',
     profile: undefined,
   },
 
@@ -537,19 +537,16 @@ export const useWikiStore = create<WikiState>((set) => ({
     }
     set({ fileTree, projectPathIndex: buildProjectPathIndexFromTree(fileTree) })
   },
-  setProjectPathIndexFromTree: (tree) =>
-    set({ projectPathIndex: buildProjectPathIndexFromTree(tree) }),
-  setSelectedFile: (selectedFile) =>
-    set({ selectedFile, previewContentPath: null, externalPreview: null }),
+  setProjectPathIndexFromTree: (tree) => set({ projectPathIndex: buildProjectPathIndexFromTree(tree) }),
+  setSelectedFile: (selectedFile) => set({ selectedFile, previewContentPath: null, externalPreview: null }),
   setFileContent: (fileContent) => set({ fileContent }),
   openPathInPreview: (selectedFile) =>
     set((state) => ({
       selectedFile,
       previewContentPath: null,
       externalPreview: null,
-      activeView: "wiki",
-      previewReturnView:
-        state.activeView === "wiki" ? state.previewReturnView : state.activeView,
+      activeView: 'wiki',
+      previewReturnView: state.activeView === 'wiki' ? state.previewReturnView : state.activeView,
     })),
   openFileInPreview: (selectedFile, fileContent) =>
     set((state) => ({
@@ -557,44 +554,43 @@ export const useWikiStore = create<WikiState>((set) => ({
       fileContent,
       previewContentPath: selectedFile,
       externalPreview: null,
-      activeView: "wiki",
-      previewReturnView:
-        state.activeView === "wiki" ? state.previewReturnView : state.activeView,
+      activeView: 'wiki',
+      previewReturnView: state.activeView === 'wiki' ? state.previewReturnView : state.activeView,
     })),
   closePreview: () =>
     set((state) => ({
       selectedFile: null,
-      fileContent: "",
+      fileContent: '',
       previewContentPath: null,
       externalPreview: null,
-      activeView: state.previewReturnView ?? "wiki",
+      activeView: state.previewReturnView ?? 'wiki',
       previewReturnView: null,
     })),
   setExternalPreview: (externalPreview) => set({ externalPreview }),
   setPendingScrollImageSrc: (pendingScrollImageSrc) => set({ pendingScrollImageSrc }),
   setActiveView: (activeView) => set({ activeView, previewReturnView: null }),
   searchApiConfig: {
-    provider: "none",
-    apiKey: "",
-    serpApiEngine: "google",
-    searXngUrl: "",
-    searXngCategories: ["general"],
+    provider: 'none',
+    apiKey: '',
+    serpApiEngine: 'google',
+    searXngUrl: '',
+    searXngCategories: ['general'],
     providerConfigs: {},
-    deepResearchSource: "web",
+    deepResearchSource: 'web',
     anyTxt: {
       enabled: false,
-      endpoint: "http://127.0.0.1:9920",
-      filterDir: "",
-      filterExt: "*",
+      endpoint: 'http://127.0.0.1:9920',
+      filterDir: '',
+      filterExt: '*',
       limit: 20,
     },
   },
 
   embeddingConfig: {
     enabled: false,
-    endpoint: "",
-    apiKey: "",
-    model: "",
+    endpoint: '',
+    apiKey: '',
+    model: '',
   },
 
   multimodalConfig: {
@@ -605,28 +601,28 @@ export const useWikiStore = create<WikiState>((set) => ({
     // Settings → Image captioning.
     enabled: false,
     useMainLlm: true,
-    provider: "custom",
-    apiKey: "",
-    model: "",
-    ollamaUrl: "http://localhost:11434",
-    customEndpoint: "",
-    azureApiVersion: "2024-10-21",
-    apiMode: "chat_completions",
+    provider: 'custom',
+    apiKey: '',
+    model: '',
+    ollamaUrl: 'http://localhost:11434',
+    customEndpoint: '',
+    azureApiVersion: '2024-10-21',
+    apiMode: 'chat_completions',
     concurrency: 4,
   },
 
-  outputLanguage: "auto",
+  outputLanguage: 'auto',
 
   proxyConfig: {
     enabled: false,
-    url: "",
+    url: '',
     bypassLocal: true,
     acceptInvalidCerts: false,
   },
 
   scheduledImportConfig: {
     enabled: false,
-    path: "",
+    path: '',
     interval: 60,
     lastScan: null,
   },
@@ -634,18 +630,18 @@ export const useWikiStore = create<WikiState>((set) => ({
   sourceWatchConfig: DEFAULT_SOURCE_WATCH_CONFIG,
   mineruConfig: {
     enabled: false,
-    backend: "cloud",
-    localEndpoint: "http://127.0.0.1:8000",
-    localBackend: "hybrid-engine",
-    localEffort: "medium",
-    localParseMethod: "auto",
-    localLanguage: "ch",
+    backend: 'cloud',
+    localEndpoint: 'http://127.0.0.1:8000',
+    localBackend: 'hybrid-engine',
+    localEffort: 'medium',
+    localParseMethod: 'auto',
+    localLanguage: 'ch',
     localFormulaEnabled: true,
     localTableEnabled: true,
     localImageAnalysis: true,
-    localServerUrl: "",
-    token: "",
-    modelVersion: "vlm",
+    localServerUrl: '',
+    token: '',
+    modelVersion: 'vlm',
   },
 
   // Default `enabled: true` preserves the pre-toggle behavior: anyone
@@ -658,12 +654,12 @@ export const useWikiStore = create<WikiState>((set) => ({
     allowUnauthenticated: false,
     allowLanAccess: false,
     mcpEnabled: false,
-    token: "",
+    token: '',
   },
 
   generalConfig: {
     autostart: false,
-    closeBehavior: "minimize",
+    closeBehavior: 'minimize',
   },
 
   graphUiState: createDefaultGraphUiState(),
@@ -687,7 +683,7 @@ export const useWikiStore = create<WikiState>((set) => ({
   setGeneralConfig: (generalConfig) => set({ generalConfig }),
   setGraphUiState: (graphUiState) =>
     set((state) => ({
-      graphUiState: typeof graphUiState === "function"
+      graphUiState: typeof graphUiState === 'function'
         ? graphUiState(state.graphUiState)
         : graphUiState,
     })),
@@ -695,4 +691,15 @@ export const useWikiStore = create<WikiState>((set) => ({
   bumpDataVersion: () => set((state) => ({ dataVersion: state.dataVersion + 1 })),
 }))
 
-export type { WikiState, LlmConfig, SearchApiConfig, EmbeddingConfig, MultimodalConfig, OutputLanguage, ProxyConfig, ScheduledImportConfig, SourceWatchConfig, ApiConfig }
+export type {
+  ApiConfig,
+  EmbeddingConfig,
+  LlmConfig,
+  MultimodalConfig,
+  OutputLanguage,
+  ProxyConfig,
+  ScheduledImportConfig,
+  SearchApiConfig,
+  SourceWatchConfig,
+  WikiState,
+}

@@ -1,48 +1,48 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { useAppDialog } from "@/stores/app-dialog-store"
-import { invoke } from "@tauri-apps/api/core"
-import { open, save } from "@tauri-apps/plugin-dialog"
-import {
-  Wrench,
-  Loader2,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  Trash2,
-  RotateCcw,
-  Clock,
-  Archive,
-  ListRestart,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { useWikiStore } from "@/stores/wiki-store"
-import { hasUsableLlm } from "@/lib/has-usable-llm"
-import { runDuplicateDetection } from "@/lib/dedup-runner"
-import { addNotDuplicate } from "@/lib/dedup-storage"
-import {
-  enqueueMerge,
-  cancelTask,
-  retryTask,
-  getQueue,
-  getQueueSummary,
-  resumeProcessing,
-  groupKey,
-  type DedupTask,
-} from "@/lib/dedup-queue"
-import type { DuplicateGroup } from "@/lib/dedup"
-import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
 import {
   clearFileHistory,
+  type FileHistorySettings,
+  type FileHistoryStats,
   getFileHistorySettings,
   getFileHistoryStats,
   openProject,
   setFileHistorySettings,
-  type FileHistorySettings,
-  type FileHistoryStats,
-} from "@/commands/fs"
-import { addToRecentProjects } from "@/lib/project-store"
+} from '@/commands/fs'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import type { DuplicateGroup } from '@/lib/dedup'
+import {
+  cancelTask,
+  type DedupTask,
+  enqueueMerge,
+  getQueue,
+  getQueueSummary,
+  groupKey,
+  resumeProcessing,
+  retryTask,
+} from '@/lib/dedup-queue'
+import { runDuplicateDetection } from '@/lib/dedup-runner'
+import { addNotDuplicate } from '@/lib/dedup-storage'
+import { hasUsableLlm } from '@/lib/has-usable-llm'
+import { refreshProjectFileTree } from '@/lib/project-file-tree-refresh'
+import { addToRecentProjects } from '@/lib/project-store'
+import { useAppDialog } from '@/stores/app-dialog-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import { invoke } from '@tauri-apps/api/core'
+import { open, save } from '@tauri-apps/plugin-dialog'
+import {
+  AlertTriangle,
+  Archive,
+  CheckCircle2,
+  Clock,
+  ListRestart,
+  Loader2,
+  RotateCcw,
+  Trash2,
+  Wrench,
+  XCircle,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface GroupUiEntry {
   group: DuplicateGroup
@@ -92,7 +92,7 @@ export function MaintenanceSection() {
       }
     } catch (error) {
       if (useWikiStore.getState().project?.path !== projectPath) return
-      console.warn("[Maintenance] failed to load file history stats:", error)
+      console.warn('[Maintenance] failed to load file history stats:', error)
       setHistoryError(String(error))
       setHistoryStats(null)
     }
@@ -107,15 +107,22 @@ export function MaintenanceSection() {
     setHistorySettingsState(null)
     setHistoryBusy(false)
     setHistoryError(null)
-    if (!project) return () => { active = false }
-    void getFileHistorySettings(project.path)
-      .then((settings) => {
+    if (!project) {
+      return () => {
+        active = false
+      }
+    }
+    void (async () => {
+      try {
+        const settings = await getFileHistorySettings(project.path)
         if (active) setHistorySettingsState(settings)
-      })
-      .catch((error) => {
+      } catch (error) {
         if (active) setHistoryError(String(error))
-      })
-    return () => { active = false }
+      }
+    })()
+    return () => {
+      active = false
+    }
   }, [project])
 
   const updateHistorySettings = useCallback(async (next: FileHistorySettings) => {
@@ -145,10 +152,12 @@ export function MaintenanceSection() {
 
   const commitHistoryRetention = useCallback(async (value: number) => {
     if (!historySettings) return
-    if (value === 0 && !(await appDialog.confirm({
-      message: t("settings.sections.maintenance.history.zeroConfirm"),
-      variant: "destructive",
-    }))) {
+    if (
+      value === 0 && !(await appDialog.confirm({
+        message: t('settings.sections.maintenance.history.zeroConfirm'),
+        variant: 'destructive',
+      }))
+    ) {
       if (project) {
         const projectPath = project.path
         try {
@@ -172,10 +181,12 @@ export function MaintenanceSection() {
   }, [appDialog, historySettings, project, t, updateHistorySettings])
 
   const handleClearHistory = useCallback(async () => {
-    if (!project || !(await appDialog.confirm({
-      message: t("settings.sections.maintenance.history.confirm"),
-      variant: "destructive",
-    }))) return
+    if (
+      !project || !(await appDialog.confirm({
+        message: t('settings.sections.maintenance.history.confirm'),
+        variant: 'destructive',
+      }))
+    ) return
     const projectPath = project.path
     setHistoryBusy(true)
     try {
@@ -198,35 +209,54 @@ export function MaintenanceSection() {
     if (!project) return
     setProjectToolBusy(true)
     try {
-      const result = await invoke<{ pages: number; groups: number }>("rebuild_wiki_index", { projectPath: project.path })
+      const result = await invoke<{ pages: number; groups: number }>('rebuild_wiki_index', {
+        projectPath: project.path,
+      })
       await refreshProjectFileTree(project.path, { bumpDataVersion: true })
-      setProjectToolStatus(t("settings.sections.maintenance.projectData.rebuilt", { pages: result.pages, groups: result.groups }))
-    } catch (error) { setProjectToolStatus(String(error)) } finally { setProjectToolBusy(false) }
+      setProjectToolStatus(
+        t('settings.sections.maintenance.projectData.rebuilt', { pages: result.pages, groups: result.groups }),
+      )
+    } catch (error) {
+      setProjectToolStatus(String(error))
+    } finally {
+      setProjectToolBusy(false)
+    }
   }, [project, t])
 
   const handleExportProject = useCallback(async () => {
     if (!project) return
-    const destination = await save({ defaultPath: `${project.name}.llmwiki.zip`, filters: [{ name: "LLM Wiki project", extensions: ["zip"] }] })
+    const destination = await save({
+      defaultPath: `${project.name}.llmwiki.zip`,
+      filters: [{ name: 'LLM Wiki project', extensions: ['zip'] }],
+    })
     if (!destination) return
     setProjectToolBusy(true)
     try {
-      await invoke("export_project_archive", { projectPath: project.path, destination })
-      setProjectToolStatus(t("settings.sections.maintenance.projectData.exported", { path: destination }))
-    } catch (error) { setProjectToolStatus(String(error)) } finally { setProjectToolBusy(false) }
+      await invoke('export_project_archive', { projectPath: project.path, destination })
+      setProjectToolStatus(t('settings.sections.maintenance.projectData.exported', { path: destination }))
+    } catch (error) {
+      setProjectToolStatus(String(error))
+    } finally {
+      setProjectToolBusy(false)
+    }
   }, [project, t])
 
   const handleImportProject = useCallback(async () => {
-    const archive = await open({ multiple: false, filters: [{ name: "LLM Wiki project", extensions: ["zip"] }] })
+    const archive = await open({ multiple: false, filters: [{ name: 'LLM Wiki project', extensions: ['zip'] }] })
     if (!archive || Array.isArray(archive)) return
     const destination = await open({ directory: true, multiple: false, createDirectories: true })
     if (!destination || Array.isArray(destination)) return
     setProjectToolBusy(true)
     try {
-      const path = await invoke<string>("import_project_archive", { archivePath: archive, destination })
+      const path = await invoke<string>('import_project_archive', { archivePath: archive, destination })
       const imported = await openProject(path)
       await addToRecentProjects(imported)
-      setProjectToolStatus(t("settings.sections.maintenance.projectData.imported", { name: imported.name }))
-    } catch (error) { setProjectToolStatus(String(error)) } finally { setProjectToolBusy(false) }
+      setProjectToolStatus(t('settings.sections.maintenance.projectData.imported', { name: imported.name }))
+    } catch (error) {
+      setProjectToolStatus(String(error))
+    } finally {
+      setProjectToolBusy(false)
+    }
   }, [t])
 
   // Poll the queue at 1Hz so the UI reflects pending → processing →
@@ -273,9 +303,7 @@ export function MaintenanceSection() {
 
   const handleCanonicalChange = useCallback(
     (idx: number, slug: string) => {
-      setGroups((prev) =>
-        prev.map((g, i) => (i === idx ? { ...g, canonicalSlug: slug } : g)),
-      )
+      setGroups((prev) => prev.map((g, i) => (i === idx ? { ...g, canonicalSlug: slug } : g)))
     },
     [],
   )
@@ -290,7 +318,7 @@ export function MaintenanceSection() {
         setTasks([...getQueue()])
         setQueueSummary(getQueueSummary())
       } catch (err) {
-        console.error("[Maintenance] enqueue failed:", err)
+        console.error('[Maintenance] enqueue failed:', err)
       }
     },
     [project],
@@ -321,11 +349,9 @@ export function MaintenanceSection() {
       if (!entry) return
       try {
         await addNotDuplicate(project.path, entry.group.slugs)
-        setGroups((prev) =>
-          prev.map((g, i) => (i === idx ? { ...g, skipped: true } : g)),
-        )
+        setGroups((prev) => prev.map((g, i) => (i === idx ? { ...g, skipped: true } : g)))
       } catch (err) {
-        console.error("[Maintenance] addNotDuplicate failed:", err)
+        console.error('[Maintenance] addNotDuplicate failed:', err)
       }
     },
     [project, groups],
@@ -348,7 +374,7 @@ export function MaintenanceSection() {
     // tick is now gone → it completed (cancelled paths also remove,
     // but only with explicit user action that re-renders separately).
     setRecentlyMergedKeys((prev) => {
-      const currentKeys = new Set(tasks.map((t) => groupKey(t.group.slugs)))
+      const currentKeys = new Set(tasks.map((task) => groupKey(task.group.slugs)))
       let changed = false
       const next = new Set(prev)
       for (const g of groups) {
@@ -374,9 +400,9 @@ export function MaintenanceSection() {
   const pendingPositionByTaskId = useMemo(() => {
     const positions = new Map<string, number>()
     let position = 0
-    for (const t of tasks) {
-      if (t.status === "pending") {
-        positions.set(t.id, position)
+    for (const task of tasks) {
+      if (task.status === 'pending') {
+        positions.set(task.id, position)
         position++
       }
     }
@@ -384,150 +410,169 @@ export function MaintenanceSection() {
   }, [tasks])
 
   return (
-    <div className="space-y-6">
+    <div className='space-y-6'>
       <div>
-        <h2 className="text-xl font-semibold">
-          {t("settings.sections.maintenance.title", { defaultValue: "Maintenance" })}
+        <h2 className='text-xl font-semibold'>
+          {t('settings.sections.maintenance.title', { defaultValue: 'Maintenance' })}
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("settings.sections.maintenance.description", {
+        <p className='mt-1 text-sm text-muted-foreground'>
+          {t('settings.sections.maintenance.description', {
             defaultValue:
-              "Tools for cleaning up the wiki — detect and merge duplicate entities/concepts that the LLM created under different names across re-ingests.",
+              'Tools for cleaning up the wiki — detect and merge duplicate entities/concepts that the LLM created under different names across re-ingests.',
           })}
         </p>
       </div>
 
-      <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
-        <div className="flex items-center gap-2"><ListRestart className="h-4 w-4 text-muted-foreground" /><h3 className="text-sm font-semibold">{t("settings.sections.maintenance.projectData.title")}</h3></div>
-        <p className="text-xs text-muted-foreground">{t("settings.sections.maintenance.projectData.description")}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => void handleRebuildIndex()} disabled={!project || projectToolBusy}>{t("settings.sections.maintenance.projectData.rebuild")}</Button>
-          <Button variant="outline" onClick={() => void handleExportProject()} disabled={!project || projectToolBusy}><Archive className="h-4 w-4" />{t("settings.sections.maintenance.projectData.export")}</Button>
-          <Button variant="outline" onClick={() => void handleImportProject()} disabled={projectToolBusy}>{t("settings.sections.maintenance.projectData.import")}</Button>
+      <div className='space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4'>
+        <div className='flex items-center gap-2'>
+          <ListRestart className='h-4 w-4 text-muted-foreground' />
+          <h3 className='text-sm font-semibold'>{t('settings.sections.maintenance.projectData.title')}</h3>
         </div>
-        {projectToolStatus && <p className="text-xs text-muted-foreground">{projectToolStatus}</p>}
+        <p className='text-xs text-muted-foreground'>{t('settings.sections.maintenance.projectData.description')}</p>
+        <div className='flex flex-wrap gap-2'>
+          <Button variant='outline' onClick={() => void handleRebuildIndex()} disabled={!project || projectToolBusy}>
+            {t('settings.sections.maintenance.projectData.rebuild')}
+          </Button>
+          <Button variant='outline' onClick={() => void handleExportProject()} disabled={!project || projectToolBusy}>
+            <Archive className='h-4 w-4' />
+            {t('settings.sections.maintenance.projectData.export')}
+          </Button>
+          <Button variant='outline' onClick={() => void handleImportProject()} disabled={projectToolBusy}>
+            {t('settings.sections.maintenance.projectData.import')}
+          </Button>
+        </div>
+        {projectToolStatus && <p className='text-xs text-muted-foreground'>{projectToolStatus}</p>}
       </div>
 
-      <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">
-            {t("settings.sections.maintenance.history.title")}
+      <div className='space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4'>
+        <div className='flex items-center gap-2'>
+          <Clock className='h-4 w-4 text-muted-foreground' />
+          <h3 className='text-sm font-semibold'>
+            {t('settings.sections.maintenance.history.title')}
           </h3>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {t("settings.sections.maintenance.history.description")}
+        <p className='text-xs text-muted-foreground'>
+          {t('settings.sections.maintenance.history.description')}
         </p>
         {historySettings && (
-          <div className="space-y-3 rounded-md border border-border/60 bg-background/60 p-3">
-            <div className="flex items-center justify-between gap-4">
+          <div className='space-y-3 rounded-md border border-border/60 bg-background/60 p-3'>
+            <div className='flex items-center justify-between gap-4'>
               <div>
-                <Label htmlFor="file-history-enabled">
-                  {t("settings.sections.maintenance.history.enabled")}
+                <Label htmlFor='file-history-enabled'>
+                  {t('settings.sections.maintenance.history.enabled')}
                 </Label>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("settings.sections.maintenance.history.enabledHint")}
+                <p className='mt-1 text-xs text-muted-foreground'>
+                  {t('settings.sections.maintenance.history.enabledHint')}
                 </p>
               </div>
               <button
-                id="file-history-enabled"
-                type="button"
-                role="switch"
+                id='file-history-enabled'
+                type='button'
+                role='switch'
+                aria-label={t('settings.sections.maintenance.history.enabled')}
                 aria-checked={historySettings.enabled}
                 disabled={!project || historyBusy}
-                onClick={() => void updateHistorySettings({
-                  ...historySettings,
-                  enabled: !historySettings.enabled,
-                })}
-                className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50 ${historySettings.enabled ? "border-primary bg-primary" : "border-border bg-muted"}`}
+                onClick={() =>
+                  void updateHistorySettings({
+                    ...historySettings,
+                    enabled: !historySettings.enabled,
+                  })}
+                className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50 ${
+                  historySettings.enabled ? 'border-primary bg-primary' : 'border-border bg-muted'
+                }`}
               >
-                <span className={`absolute top-0.5 h-[18px] w-[18px] rounded-full bg-background shadow-sm transition-transform ${historySettings.enabled ? "left-[22px]" : "left-0.5"}`} />
+                <span
+                  className={`absolute top-0.5 h-[18px] w-[18px] rounded-full bg-background shadow-sm transition-transform ${
+                    historySettings.enabled ? 'left-[22px]' : 'left-0.5'
+                  }`}
+                />
               </button>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="file-history-retention">
-                  {t("settings.sections.maintenance.history.retention")}
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between gap-3'>
+                <Label htmlFor='file-history-retention'>
+                  {t('settings.sections.maintenance.history.retention')}
                 </Label>
-                <span className="text-xs font-medium tabular-nums">
-                  {t("settings.sections.maintenance.history.retentionValue", {
+                <span className='text-xs font-medium tabular-nums'>
+                  {t('settings.sections.maintenance.history.retentionValue', {
                     count: historySettings.maxVersionsPerFile,
                   })}
                 </span>
               </div>
               <input
-                id="file-history-retention"
-                type="range"
+                id='file-history-retention'
+                type='range'
                 min={0}
                 max={30}
                 step={1}
                 value={historySettings.maxVersionsPerFile}
                 disabled={!project || historyBusy}
-                onChange={(event) => setHistorySettingsState({
-                  ...historySettings,
-                  maxVersionsPerFile: Number(event.target.value),
-                })}
+                onChange={(event) =>
+                  setHistorySettingsState({
+                    ...historySettings,
+                    maxVersionsPerFile: Number(event.target.value),
+                  })}
                 onPointerUp={(event) => void commitHistoryRetention(Number(event.currentTarget.value))}
                 onKeyUp={(event) => {
-                  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+                  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
                     void commitHistoryRetention(Number(event.currentTarget.value))
                   }
                 }}
-                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                className='h-2 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary disabled:cursor-not-allowed disabled:opacity-50'
               />
-              <p className="text-xs text-muted-foreground">
-                {t("settings.sections.maintenance.history.retentionHint")}
+              <p className='text-xs text-muted-foreground'>
+                {t('settings.sections.maintenance.history.retentionHint')}
               </p>
             </div>
           </div>
         )}
         {historyStats && (
-          <p className="text-xs text-muted-foreground">
-            {t("settings.sections.maintenance.history.usage", {
+          <p className='text-xs text-muted-foreground'>
+            {t('settings.sections.maintenance.history.usage', {
               size: formatBytes(historyStats.bytes),
               files: historyStats.files,
               entries: historyStats.entries,
             })}
           </p>
         )}
-        {historyError && <p className="text-xs text-destructive">{historyError}</p>}
+        {historyError && <p className='text-xs text-destructive'>{historyError}</p>}
         <Button
-          variant="outline"
+          variant='outline'
           onClick={() => void handleClearHistory()}
           disabled={!project || historyBusy || !historyStats || historyStats.files === 0}
         >
-          {historyBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          {t("settings.sections.maintenance.history.clear")}
+          {historyBusy ? <Loader2 className='h-4 w-4 animate-spin' /> : <Trash2 className='h-4 w-4' />}
+          {t('settings.sections.maintenance.history.clear')}
         </Button>
       </div>
 
-      <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
-        <div className="flex items-center gap-2">
-          <Wrench className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">
-            {t("settings.sections.maintenance.dedup.title", {
-              defaultValue: "Detect duplicate entities / concepts",
+      <div className='space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4'>
+        <div className='flex items-center gap-2'>
+          <Wrench className='h-4 w-4 text-muted-foreground' />
+          <h3 className='text-sm font-semibold'>
+            {t('settings.sections.maintenance.dedup.title', {
+              defaultValue: 'Detect duplicate entities / concepts',
             })}
           </h3>
         </div>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          {t("settings.sections.maintenance.dedup.description", {
+        <p className='text-xs leading-relaxed text-muted-foreground'>
+          {t('settings.sections.maintenance.dedup.description', {
             defaultValue:
-              "Asks the LLM to scan all entity / concept pages and group ones that likely refer to the same topic under different names (English vs Chinese, plural vs singular, abbreviation vs full form). You confirm each group before merging. Merges are queued and run one at a time so cross-references stay consistent.",
+              'Asks the LLM to scan all entity / concept pages and group ones that likely refer to the same topic under different names (English vs Chinese, plural vs singular, abbreviation vs full form). You confirm each group before merging. Merges are queued and run one at a time so cross-references stay consistent.',
           })}
         </p>
 
         {!projectReady && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            {t("settings.sections.maintenance.noProject", {
-              defaultValue: "Open a project first.",
+          <p className='text-xs text-amber-700 dark:text-amber-400'>
+            {t('settings.sections.maintenance.noProject', {
+              defaultValue: 'Open a project first.',
             })}
           </p>
         )}
         {projectReady && !llmReady && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            {t("settings.sections.maintenance.noLlm", {
-              defaultValue: "Configure an LLM provider first.",
+          <p className='text-xs text-amber-700 dark:text-amber-400'>
+            {t('settings.sections.maintenance.noLlm', {
+              defaultValue: 'Configure an LLM provider first.',
             })}
           </p>
         )}
@@ -536,33 +581,35 @@ export function MaintenanceSection() {
           onClick={() => void handleScan()}
           disabled={scanning || !projectReady || !llmReady}
         >
-          {scanning ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              {t("settings.sections.maintenance.dedup.scanning", {
-                defaultValue: "Scanning…",
-              })}
-            </>
-          ) : (
-            t("settings.sections.maintenance.dedup.scanButton", {
-              defaultValue: "Scan for duplicates",
-            })
-          )}
+          {scanning
+            ? (
+              <>
+                <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                {t('settings.sections.maintenance.dedup.scanning', {
+                  defaultValue: 'Scanning…',
+                })}
+              </>
+            )
+            : (
+              t('settings.sections.maintenance.dedup.scanButton', {
+                defaultValue: 'Scan for duplicates',
+              })
+            )}
         </Button>
 
         {scanError && (
-          <div className="flex items-start gap-1.5 rounded border border-rose-500/40 bg-rose-500/5 px-2 py-1.5 text-xs text-rose-700 dark:text-rose-400">
-            <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className='flex items-start gap-1.5 rounded border border-rose-500/40 bg-rose-500/5 px-2 py-1.5 text-xs text-rose-700 dark:text-rose-400'>
+            <XCircle className='mt-0.5 h-3.5 w-3.5 shrink-0' />
             <div>{scanError}</div>
           </div>
         )}
 
         {scanCompleted && groups.length === 0 && !scanError && (
-          <div className="flex items-start gap-1.5 rounded border border-emerald-500/40 bg-emerald-500/5 px-2 py-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className='flex items-start gap-1.5 rounded border border-emerald-500/40 bg-emerald-500/5 px-2 py-1.5 text-xs text-emerald-700 dark:text-emerald-400'>
+            <CheckCircle2 className='mt-0.5 h-3.5 w-3.5 shrink-0' />
             <div>
-              {t("settings.sections.maintenance.dedup.noneFound", {
-                defaultValue: "No duplicate groups found. The wiki is clean.",
+              {t('settings.sections.maintenance.dedup.noneFound', {
+                defaultValue: 'No duplicate groups found. The wiki is clean.',
               })}
             </div>
           </div>
@@ -584,15 +631,13 @@ export function MaintenanceSection() {
         const merged = recentlyMergedKeys.has(groupKey(entry.group.slugs))
         return (
           <DuplicateGroupCard
-            key={entry.group.slugs.join(",")}
+            key={entry.group.slugs.join(',')}
             entry={entry}
             task={task}
             merged={merged}
-            pendingPosition={
-              task && task.status === "pending"
-                ? pendingPositionByTaskId.get(task.id) ?? 0
-                : 0
-            }
+            pendingPosition={task && task.status === 'pending'
+              ? pendingPositionByTaskId.get(task.id) ?? 0
+              : 0}
             onCanonicalChange={(slug) => handleCanonicalChange(idx, slug)}
             onEnqueue={() => void handleEnqueue(entry)}
             onCancel={() => task && void handleCancel(task.id)}
@@ -652,38 +697,37 @@ function QueueOrphanList({
 }: QueueOrphanListProps) {
   const { t } = useTranslation()
   const groupKeys = new Set(groups.map((g) => groupKey(g.group.slugs)))
-  const orphans = tasks.filter((t) => !groupKeys.has(groupKey(t.group.slugs)))
+  const orphans = tasks.filter((task) => !groupKeys.has(groupKey(task.group.slugs)))
 
   if (orphans.length === 0) return null
 
   return (
-    <div className="space-y-2 rounded-lg border border-border/60 bg-muted/10 p-4">
-      <div className="flex items-center gap-2">
-        <Clock className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold">
-          {t("settings.sections.maintenance.dedup.queueTitle", {
-            defaultValue: "In-progress merges",
+    <div className='space-y-2 rounded-lg border border-border/60 bg-muted/10 p-4'>
+      <div className='flex items-center gap-2'>
+        <Clock className='h-4 w-4 text-muted-foreground' />
+        <h3 className='text-sm font-semibold'>
+          {t('settings.sections.maintenance.dedup.queueTitle', {
+            defaultValue: 'In-progress merges',
           })}
         </h3>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {t("settings.sections.maintenance.dedup.queueDescription", {
-          defaultValue:
-            "Tasks queued from a previous scan that haven't finished yet. Merges run one at a time.",
+      <p className='text-xs text-muted-foreground'>
+        {t('settings.sections.maintenance.dedup.queueDescription', {
+          defaultValue: "Tasks queued from a previous scan that haven't finished yet. Merges run one at a time.",
         })}
       </p>
       {restoredBacklogWaiting && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
-          <span className="text-amber-800 dark:text-amber-300">
-            {t("settings.sections.maintenance.dedup.restoredBacklog", {
+        <div className='flex flex-wrap items-center justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs'>
+          <span className='text-amber-800 dark:text-amber-300'>
+            {t('settings.sections.maintenance.dedup.restoredBacklog', {
               defaultValue:
-                "These merge tasks were restored from the previous session and are paused to avoid unexpected LLM usage.",
+                'These merge tasks were restored from the previous session and are paused to avoid unexpected LLM usage.',
             })}
           </span>
-          <Button size="sm" variant="secondary" onClick={onResumeRestored}>
-            <RotateCcw className="h-3.5 w-3.5" />
-            {t("settings.sections.maintenance.dedup.resumeRestored", {
-              defaultValue: "Resume merges",
+          <Button size='sm' variant='secondary' onClick={onResumeRestored}>
+            <RotateCcw className='h-3.5 w-3.5' />
+            {t('settings.sections.maintenance.dedup.resumeRestored', {
+              defaultValue: 'Resume merges',
             })}
           </Button>
         </div>
@@ -691,39 +735,38 @@ function QueueOrphanList({
       {orphans.map((task) => (
         <div
           key={task.id}
-          className="flex flex-wrap items-center gap-2 rounded border border-border/40 bg-background px-3 py-2 text-xs"
+          className='flex flex-wrap items-center gap-2 rounded border border-border/40 bg-background px-3 py-2 text-xs'
         >
-          <code className="font-mono">{task.group.slugs.join(" + ")}</code>
-          <span className="text-muted-foreground">
-            →{" "}
-            <code className="font-mono">{task.canonicalSlug}</code>
+          <code className='font-mono'>{task.group.slugs.join(' + ')}</code>
+          <span className='text-muted-foreground'>
+            → <code className='font-mono'>{task.canonicalSlug}</code>
           </span>
-          <span className="ml-auto inline-flex items-center gap-1">
+          <span className='ml-auto inline-flex items-center gap-1'>
             <TaskStatusChip
               task={task}
               pendingPosition={pendingPositionByTaskId.get(task.id) ?? 0}
             />
-            {task.status === "failed" && (
+            {task.status === 'failed' && (
               <Button
-                size="sm"
-                variant="ghost"
+                size='sm'
+                variant='ghost'
                 onClick={() => onRetry(task.id)}
               >
-                <RotateCcw className="h-3.5 w-3.5" />
-                {t("settings.sections.maintenance.dedup.retry", {
-                  defaultValue: "Retry",
+                <RotateCcw className='h-3.5 w-3.5' />
+                {t('settings.sections.maintenance.dedup.retry', {
+                  defaultValue: 'Retry',
                 })}
               </Button>
             )}
-            <Button size="sm" variant="ghost" onClick={() => onCancel(task.id)}>
-              <Trash2 className="h-3.5 w-3.5" />
-              {t("settings.sections.maintenance.dedup.delete", {
-                defaultValue: "Delete",
+            <Button size='sm' variant='ghost' onClick={() => onCancel(task.id)}>
+              <Trash2 className='h-3.5 w-3.5' />
+              {t('settings.sections.maintenance.dedup.delete', {
+                defaultValue: 'Delete',
               })}
             </Button>
           </span>
-          {task.error && task.status === "failed" && (
-            <div className="basis-full rounded border border-rose-500/40 bg-rose-500/5 px-2 py-1 text-rose-700 dark:text-rose-400">
+          {task.error && task.status === 'failed' && (
+            <div className='basis-full rounded border border-rose-500/40 bg-rose-500/5 px-2 py-1 text-rose-700 dark:text-rose-400'>
               {task.error}
             </div>
           )}
@@ -740,41 +783,41 @@ interface ChipProps {
 
 function TaskStatusChip({ task, pendingPosition }: ChipProps) {
   const { t } = useTranslation()
-  if (task.status === "processing") {
+  if (task.status === 'processing') {
     return (
-      <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-400">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        {t("settings.sections.maintenance.dedup.merging", {
-          defaultValue: "Merging…",
+      <span className='inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-400'>
+        <Loader2 className='h-3 w-3 animate-spin' />
+        {t('settings.sections.maintenance.dedup.merging', {
+          defaultValue: 'Merging…',
         })}
       </span>
     )
   }
-  if (task.status === "pending") {
+  if (task.status === 'pending') {
     if (pendingPosition === 0) {
       return (
-        <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-          {t("settings.sections.maintenance.dedup.queued", {
-            defaultValue: "Queued",
+        <span className='inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground'>
+          {t('settings.sections.maintenance.dedup.queued', {
+            defaultValue: 'Queued',
           })}
         </span>
       )
     }
     return (
-      <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-        {t("settings.sections.maintenance.dedup.queuedAhead", {
-          defaultValue: "Queued ({{n}} ahead)",
+      <span className='inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground'>
+        {t('settings.sections.maintenance.dedup.queuedAhead', {
+          defaultValue: 'Queued ({{n}} ahead)',
           n: pendingPosition,
         })}
       </span>
     )
   }
-  if (task.status === "failed") {
+  if (task.status === 'failed') {
     return (
-      <span className="inline-flex items-center gap-1 rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-rose-700 dark:text-rose-400">
-        <AlertTriangle className="h-3 w-3" />
-        {t("settings.sections.maintenance.dedup.failed", {
-          defaultValue: "Failed ({{retries}}/3)",
+      <span className='inline-flex items-center gap-1 rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-rose-700 dark:text-rose-400'>
+        <AlertTriangle className='h-3 w-3' />
+        {t('settings.sections.maintenance.dedup.failed', {
+          defaultValue: 'Failed ({{retries}}/3)',
           retries: task.retryCount,
         })}
       </span>
@@ -809,116 +852,113 @@ function DuplicateGroupCard({
   const { t } = useTranslation()
   const { group, canonicalSlug, skipped } = entry
 
-  const inFlight = !!task && (task.status === "pending" || task.status === "processing")
-  const failed = !!task && task.status === "failed"
+  const inFlight = !!task && (task.status === 'pending' || task.status === 'processing')
+  const failed = !!task && task.status === 'failed'
   const finished = merged || skipped
 
-  const confidenceClass =
-    group.confidence === "high"
-      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-      : group.confidence === "medium"
-        ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-        : "bg-muted text-muted-foreground"
+  const confidenceClass = group.confidence === 'high'
+    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+    : group.confidence === 'medium'
+    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+    : 'bg-muted text-muted-foreground'
 
   return (
     <div
       className={`space-y-3 rounded-lg border px-4 py-3 ${
-        finished ? "border-border/40 bg-muted/10 opacity-60" : "border-border bg-background"
+        finished ? 'border-border/40 bg-muted/10 opacity-60' : 'border-border bg-background'
       }`}
     >
-      <div className="flex items-center gap-2">
+      <div className='flex items-center gap-2'>
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${confidenceClass}`}>
           {group.confidence}
         </span>
-        <span className="text-xs text-muted-foreground">
-          {t("settings.sections.maintenance.dedup.candidates", {
-            defaultValue: "{{n}} candidates",
+        <span className='text-xs text-muted-foreground'>
+          {t('settings.sections.maintenance.dedup.candidates', {
+            defaultValue: '{{n}} candidates',
             n: group.slugs.length,
           })}
         </span>
         {merged && (
-          <span className="ml-auto inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            {t("settings.sections.maintenance.dedup.merged", { defaultValue: "Merged" })}
+          <span className='ml-auto inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400'>
+            <CheckCircle2 className='h-3.5 w-3.5' />
+            {t('settings.sections.maintenance.dedup.merged', { defaultValue: 'Merged' })}
           </span>
         )}
         {skipped && (
-          <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground">
-            {t("settings.sections.maintenance.dedup.skipped", { defaultValue: "Marked not duplicates" })}
+          <span className='ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground'>
+            {t('settings.sections.maintenance.dedup.skipped', { defaultValue: 'Marked not duplicates' })}
           </span>
         )}
         {task && !finished && (
-          <span className="ml-auto">
+          <span className='ml-auto'>
             <TaskStatusChip task={task} pendingPosition={pendingPosition} />
           </span>
         )}
       </div>
 
-      {group.reason && (
-        <div className="text-xs italic leading-relaxed text-muted-foreground">{group.reason}</div>
-      )}
+      {group.reason && <div className='text-xs italic leading-relaxed text-muted-foreground'>{group.reason}</div>}
 
       {!finished && (
         <>
-          <div className="space-y-1.5">
-            <Label className="text-xs">
-              {t("settings.sections.maintenance.dedup.canonicalLabel", {
-                defaultValue: "Keep this slug as canonical:",
+          <div className='space-y-1.5'>
+            <Label className='text-xs'>
+              {t('settings.sections.maintenance.dedup.canonicalLabel', {
+                defaultValue: 'Keep this slug as canonical:',
               })}
             </Label>
             {group.slugs.map((slug) => (
               <label
                 key={slug}
-                className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent"
+                className='flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent'
               >
                 <input
-                  type="radio"
-                  name={`canonical-${group.slugs.join(",")}`}
+                  type='radio'
+                  name={`canonical-${group.slugs.join(',')}`}
                   checked={canonicalSlug === slug}
                   onChange={() => onCanonicalChange(slug)}
                   disabled={inFlight}
                 />
-                <code className="font-mono text-xs">{slug}</code>
+                <code className='font-mono text-xs'>{slug}</code>
               </label>
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className='flex flex-wrap gap-2'>
             {!task && (
               <>
-                <Button size="sm" onClick={onEnqueue}>
-                  {t("settings.sections.maintenance.dedup.mergeButton", {
-                    defaultValue: "Merge into {{slug}}",
+                <Button size='sm' onClick={onEnqueue}>
+                  {t('settings.sections.maintenance.dedup.mergeButton', {
+                    defaultValue: 'Merge into {{slug}}',
                     slug: canonicalSlug,
                   })}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={onNotDuplicate}>
-                  {t("settings.sections.maintenance.dedup.notDuplicates", {
-                    defaultValue: "Not duplicates",
+                <Button size='sm' variant='ghost' onClick={onNotDuplicate}>
+                  {t('settings.sections.maintenance.dedup.notDuplicates', {
+                    defaultValue: 'Not duplicates',
                   })}
                 </Button>
               </>
             )}
             {inFlight && (
-              <Button size="sm" variant="ghost" onClick={onCancel}>
-                <Trash2 className="h-3.5 w-3.5" />
-                {t("settings.sections.maintenance.dedup.cancel", {
-                  defaultValue: "Cancel",
+              <Button size='sm' variant='ghost' onClick={onCancel}>
+                <Trash2 className='h-3.5 w-3.5' />
+                {t('settings.sections.maintenance.dedup.cancel', {
+                  defaultValue: 'Cancel',
                 })}
               </Button>
             )}
             {failed && (
               <>
-                <Button size="sm" onClick={onRetry}>
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  {t("settings.sections.maintenance.dedup.retry", {
-                    defaultValue: "Retry",
+                <Button size='sm' onClick={onRetry}>
+                  <RotateCcw className='h-3.5 w-3.5' />
+                  {t('settings.sections.maintenance.dedup.retry', {
+                    defaultValue: 'Retry',
                   })}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={onCancel}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                  {t("settings.sections.maintenance.dedup.delete", {
-                    defaultValue: "Delete",
+                <Button size='sm' variant='ghost' onClick={onCancel}>
+                  <Trash2 className='h-3.5 w-3.5' />
+                  {t('settings.sections.maintenance.dedup.delete', {
+                    defaultValue: 'Delete',
                   })}
                 </Button>
               </>
@@ -928,8 +968,8 @@ function DuplicateGroupCard({
       )}
 
       {failed && task?.error && (
-        <div className="flex items-start gap-1.5 rounded border border-rose-500/40 bg-rose-500/5 px-2 py-1.5 text-xs text-rose-700 dark:text-rose-400">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div className='flex items-start gap-1.5 rounded border border-rose-500/40 bg-rose-500/5 px-2 py-1.5 text-xs text-rose-700 dark:text-rose-400'>
+          <AlertTriangle className='mt-0.5 h-3.5 w-3.5 shrink-0' />
           <div>{task.error}</div>
         </div>
       )}

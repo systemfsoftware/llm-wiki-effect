@@ -8,32 +8,32 @@
  * cleanup.
  */
 
-import { useChatStore } from "@/stores/chat-store"
-import { useReviewStore } from "@/stores/review-store"
-import { useLintStore } from "@/stores/lint-store"
-import { useActivityStore } from "@/stores/activity-store"
-import { useResearchStore } from "@/stores/research-store"
-import { useWikiStore } from "@/stores/wiki-store"
+import { useActivityStore } from '@/stores/activity-store'
+import { useChatStore } from '@/stores/chat-store'
+import { useLintStore } from '@/stores/lint-store'
+import { useResearchStore } from '@/stores/research-store'
+import { useReviewStore } from '@/stores/review-store'
+import { useWikiStore } from '@/stores/wiki-store'
 
 export async function resetProjectState(): Promise<void> {
   // Zustand stores — clear all per-project data (synchronous)
   const globalLlmConfig = useWikiStore.getState().globalLlmConfig
   useWikiStore.setState({
     llmConfig: globalLlmConfig,
-    projectLlmOverride: { enabled: false, presetId: null, model: "", profile: undefined },
+    projectLlmOverride: { enabled: false, presetId: null, model: '', profile: undefined },
   })
   useChatStore.setState({
     conversations: [],
     messages: [],
     activeConversationId: null,
-    mode: "chat",
+    mode: 'chat',
     ingestSource: null,
     isStreaming: false,
-    streamingContent: "",
+    streamingContent: '',
     useWebSearch: false,
     useAnyTxtSearch: false,
-    agentMode: "standard",
-    retrievalMode: "standard",
+    agentMode: 'standard',
+    retrievalMode: 'standard',
     selectedSkills: [],
     disabledSkills: [],
   })
@@ -58,24 +58,24 @@ export async function resetProjectState(): Promise<void> {
   // Module-level caches — load in parallel and clear each, surfacing any
   // failure instead of swallowing it.
   const [queueMod, dedupQueueMod, graphMod, fileSyncMod, scheduledImportMod] = await Promise.allSettled([
-    import("@/lib/ingest-queue"),
-    import("@/lib/dedup-queue"),
-    import("@/lib/graph-relevance"),
-    import("@/lib/project-file-sync"),
-    import("@/lib/scheduled-import"),
+    import('@/lib/ingest-queue'),
+    import('@/lib/dedup-queue'),
+    import('@/lib/graph-relevance'),
+    import('@/lib/project-file-sync'),
+    import('@/lib/scheduled-import'),
   ])
 
-  if (scheduledImportMod.status === "fulfilled") {
+  if (scheduledImportMod.status === 'fulfilled') {
     try {
       scheduledImportMod.value.stopScheduledImport()
     } catch (err) {
-      console.warn("[Reset Project State] stopScheduledImport failed:", err)
+      console.warn('[Reset Project State] stopScheduledImport failed:', err)
     }
   } else {
-    console.warn("[Reset Project State] Failed to load scheduled-import:", scheduledImportMod.reason)
+    console.warn('[Reset Project State] Failed to load scheduled-import:', scheduledImportMod.reason)
   }
 
-  if (queueMod.status === "fulfilled") {
+  if (queueMod.status === 'fulfilled') {
     try {
       // pauseQueue flushes the active project's state to disk (reverting
       // any processing task to pending) before clearing in-memory state.
@@ -83,40 +83,39 @@ export async function resetProjectState(): Promise<void> {
       // new project's restoreQueue reads its own file.
       await queueMod.value.pauseQueue()
     } catch (err) {
-      console.warn("[Reset Project State] pauseQueue failed:", err)
+      console.warn('[Reset Project State] pauseQueue failed:', err)
     }
   } else {
-    console.warn("[Reset Project State] Failed to load ingest-queue:", queueMod.reason)
+    console.warn('[Reset Project State] Failed to load ingest-queue:', queueMod.reason)
   }
 
-  if (dedupQueueMod.status === "fulfilled") {
+  if (dedupQueueMod.status === 'fulfilled') {
     try {
       await dedupQueueMod.value.pauseQueue()
     } catch (err) {
-      console.warn("[Reset Project State] dedup pauseQueue failed:", err)
+      console.warn('[Reset Project State] dedup pauseQueue failed:', err)
     }
   } else {
-    console.warn("[Reset Project State] Failed to load dedup-queue:", dedupQueueMod.reason)
+    console.warn('[Reset Project State] Failed to load dedup-queue:', dedupQueueMod.reason)
   }
 
-  if (graphMod.status === "fulfilled") {
+  if (graphMod.status === 'fulfilled') {
     try {
       graphMod.value.clearGraphCache()
     } catch (err) {
-      console.warn("[Reset Project State] clearGraphCache failed:", err)
+      console.warn('[Reset Project State] clearGraphCache failed:', err)
     }
   } else {
-    console.warn("[Reset Project State] Failed to load graph-relevance:", graphMod.reason)
+    console.warn('[Reset Project State] Failed to load graph-relevance:', graphMod.reason)
   }
 
-  if (fileSyncMod.status === "fulfilled") {
+  if (fileSyncMod.status === 'fulfilled') {
     try {
       await fileSyncMod.value.stopProjectFileSync()
     } catch (err) {
-      console.warn("[Reset Project State] stopProjectFileSync failed:", err)
+      console.warn('[Reset Project State] stopProjectFileSync failed:', err)
     }
   } else {
-    console.warn("[Reset Project State] Failed to load project-file-sync:", fileSyncMod.reason)
+    console.warn('[Reset Project State] Failed to load project-file-sync:', fileSyncMod.reason)
   }
-
 }

@@ -26,22 +26,23 @@
  * mocked suite — it stands up a real listening socket and
  * shouldn't run on every save.
  */
-import { describe, it, expect, vi } from "vitest"
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http"
-import type { AddressInfo } from "node:net"
+import type { listDirectory, readFile } from '@/commands/fs'
+import type { invoke } from '@tauri-apps/api/core'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { describe, expect, it, vi } from 'vitest'
 
 // streamChat doesn't touch Tauri commands or fs, but the module graph
 // pulls them in transitively. Stub for sanity.
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn().mockResolvedValue(undefined),
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn<typeof invoke>().mockResolvedValue(undefined),
 }))
-vi.mock("@/commands/fs", () => ({
-  readFile: vi.fn(),
-  listDirectory: vi.fn(),
+vi.mock('@/commands/fs', () => ({
+  readFile: vi.fn<typeof readFile>(),
+  listDirectory: vi.fn<typeof listDirectory>(),
 }))
 
-import { streamChat } from "./llm-client"
-import type { LlmConfig } from "@/stores/wiki-store"
+import type { LlmConfig } from '@/stores/wiki-store'
+import { streamChat } from './llm-client'
 
 interface FakeOllamaHandle {
   url: string
@@ -51,8 +52,8 @@ interface FakeOllamaHandle {
 }
 
 type RejectMode =
-  | { kind: "accept-same-origin"; selfOrigin: string }
-  | { kind: "reject-all" }
+  | { kind: 'accept-same-origin'; selfOrigin: string }
+  | { kind: 'reject-all' }
 
 /**
  * Start a fake Ollama-compatible server on 127.0.0.1. Behavior is
@@ -74,44 +75,51 @@ async function startFakeOllamaServer(initialMode: RejectMode): Promise<FakeOllam
   const url = await new Promise<string>((resolve, reject) => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const chunks: Buffer[] = []
-      req.on("data", (c: Buffer) => chunks.push(c))
-      req.on("end", () => {
-        const body = Buffer.concat(chunks).toString("utf-8")
-        const origin = req.headers["origin"] as string | undefined
-        const userAgent = req.headers["user-agent"] as string | undefined
+      req.on('data', (c: Buffer) => chunks.push(c))
+      req.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8')
+        const origin = req.headers['origin']
+        const userAgent = req.headers['user-agent']
         requests.push({ origin, userAgent, body })
 
         // Mimic Ollama's CORS check.
-        const allow =
-          mode.kind === "accept-same-origin" && origin === mode.selfOrigin
+        const allow = mode.kind === 'accept-same-origin' && origin === mode.selfOrigin
         if (!allow) {
           res.statusCode = 403
-          res.setHeader("Content-Type", "text/plain")
-          res.end("Forbidden: origin not in allowlist")
+          res.setHeader('Content-Type', 'text/plain')
+          res.end('Forbidden: origin not in allowlist')
           return
         }
 
         // Stream a tiny OpenAI-compatible SSE response. parseOpenAiLine
         // expects `data: ` prefix and a `[DONE]` terminator.
         res.statusCode = 200
-        res.setHeader("Content-Type", "text/event-stream")
-        res.setHeader("Cache-Control", "no-cache")
+        res.setHeader('Content-Type', 'text/event-stream')
+        res.setHeader('Cache-Control', 'no-cache')
         const sse = [
-          `data: ${JSON.stringify({ choices: [{ delta: { content: "hello" } }] })}`,
+          `data: ${JSON.stringify({ choices: [{ delta: { content: 'hello' } }] })}`,
           ``,
-          `data: ${JSON.stringify({ choices: [{ delta: { content: " world" } }] })}`,
+          `data: ${JSON.stringify({ choices: [{ delta: { content: ' world' } }] })}`,
           ``,
           `data: [DONE]`,
           ``,
           ``,
-        ].join("\n")
+        ].join('\n')
         res.end(sse)
       })
     })
-    server.on("error", reject)
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server!.address() as AddressInfo
-      resolve(`http://127.0.0.1:${addr.port}`)
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      if (!server) {
+        reject(new Error('server was not created'))
+        return
+      }
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        reject(new Error('server did not report a TCP address'))
+        return
+      }
+      resolve(`http://127.0.0.1:${address.port}`)
     })
   })
 
@@ -131,24 +139,24 @@ async function startFakeOllamaServer(initialMode: RejectMode): Promise<FakeOllam
 
 const TEST_TIMEOUT_MS = 30_000
 
-describe("streamChat against a fake Ollama server (real TCP)", () => {
+describe('streamChat against a fake Ollama server (real TCP)', () => {
   it(
     "sends Origin = same-origin so Ollama's CORS check passes (regardless of OLLAMA_ORIGINS / version)",
     async () => {
       const server = await startFakeOllamaServer({
-        kind: "accept-same-origin",
-        selfOrigin: "", // set after we know the URL
+        kind: 'accept-same-origin',
+        selfOrigin: '', // set after we know the URL
       })
       try {
         // selfOrigin must equal the server's own root URL.
-        server.setRejectMode({ kind: "accept-same-origin", selfOrigin: server.url })
+        server.setRejectMode({ kind: 'accept-same-origin', selfOrigin: server.url })
 
         const cfg: LlmConfig = {
-          provider: "ollama",
-          apiKey: "",
-          model: "llama3",
+          provider: 'ollama',
+          apiKey: '',
+          model: 'llama3',
           ollamaUrl: server.url,
-          customEndpoint: "",
+          customEndpoint: '',
           maxContextSize: 8192,
         }
 
@@ -156,7 +164,7 @@ describe("streamChat against a fake Ollama server (real TCP)", () => {
         const state: { done: boolean; error: Error | null } = { done: false, error: null }
         await streamChat(
           cfg,
-          [{ role: "user", content: "hi" }],
+          [{ role: 'user', content: 'hi' }],
           {
             onToken: (t) => {
               tokens.push(t)
@@ -172,16 +180,19 @@ describe("streamChat against a fake Ollama server (real TCP)", () => {
 
         expect(state.error, `streamChat reported error: ${state.error?.message}`).toBeNull()
         expect(state.done).toBe(true)
-        expect(tokens.join("")).toBe("hello world")
+        expect(tokens.join('')).toBe('hello world')
 
         const reqs = server.receivedRequests()
         expect(reqs).toHaveLength(1)
         // Bytes-on-wire assertion: our explicit Origin made it through.
         expect(reqs[0].origin).toBe(server.url)
         // Body is the OpenAI-shape JSON we'd expect.
-        const parsed = JSON.parse(reqs[0].body) as { model: string; messages: unknown[] }
-        expect(parsed.model).toBe("llama3")
-        expect(parsed.messages).toEqual([{ role: "user", content: "hi" }])
+        const parsed: unknown = JSON.parse(reqs[0].body)
+        if (typeof parsed !== 'object' || parsed === null || !('model' in parsed) || !('messages' in parsed)) {
+          throw new Error('expected the request body to be a JSON object')
+        }
+        expect(parsed.model).toBe('llama3')
+        expect(parsed.messages).toEqual([{ role: 'user', content: 'hi' }])
       } finally {
         await server.close()
       }
@@ -197,23 +208,23 @@ describe("streamChat against a fake Ollama server (real TCP)", () => {
       // server to "accept only http://something-else" and confirming
       // that streamChat surfaces a 4xx error.
       const server = await startFakeOllamaServer({
-        kind: "accept-same-origin",
-        selfOrigin: "http://impossible-mismatch.test",
+        kind: 'accept-same-origin',
+        selfOrigin: 'http://impossible-mismatch.test',
       })
       try {
         const cfg: LlmConfig = {
-          provider: "ollama",
-          apiKey: "",
-          model: "llama3",
+          provider: 'ollama',
+          apiKey: '',
+          model: 'llama3',
           ollamaUrl: server.url,
-          customEndpoint: "",
+          customEndpoint: '',
           maxContextSize: 8192,
         }
 
         const state: { done: boolean; error: Error | null } = { done: false, error: null }
         await streamChat(
           cfg,
-          [{ role: "user", content: "hi" }],
+          [{ role: 'user', content: 'hi' }],
           {
             onToken: () => {},
             onDone: () => {
@@ -227,8 +238,9 @@ describe("streamChat against a fake Ollama server (real TCP)", () => {
 
         // streamChat reports HTTP errors via onError; the request still
         // resolves cleanly (no thrown exception).
-        expect(state.error, "expected the 403 to surface as an onError, not silent success").not.toBeNull()
-        expect(state.error!.message).toMatch(/403/)
+        expect(state.error, 'expected the 403 to surface as an onError, not silent success').not.toBeNull()
+        if (!state.error) throw new Error('expected the 403 to surface as an onError')
+        expect(state.error.message).toMatch(/403/)
         expect(state.done).toBe(false)
 
         const reqs = server.receivedRequests()
@@ -245,33 +257,33 @@ describe("streamChat against a fake Ollama server (real TCP)", () => {
   )
 
   it(
-    "custom OpenAI-compat endpoint (LM Studio / llama.cpp) also sends Origin = same-origin",
+    'custom OpenAI-compat endpoint (LM Studio / llama.cpp) also sends Origin = same-origin',
     async () => {
       const server = await startFakeOllamaServer({
-        kind: "accept-same-origin",
-        selfOrigin: "",
+        kind: 'accept-same-origin',
+        selfOrigin: '',
       })
       try {
         // The custom branch builds the URL by appending /chat/completions
         // to customEndpoint. Our same-origin Origin is derived from the
         // base URL, NOT the full /chat/completions path — but URL.origin
         // strips the path anyway.
-        server.setRejectMode({ kind: "accept-same-origin", selfOrigin: server.url })
+        server.setRejectMode({ kind: 'accept-same-origin', selfOrigin: server.url })
 
         const cfg: LlmConfig = {
-          provider: "custom",
-          apiKey: "",
-          model: "qwen3",
-          ollamaUrl: "",
+          provider: 'custom',
+          apiKey: '',
+          model: 'qwen3',
+          ollamaUrl: '',
           customEndpoint: server.url,
           maxContextSize: 8192,
-          apiMode: "chat_completions",
+          apiMode: 'chat_completions',
         }
 
         const state: { done: boolean; error: Error | null } = { done: false, error: null }
         await streamChat(
           cfg,
-          [{ role: "user", content: "hi" }],
+          [{ role: 'user', content: 'hi' }],
           {
             onToken: () => {},
             onDone: () => {

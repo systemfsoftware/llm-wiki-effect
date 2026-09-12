@@ -1,5 +1,5 @@
-import { readFile } from "@/commands/fs"
-import { parseFrontmatter } from "@/lib/frontmatter"
+import { readFile } from '@/commands/fs'
+import { parseFrontmatter } from '@/lib/frontmatter'
 
 export interface WikiSchemaRouting {
   typeDirs: Record<string, string>
@@ -12,9 +12,9 @@ export interface WikiSchemaRoutingIssue {
 export async function loadProjectWikiSchemaRouting(
   projectPath: string,
 ): Promise<WikiSchemaRouting | null> {
-  let raw = ""
+  let raw = ''
   try {
-    raw = await readFile(`${projectPath.replace(/\/+$/, "")}/schema.md`)
+    raw = await readFile(`${projectPath.replace(/\/+$/, '')}/schema.md`)
   } catch {
     return null
   }
@@ -27,16 +27,16 @@ export async function loadProjectWikiSchemaRouting(
 export function parseWikiSchemaRouting(markdown: string): WikiSchemaRouting {
   const typeDirs: Record<string, string> = {}
   for (const line of pageTypesSectionLines(markdown)) {
-    if (!line.trim().startsWith("|")) continue
+    if (!line.trim().startsWith('|')) continue
     const cells = line
-      .split("|")
+      .split('|')
       .slice(1, -1)
       .map((cell) => cell.trim())
     if (cells.length < 2) continue
 
     const [type, dir] = cells
     if (!/^[a-z][a-z0-9_-]*$/i.test(type)) continue
-    if (dir !== "wiki" && !dir.startsWith("wiki/")) continue
+    if (dir !== 'wiki' && !dir.startsWith('wiki/')) continue
 
     typeDirs[type] = stripTrailingSlash(dir)
   }
@@ -45,7 +45,7 @@ export function parseWikiSchemaRouting(markdown: string): WikiSchemaRouting {
 }
 
 function pageTypesSectionLines(markdown: string): string[] {
-  const lines = markdown.split("\n")
+  const lines = markdown.split('\n')
   const start = lines.findIndex((line) => {
     const match = line.trim().match(/^(#{1,6})\s+(.+?)\s*#*$/)
     return !!match && /^page\s+types$/i.test(match[2].trim())
@@ -70,7 +70,7 @@ export function validateWikiPageRouting(
 ): WikiSchemaRoutingIssue | null {
   const parsed = parseFrontmatter(content)
   const type = parsed.frontmatter?.type
-  if (typeof type !== "string" || !type.trim()) return null
+  if (typeof type !== 'string' || !type.trim()) return null
 
   const normalizedPath = normalizeRelativePath(relativePath)
   const actualDir = dirname(normalizedPath)
@@ -103,15 +103,15 @@ function inferTypeFromSchemaPath(
 }
 
 function normalizeRelativePath(relativePath: string): string {
-  return relativePath.replace(/\\/g, "/").replace(/^\/+/, "")
+  return relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
 }
 
 function dirname(relativePath: string): string {
   const normalized = normalizeRelativePath(relativePath)
-  const index = normalized.lastIndexOf("/")
-  return index >= 0 ? normalized.slice(0, index) : "."
+  const index = normalized.lastIndexOf('/')
+  return index >= 0 ? normalized.slice(0, index) : '.'
 }
 
 function stripTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, "")
+  return value.replace(/\/+$/, '')
 }

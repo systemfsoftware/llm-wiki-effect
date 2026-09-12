@@ -1,4 +1,4 @@
-import { isAzureOpenAiEndpoint } from "@/lib/azure-openai"
+import { isAzureOpenAiEndpoint } from '@/lib/azure-openai'
 
 /**
  * Clean up user-entered LLM endpoint URLs. Catches the two most common
@@ -19,7 +19,7 @@ import { isAzureOpenAiEndpoint } from "@/lib/azure-openai"
  * gateways really do mount the API at a bare host.
  */
 
-export type EndpointMode = "chat_completions" | "anthropic_messages" | "azure"
+export type EndpointMode = 'chat_completions' | 'anthropic_messages' | 'azure'
 
 export interface NormalizedEndpoint {
   /** The cleaned-up URL to store. Empty string for empty input. */
@@ -40,17 +40,17 @@ const ALWAYS_WRONG_TAILS = /\/+(chat\/completions|embeddings)\/?$/i
 const MESSAGES_TAIL = /\/+messages\/?$/i
 
 export function normalizeEndpoint(raw: string, mode: EndpointMode): NormalizedEndpoint {
-  const trimmed = (raw ?? "").trim()
-  if (!trimmed) return { normalized: "", changed: false }
+  const trimmed = (raw ?? '').trim()
+  if (!trimmed) return { normalized: '', changed: false }
 
   // Detect missing protocol — we never auto-add https:// because that
   // would mask the user's typo; just flag it.
   const missingProtocol = !/^https?:\/\//i.test(trimmed)
   if (missingProtocol) {
     return {
-      normalized: trimmed.replace(/\/+$/, ""),
-      changed: trimmed !== trimmed.replace(/\/+$/, ""),
-      warning: "URL should start with http:// or https://",
+      normalized: trimmed.replace(/\/+$/, ''),
+      changed: trimmed !== trimmed.replace(/\/+$/, ''),
+      warning: 'URL should start with http:// or https://',
     }
   }
 
@@ -68,9 +68,9 @@ export function normalizeEndpoint(raw: string, mode: EndpointMode): NormalizedEn
     parsed = new URL(trimmed)
   } catch {
     return {
-      normalized: trimmed.replace(/\/+$/, ""),
-      changed: trimmed !== trimmed.replace(/\/+$/, ""),
-      warning: "URL is not well-formed — check for typos in the host / port / path.",
+      normalized: trimmed.replace(/\/+$/, ''),
+      changed: trimmed !== trimmed.replace(/\/+$/, ''),
+      warning: 'URL is not well-formed — check for typos in the host / port / path.',
     }
   }
 
@@ -80,9 +80,8 @@ export function normalizeEndpoint(raw: string, mode: EndpointMode): NormalizedEn
   const host = parsed.hostname
   const looksNumericDotted = /^\d+(?:\.\d+)+$/.test(host)
   if (looksNumericDotted) {
-    const octets = host.split(".")
-    const validIpv4 =
-      octets.length === 4 &&
+    const octets = host.split('.')
+    const validIpv4 = octets.length === 4 &&
       octets.every((o) => {
         const n = Number(o)
         return Number.isInteger(n) && n >= 0 && n <= 255
@@ -95,26 +94,26 @@ export function normalizeEndpoint(raw: string, mode: EndpointMode): NormalizedEn
   }
 
   // Strip trailing slashes (cheap, always safe)
-  url = url.replace(/\/+$/, "")
+  url = url.replace(/\/+$/, '')
 
   // Azure OpenAI: keep `/openai/deployments/{name}` on the stored base.
-  if (mode === "azure" || isAzureOpenAiEndpoint(url)) {
+  if (mode === 'azure' || isAzureOpenAiEndpoint(url)) {
     try {
-      const u = new URL(url.includes("://") ? url : `https://${url}`)
-      let pathname = u.pathname.replace(/\/+$/, "")
+      const u = new URL(url.includes('://') ? url : `https://${url}`)
+      let pathname = u.pathname.replace(/\/+$/, '')
       if (/\/chat\/completions\/?$/i.test(pathname)) {
-        pathname = pathname.replace(/\/chat\/completions\/?$/i, "")
+        pathname = pathname.replace(/\/chat\/completions\/?$/i, '')
         notes.push(
           'stripped trailing "chat/completions" — Azure appends this per request',
         )
       }
       url = `${u.origin}${pathname}`
       if (u.search) {
-        notes.push("stripped query string — api-version is configured separately")
+        notes.push('stripped query string — api-version is configured separately')
       }
     } catch {
       if (/\/chat\/completions\/?($|\?)/i.test(url)) {
-        url = url.replace(/\/chat\/completions\/?(?=$|\?)/i, "")
+        url = url.replace(/\/chat\/completions\/?(?=$|\?)/i, '')
         notes.push(
           'stripped trailing "chat/completions" — Azure appends this per request',
         )
@@ -124,7 +123,7 @@ export function normalizeEndpoint(raw: string, mode: EndpointMode): NormalizedEn
     return {
       normalized: url,
       changed,
-      warning: notes.length ? notes.join(" ") : undefined,
+      warning: notes.length ? notes.join(' ') : undefined,
     }
   }
 
@@ -134,22 +133,34 @@ export function normalizeEndpoint(raw: string, mode: EndpointMode): NormalizedEn
   // anthropic_messages mode the dispatch uses it verbatim.
   if (ALWAYS_WRONG_TAILS.test(url)) {
     const match = url.match(ALWAYS_WRONG_TAILS)
-    url = url.replace(ALWAYS_WRONG_TAILS, "")
-    if (match) notes.push(`stripped trailing "${match[0].replace(/^\/+/, "").replace(/\/+$/, "")}" — this is appended per-request, not part of the base URL`)
-  } else if (mode === "chat_completions" && MESSAGES_TAIL.test(url)) {
+    url = url.replace(ALWAYS_WRONG_TAILS, '')
+    if (match) {
+      notes.push(
+        `stripped trailing "${
+          match[0].replace(/^\/+/, '').replace(/\/+$/, '')
+        }" — this is appended per-request, not part of the base URL`,
+      )
+    }
+  } else if (mode === 'chat_completions' && MESSAGES_TAIL.test(url)) {
     const match = url.match(MESSAGES_TAIL)
-    url = url.replace(MESSAGES_TAIL, "")
-    if (match) notes.push(`stripped trailing "${match[0].replace(/^\/+/, "").replace(/\/+$/, "")}" — this is an Anthropic-wire path, not a chat/completions base`)
+    url = url.replace(MESSAGES_TAIL, '')
+    if (match) {
+      notes.push(
+        `stripped trailing "${
+          match[0].replace(/^\/+/, '').replace(/\/+$/, '')
+        }" — this is an Anthropic-wire path, not a chat/completions base`,
+      )
+    }
   }
 
   // After stripping, check for the "bare host, no version segment" case.
   // Only hint for chat_completions — anthropic_messages endpoints sit at
   // various non-/v1 paths (MiniMax `/anthropic`, Anthropic native `/`)
   // and we can't reliably flag them.
-  if (mode === "chat_completions") {
+  if (mode === 'chat_completions') {
     try {
       const u = new URL(url)
-      const pathname = u.pathname.replace(/\/+$/, "")
+      const pathname = u.pathname.replace(/\/+$/, '')
       const hasVersionSegment = /\/(v\d+|paas\/v\d+|openai\/v\d+|api\/v\d+)$/i.test(pathname)
       if (!hasVersionSegment && !notes.length) {
         notes.push('URL has no version segment (expected e.g. "/v1"). Double-check the provider\'s docs.')
@@ -163,6 +174,6 @@ export function normalizeEndpoint(raw: string, mode: EndpointMode): NormalizedEn
   return {
     normalized: url,
     changed,
-    warning: notes.length ? notes.join(" ") : undefined,
+    warning: notes.length ? notes.join(' ') : undefined,
   }
 }

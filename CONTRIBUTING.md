@@ -1,0 +1,68 @@
+# Contributing
+
+## Prerequisites
+
+- Node.js `>=24`
+- pnpm `>=11.21.0` (the `packageManager` field pins the exact version; Corepack resolves it)
+- Rust stable + the Tauri platform prerequisites, to build the desktop app
+
+## Setup
+
+```bash
+git clone <your-repo-url>
+cd llm-wiki-effect
+pnpm install
+```
+
+`pnpm install` also installs the git hooks (husky): pre-commit formats and lints
+staged files, commit-msg enforces the commit format, pre-push keeps `main` from
+falling behind `origin/main`.
+
+## Commands
+
+```bash
+pnpm dev            # Vite dev server (pnpm tauri dev for the desktop shell)
+pnpm build          # typecheck + frontend build
+pnpm format         # dprint fmt
+pnpm format:check   # dprint check
+pnpm lint           # oxlint, type-aware
+pnpm typecheck      # tsc --build
+pnpm test:mocks     # unit suites (no network, no API keys)
+pnpm test:llm       # real-LLM suites — needs keys, not run in CI
+pnpm mcp:test       # MCP server package tests
+pnpm check:ci       # the gate: format, lint, build, both suites
+pnpm changeset      # record a change intent
+pnpm release:version  # consume pending intents: version + CHANGELOG
+```
+
+## Commits
+
+Conventional Commits: `<type>(<scope>): <subject>`. `commitlint.config.ts` holds
+the type and scope enums; a `feat` or `fix` must touch production source, and a
+docs-only, test-only, CI-only, or lockfile-only change must use its own type.
+AI co-author trailers are rejected.
+
+## Releases
+
+Versioning is changeset-driven and scoped to the app. Nothing publishes to npm:
+`llm-wiki` is private, and `llm-wiki-mcp-server` is excluded from the release
+plan in `.changeset/config.json`.
+
+1. Record the intent with the change, in the same PR:
+   `pnpm changeset` (or write `.changeset/<name>.md` by hand). A PR touching
+   `src/**`, `src-tauri/**`, or `extension/**` fails the `Changeset` job without
+   one.
+2. At release time, `pnpm release:version` bumps `package.json`, writes
+   `CHANGELOG.md`, deletes the intents it consumed, and syncs the copies in
+   `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`.
+   Prepend the in-app changelog entry (`en` + `zh`) in `src/lib/changelog.ts` by
+   hand — `src/lib/changelog.test.ts` fails until its version matches.
+3. Commit the result, tag `v<version>`, push the tag. `build.yml` runs on `v*`
+   tags and that tag is what cuts the desktop release — everything else is a
+   dry run. Tags and releases need explicit human approval.
+
+## Before you open a PR
+
+`pnpm check:ci` green, working tree clean, and an app change carries a change
+intent. See `AGENTS.md` for the definition of done and the surfaces that are
+read-only.

@@ -68,10 +68,9 @@ const PER_PAGE_FLOOR = 5_000
 export function computeContextBudget(
   maxContextSize: number | undefined,
 ): ContextBudget {
-  const maxCtx =
-    typeof maxContextSize === "number" && maxContextSize > 0
-      ? maxContextSize
-      : DEFAULT_MAX_CTX
+  const maxCtx = typeof maxContextSize === 'number' && maxContextSize > 0
+    ? maxContextSize
+    : DEFAULT_MAX_CTX
 
   const responseReserve = Math.floor(maxCtx * RESPONSE_RESERVE_FRAC)
   const indexBudget = Math.floor(maxCtx * INDEX_BUDGET_FRAC)

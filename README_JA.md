@@ -148,12 +148,12 @@ LLM Wiki は、手元の文書を整理された相互リンク付きの知識�
 
 **4 シグナル関連度モデル:**
 
-| シグナル | 重み | 説明 |
-|----------|------|------|
-| 直接リンク | ×3.0 | `[[wikilinks]]` で結ばれたページ |
-| ソース重複 | ×4.0 | 同一の原資料を共有するページ（frontmatter の `sources[]` 経由） |
-| Adamic-Adar | ×1.5 | 共通の隣接ノードを持つページ（隣接ノードの次数で重み付け） |
-| タイプ親和性 | ×1.0 | 同一ページタイプ間のボーナス（entity↔entity、concept↔concept） |
+| シグナル     | 重み | 説明                                                            |
+| ------------ | ---- | --------------------------------------------------------------- |
+| 直接リンク   | ×3.0 | `[[wikilinks]]` で結ばれたページ                                |
+| ソース重複   | ×4.0 | 同一の原資料を共有するページ（frontmatter の `sources[]` 経由） |
+| Adamic-Adar  | ×1.5 | 共通の隣接ノードを持つページ（隣接ノードの次数で重み付け）      |
+| タイプ親和性 | ×1.0 | 同一ページタイプ間のボーナス（entity↔entity、concept↔concept）  |
 
 **グラフ可視化（sigma.js + graphology + ForceAtlas2）:**
 
@@ -329,16 +329,16 @@ LLM Wiki は、手元の文書を整理された相互リンク付きの知識�
 
 元の設計はテキスト／Markdown が中心です。本プロジェクトではドキュメントの意味構造を保持した構造化抽出に対応しています。
 
-| フォーマット | 抽出方法 |
-|--------------|----------|
-| PDF | 内蔵 pdf-extract（Rust）+ ファイルキャッシュ。複雑なレイアウト向けに MinerU Cloud、Local API、Pipeline を任意で利用可能 |
-| DOCX | docx-rs — 見出し、太字／斜体、リスト、テーブルを構造化 Markdown へ |
-| PPTX | ZIP + XML — スライド単位で抽出し、見出し／リスト構造を保持 |
-| XLSX/XLS/ODS | calamine — 正しいセル型、複数シート対応、Markdown テーブルに変換 |
-| EPUB/MOBI | 電子書籍のメタデータ、章、本文を抽出し、インジェスト可能なコンテンツへ変換 |
-| 画像 | ネイティブプレビュー（png, jpg, gif, webp, svg など） |
-| 動画／音声 | 内蔵プレイヤー |
-| Web クリップ | Readability.js + Turndown.js → クリーンな Markdown |
+| フォーマット | 抽出方法                                                                                                                |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| PDF          | 内蔵 pdf-extract（Rust）+ ファイルキャッシュ。複雑なレイアウト向けに MinerU Cloud、Local API、Pipeline を任意で利用可能 |
+| DOCX         | docx-rs — 見出し、太字／斜体、リスト、テーブルを構造化 Markdown へ                                                      |
+| PPTX         | ZIP + XML — スライド単位で抽出し、見出し／リスト構造を保持                                                              |
+| XLSX/XLS/ODS | calamine — 正しいセル型、複数シート対応、Markdown テーブルに変換                                                        |
+| EPUB/MOBI    | 電子書籍のメタデータ、章、本文を抽出し、インジェスト可能なコンテンツへ変換                                              |
+| 画像         | ネイティブプレビュー（png, jpg, gif, webp, svg など）                                                                   |
+| 動画／音声   | 内蔵プレイヤー                                                                                                          |
+| Web クリップ | Readability.js + Turndown.js → クリーンな Markdown                                                                      |
 
 > MinerU は任意機能です。複雑な PDF には MinerU Cloud、公式 Local API、またはローカル Pipeline モードを利用できます。ローカルモードではファイルを外部へ送信せず、抽出画像はプロジェクト管理下の `wiki/media` に保存されます。失敗時は内蔵解析へフォールバックします。
 
@@ -386,20 +386,20 @@ LLM Wiki は、手元の文書を整理された相互リンク付きの知識�
 
 ## 技術スタック
 
-| レイヤー | 技術 |
-|----------|------|
-| デスクトップ | Tauri v2（Rust バックエンド） |
-| フロントエンド | React 19 + TypeScript + Vite |
-| UI | shadcn/ui + Tailwind CSS v4 |
-| エディタ | Milkdown（ProseMirror ベースの WYSIWYG） |
-| グラフ | sigma.js + graphology + ForceAtlas2 |
-| 検索 | トークン化検索 + グラフ関連度 + 任意のベクトル検索（LanceDB） |
-| ベクトル DB | LanceDB（Rust、組み込み、オプション） |
-| 文書解析 | pdf-extract + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI 抽出 |
-| 多言語対応 | react-i18next |
-| 状態管理 | Zustand |
-| LLM | ストリーミング fetch（OpenAI、Anthropic、Google、Ollama、カスタム） |
-| Web 検索 | Tavily、SerpApi、SearXNG JSON API |
+| レイヤー       | 技術                                                                   |
+| -------------- | ---------------------------------------------------------------------- |
+| デスクトップ   | Tauri v2（Rust バックエンド）                                          |
+| フロントエンド | React 19 + TypeScript + Vite                                           |
+| UI             | shadcn/ui + Tailwind CSS v4                                            |
+| エディタ       | Milkdown（ProseMirror ベースの WYSIWYG）                               |
+| グラフ         | sigma.js + graphology + ForceAtlas2                                    |
+| 検索           | トークン化検索 + グラフ関連度 + 任意のベクトル検索（LanceDB）          |
+| ベクトル DB    | LanceDB（Rust、組み込み、オプション）                                  |
+| 文書解析       | pdf-extract + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI 抽出 |
+| 多言語対応     | react-i18next                                                          |
+| 状態管理       | Zustand                                                                |
+| LLM            | ストリーミング fetch（OpenAI、Anthropic、Google、Ollama、カスタム）    |
+| Web 検索       | Tavily、SerpApi、SearXNG JSON API                                      |
 
 ## インストール
 

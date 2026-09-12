@@ -1,5 +1,5 @@
-import { Component, type ReactNode } from "react"
-import i18n from "@/i18n"
+import i18n from '@/i18n'
+import { Component, type ReactNode } from 'react'
 
 interface Props {
   children: ReactNode
@@ -22,21 +22,21 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("ErrorBoundary caught:", error, info.componentStack)
+    console.error('ErrorBoundary caught:', error, info.componentStack)
   }
 
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback
       return (
-        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-sm text-muted-foreground">
-          <p className="text-destructive font-medium">{i18n.t("errors.generic")}</p>
-          <p className="text-xs max-w-md text-center">{this.state.error?.message}</p>
+        <div className='flex h-full flex-col items-center justify-center gap-3 p-6 text-sm text-muted-foreground'>
+          <p className='text-destructive font-medium'>{i18n.t('errors.generic')}</p>
+          <p className='text-xs max-w-md text-center'>{this.state.error?.message}</p>
           <button
-            className="rounded border px-3 py-1 text-xs hover:bg-muted"
+            className='rounded border px-3 py-1 text-xs hover:bg-muted'
             onClick={() => this.setState({ hasError: false, error: null })}
           >
-            {i18n.t("common.retry")}
+            {i18n.t('common.retry')}
           </button>
         </div>
       )

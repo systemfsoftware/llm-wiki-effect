@@ -10,12 +10,12 @@
  * and forwards assistant text to `onToken`.
  */
 
-import { invoke } from "@tauri-apps/api/core"
-import { listen, type UnlistenFn } from "@tauri-apps/api/event"
-import type { LlmConfig } from "@/stores/wiki-store"
-import { useWikiStore } from "@/stores/wiki-store"
-import type { ChatMessage, RequestOverrides } from "./llm-providers"
-import type { StreamCallbacks } from "./llm-client"
+import type { LlmConfig } from '@/stores/wiki-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import type { StreamCallbacks } from './llm-client'
+import type { ChatMessage, RequestOverrides } from './llm-providers'
 
 /**
  * Public parse entry point. Given one stream-json line from claude's
@@ -33,7 +33,7 @@ export function createClaudeCodeStreamParser() {
   // Track the running text we have emitted for the current assistant
   // turn via `assistant` events so we can diff new content off the end
   // and only emit what wasn't already streamed.
-  let emittedFromAssistant = ""
+  let emittedFromAssistant = ''
 
   return function parseLine(rawLine: string): string | null {
     const line = rawLine.trim()
@@ -46,17 +46,22 @@ export function createClaudeCodeStreamParser() {
       return null
     }
 
-    if (!evt || typeof evt !== "object") return null
-    const obj = evt as Record<string, unknown>
-    const type = obj.type
+    if (typeof evt !== 'object' || evt === null) return null
+    const type = 'type' in evt ? evt.type : undefined
 
     // Real streaming deltas (passthrough from Anthropic API when
     // --verbose is active on newer claude CLI versions).
-    if (type === "stream_event") {
-      const event = obj.event as Record<string, unknown> | undefined
-      if (event?.type === "content_block_delta") {
-        const delta = event.delta as Record<string, unknown> | undefined
-        if (delta?.type === "text_delta" && typeof delta.text === "string") {
+    if (type === 'stream_event') {
+      const event = 'event' in evt ? evt.event : undefined
+      if (
+        typeof event === 'object' && event !== null && 'type' in event &&
+        event.type === 'content_block_delta' && 'delta' in event
+      ) {
+        const delta = event.delta
+        if (
+          typeof delta === 'object' && delta !== null && 'type' in delta &&
+          delta.type === 'text_delta' && 'text' in delta && typeof delta.text === 'string'
+        ) {
           sawDelta = true
           return delta.text
         }
@@ -67,16 +72,18 @@ export function createClaudeCodeStreamParser() {
     // Full assistant message (older CLI versions or when deltas are
     // unavailable). Ship only the portion we haven't already emitted
     // via stream_event deltas, so streaming still works smoothly.
-    if (type === "assistant") {
-      const message = obj.message as Record<string, unknown> | undefined
-      const content = message?.content
+    if (type === 'assistant') {
+      const message = 'message' in evt ? evt.message : undefined
+      const content = typeof message === 'object' && message !== null && 'content' in message
+        ? message.content
+        : undefined
       if (!Array.isArray(content)) return null
       const text = content
         .map((c) => {
-          const cc = c as Record<string, unknown>
-          return cc.type === "text" && typeof cc.text === "string" ? cc.text : ""
+          if (typeof c !== 'object' || c === null || !('type' in c) || c.type !== 'text' || !('text' in c)) return ''
+          return typeof c.text === 'string' ? c.text : ''
         })
-        .join("")
+        .join('')
       if (!text) return null
 
       if (sawDelta) {
@@ -132,7 +139,7 @@ export async function streamClaudeCodeCli(
   // don't take effect; keep quiet in prod so regular users aren't
   // alarmed by a reasonable default.
   if (import.meta.env?.DEV && overrides) {
-    for (const key of ["temperature", "top_p", "top_k", "max_tokens", "stop"] as const) {
+    for (const key of ['temperature', 'top_p', 'top_k', 'max_tokens', 'stop'] as const) {
       if (overrides[key] !== undefined) {
         // eslint-disable-next-line no-console
         console.warn(`[claude-code] ignoring unsupported override "${key}": CLI has no equivalent flag`)
@@ -191,7 +198,7 @@ export async function streamClaudeCodeCli(
 
   const abortListener = () => {
     aborted = true
-    void invoke("claude_cli_kill", { streamId }).catch(() => {
+    void invoke('claude_cli_kill', { streamId }).catch(() => {
       // Kill is best-effort; if the process already exited, the Rust
       // side returns Ok and the done handler fires normally.
     })
@@ -201,12 +208,12 @@ export async function streamClaudeCodeCli(
     finishWith(onDone)
     return
   }
-  signal?.addEventListener("abort", abortListener)
+  signal?.addEventListener('abort', abortListener)
 
   try {
     const workingDirectory = useWikiStore.getState().project?.path
     if (!workingDirectory) {
-      throw new Error("Claude Code CLI requires an active project working directory")
+      throw new Error('Claude Code CLI requires an active project working directory')
     }
 
     // Listen FIRST so we don't miss the very first event on fast CLIs.
@@ -234,24 +241,26 @@ export async function streamClaudeCodeCli(
       `claude-cli:${streamId}:done`,
       (event) => {
         const code = event.payload?.code
-        const stderr = event.payload?.stderr?.trim() ?? ""
+        const stderr = event.payload?.stderr?.trim() ?? ''
         if (code !== null && code !== undefined && code !== 0) {
           finishWith(() =>
             onError(
-              new Error(buildExitError(code, stderr, unparsedLines.join("\n"))),
-            ),
+              new Error(buildExitError(code, stderr, unparsedLines.join('\n'))),
+            )
           )
         } else if (!emittedToken) {
           // CLI exited successfully but produced no assistant text.
           // Surface this as an explicit error so the ingest pipeline
           // retries rather than silently writing an empty stub page.
-          const details = stderr || unparsedLines.join("\n").trim()
+          const details = stderr || unparsedLines.join('\n').trim()
           finishWith(() =>
-            onError(new Error(
-              details
-                ? `Claude Code CLI completed but returned no content:\n${details}`
-                : "Claude Code CLI completed but returned no content. Try running `claude -p` in a terminal to inspect the output, or switch to the Anthropic API in Settings.",
-            )),
+            onError(
+              new Error(
+                details
+                  ? `Claude Code CLI completed but returned no content:\n${details}`
+                  : 'Claude Code CLI completed but returned no content. Try running `claude -p` in a terminal to inspect the output, or switch to the Anthropic API in Settings.',
+              ),
+            )
           )
         } else {
           finishWith(onDone)
@@ -270,10 +279,10 @@ export async function streamClaudeCodeCli(
       isolateLocalConfig: config.localCliIsolation === true,
       workingDirectory,
     }
-    await invoke("claude_cli_spawn", payload)
+    await invoke('claude_cli_spawn', payload)
     if (aborted || signal?.aborted) {
       aborted = true
-      await invoke("claude_cli_kill", { streamId }).catch(() => {})
+      await invoke('claude_cli_kill', { streamId }).catch(() => {})
       finishWith(onDone)
       return
     }
@@ -290,15 +299,17 @@ export async function streamClaudeCodeCli(
       // message — the Rust side returns a plain string from
       // spawn-failed, but users need to know to install claude.
       if (/not found|No such file|executable file not found/i.test(message)) {
-        onError(new Error(
-          "Claude Code CLI not found. Install `claude` (https://www.anthropic.com/claude-code) or pick a different provider.",
-        ))
+        onError(
+          new Error(
+            'Claude Code CLI not found. Install `claude` (https://www.anthropic.com/claude-code) or pick a different provider.',
+          ),
+        )
       } else {
         onError(err instanceof Error ? err : new Error(message))
       }
     })
   } finally {
-    signal?.removeEventListener("abort", abortListener)
+    signal?.removeEventListener('abort', abortListener)
   }
 }
 
@@ -328,16 +339,16 @@ export async function streamClaudeCodeCli(
 export function buildExitError(
   code: number,
   stderr: string,
-  unparsedStdout: string = "",
+  unparsedStdout: string = '',
 ): string {
   if (/unauthenticated|please.*log\s*in|authentication.*failed/i.test(stderr)) {
     return [
-      "Claude Code CLI is not authenticated.",
-      "Please open a terminal and run `claude` to complete the OAuth login,",
+      'Claude Code CLI is not authenticated.',
+      'Please open a terminal and run `claude` to complete the OAuth login,',
       "then retry. (LLM Wiki only spawns the binary — it can't run the",
-      "login flow on your behalf.)",
-      stderr ? `\n\n— stderr —\n${stderr}` : "",
-    ].join(" ").trim()
+      'login flow on your behalf.)',
+      stderr ? `\n\n— stderr —\n${stderr}` : '',
+    ].join(' ').trim()
   }
   if (stderr) {
     return `claude CLI exited with code ${code}: ${stderr}`
@@ -346,14 +357,14 @@ export function buildExitError(
     return [
       `claude CLI exited with code ${code} (no stderr).`,
       "Captured stdout output that LLM Wiki couldn't parse — pasting it",
-      "here so you can see what the CLI actually emitted:\n",
+      'here so you can see what the CLI actually emitted:\n',
       unparsedStdout.trim(),
-    ].join(" ")
+    ].join(' ')
   }
   return [
     `claude CLI exited silently with code ${code}.`,
-    "No stdout or stderr was captured — try running `claude -p` in a",
+    'No stdout or stderr was captured — try running `claude -p` in a',
     "terminal with the same prompt to see what's wrong, or switch to",
-    "the official Anthropic API in Settings.",
-  ].join(" ")
+    'the official Anthropic API in Settings.',
+  ].join(' ')
 }

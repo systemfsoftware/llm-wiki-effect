@@ -1,0 +1,47 @@
+name: Changeset
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    # The MCP server ships inside the app, and scripts/ is the release tooling
+    # itself. `package.json` and the lockfile stay out: dependabot cannot author
+    # a change intent, so gating them would stall every dependency PR.
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "extension/**"
+      - "mcp-server/**"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  require-changeset:
+    name: an app change needs a change intent
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # changeset status diffs the branch against the PR base commit.
+          fetch-depth: 0
+
+      - name: Install workspace dependencies
+        uses: ./.github/actions/install-deps
+
+      - name: Require a change intent
+        run: corepack pnpm exec changeset status --since "${{ github.event.pull_request.base.sha }}"
+
+      - name: Explain the failure
+        if: failure()
+        run: |
+          echo "::error::This PR changes shipped code but carries no change intent."
+          echo "::error::Add one with 'pnpm changeset', or write .changeset/<name>.md by hand."
+          echo "::error::A change that needs no release records that decision with bump 'none'."

@@ -6,11 +6,11 @@
  * `complete(response)` or `fail(error)`. Combine with AbortSignal to test
  * mid-flight cancellation.
  */
-import { vi, type Mock } from "vitest"
-import type { LlmConfig } from "@/stores/wiki-store"
-import type { ChatMessage } from "@/lib/llm-providers"
-import type { StreamCallbacks } from "@/lib/llm-client"
-import { createDeferred, type Deferred } from "./deferred"
+import type { StreamCallbacks } from '@/lib/llm-client'
+import type { ChatMessage } from '@/lib/llm-providers'
+import type { LlmConfig } from '@/stores/wiki-store'
+import { type Mock, vi } from 'vitest'
+import { createDeferred, type Deferred } from './deferred'
 
 interface PendingCall {
   config: LlmConfig
@@ -35,14 +35,16 @@ export interface StreamChatHarness {
 export function createStreamChatHarness(): StreamChatHarness {
   const pending: PendingCall[] = []
 
-  const mock = vi.fn(
+  const mock = vi.fn<
+    (config: LlmConfig, messages: ChatMessage[], callbacks: StreamCallbacks, signal?: AbortSignal) => Promise<void>
+  >(
     async (
       config: LlmConfig,
       messages: ChatMessage[],
       callbacks: StreamCallbacks,
       signal?: AbortSignal,
     ): Promise<void> => {
-      const deferred = createDeferred<void>()
+      const deferred = createDeferred()
       const entry: PendingCall = {
         config,
         messages,
@@ -59,7 +61,7 @@ export function createStreamChatHarness(): StreamChatHarness {
           callbacks.onDone()
           deferred.resolve()
         } else {
-          signal.addEventListener("abort", () => {
+          signal.addEventListener('abort', () => {
             entry.aborted = true
             callbacks.onDone()
             deferred.resolve()
@@ -85,11 +87,11 @@ export function createStreamChatHarness(): StreamChatHarness {
       // yield so caller's await can unwind
       await Promise.resolve()
     },
-    async fail(error: Error, index?: number) {
+    async fail(cause: Error, index?: number) {
       const i = index ?? pending.length - 1
       const call = pending[i]
       if (!call || call.deferred.settled) return
-      call.callbacks.onError(error)
+      call.callbacks.onError(cause)
       call.deferred.resolve()
       await Promise.resolve()
     },

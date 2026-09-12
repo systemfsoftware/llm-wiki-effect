@@ -1,5 +1,5 @@
-import type { GraphEdge } from "./wiki-graph"
-import { detectCommunities } from "./wiki-graph-analysis"
+import type { GraphEdge } from './wiki-graph'
+import { detectCommunities } from './wiki-graph-analysis'
 
 interface AnalysisRequest {
   nodes: { id: string; label: string; linkCount: number }[]

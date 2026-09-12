@@ -1,4 +1,4 @@
-import type { GraphEdge, GraphNode } from "@/lib/wiki-graph"
+import type { GraphEdge, GraphNode } from '@/lib/wiki-graph'
 
 export interface GraphSearchResult {
   nodes: GraphNode[]
@@ -28,7 +28,7 @@ export function applyGraphSearch(
       node.id,
       node.type,
       node.path,
-    ].join(" ").toLowerCase()
+    ].join(' ').toLowerCase()
     const matched = tokens.every((token) => haystack.includes(token))
     if (matched) matchedNodeIds.add(node.id)
     return matched

@@ -88,6 +88,7 @@ The core architecture follows Karpathy's design faithfully:
 ### 1. From CLI to Desktop Application
 
 The original is an abstract pattern document designed to be copy-pasted to an LLM agent. We built it into a **full cross-platform desktop application** with:
+
 - **Three-column layout**: Knowledge Tree / File Tree (left) + Chat (center) + Preview (right)
 - **Icon sidebar** for switching between Wiki, Sources, Search, Graph, Lint, Review, Deep Research, Settings
 - **Custom resizable panels** — drag-to-resize left and right panels with min/max constraints
@@ -98,6 +99,7 @@ The original is an abstract pattern document designed to be copy-pasted to an LL
 ### 2. Purpose.md — The Wiki's Soul
 
 The original has Schema (how the wiki works) but no formal place for **why** the wiki exists. We added `purpose.md`:
+
 - Defines goals, key questions, research scope, evolving thesis
 - LLM reads it during every ingest and query for context
 - LLM can suggest updates based on usage patterns
@@ -123,6 +125,7 @@ Step 2 (Generation): LLM takes analysis → generates wiki files
 ```
 
 Additional ingest enhancements beyond the original:
+
 - **SHA256 incremental cache** — source file content is hashed before ingest; unchanged files are skipped automatically, saving LLM tokens and time
 - **Persistent ingest queue** — serial processing prevents concurrent LLM calls; queue persisted to disk, survives app restart; failed tasks auto-retry up to 3 times
 - **Folder import** — recursive folder import preserving directory structure; folder path passed to LLM as classification context (e.g., "papers > energy" helps categorize content)
@@ -144,14 +147,16 @@ Additional ingest enhancements beyond the original:
 The original mentions `[[wikilinks]]` for cross-references but has no graph analysis. We built a **full knowledge graph visualization and relevance engine**:
 
 **4-Signal Relevance Model:**
-| Signal | Weight | Description |
-|--------|--------|-------------|
-| Direct link | ×3.0 | Pages linked via `[[wikilinks]]` |
-| Source overlap | ×4.0 | Pages sharing the same raw source (via frontmatter `sources[]`) |
-| Adamic-Adar | ×1.5 | Pages sharing common neighbors (weighted by neighbor degree) |
-| Type affinity | ×1.0 | Bonus for same page type (entity↔entity, concept↔concept) |
+
+| Signal         | Weight | Description                                                     |
+| -------------- | ------ | --------------------------------------------------------------- |
+| Direct link    | ×3.0   | Pages linked via `[[wikilinks]]`                                |
+| Source overlap | ×4.0   | Pages sharing the same raw source (via frontmatter `sources[]`) |
+| Adamic-Adar    | ×1.5   | Pages sharing common neighbors (weighted by neighbor degree)    |
+| Type affinity  | ×1.0   | Bonus for same page type (entity↔entity, concept↔concept)       |
 
 **Graph Visualization (sigma.js + graphology + ForceAtlas2):**
+
 - Node colors by page type or community, sizes scaled by link count (√ scaling)
 - Edge thickness and color by relevance weight (green=strong, gray=weak)
 - Hover interaction: neighbors stay visible, non-neighbors dim, edges highlight with relevance score label
@@ -178,16 +183,19 @@ Not in the original. Automatic discovery of knowledge clusters using the **Louva
 Not in the original. The system **automatically analyzes graph structure** to surface actionable insights:
 
 **Surprising Connections:**
+
 - Detects unexpected relationships: cross-community edges, cross-type links, peripheral↔hub couplings
 - Composite surprise score ranks the most noteworthy connections
 - Dismissable — mark connections as reviewed so they don't reappear
 
 **Knowledge Gaps:**
+
 - **Isolated pages** (degree ≤ 1) — pages with few or no connections to the rest of the wiki
 - **Sparse communities** (cohesion < 0.15, ≥ 3 pages) — knowledge areas with weak internal cross-references
 - **Bridge nodes** (connecting 3+ clusters) — critical junction pages that hold multiple knowledge areas together
 
 **Interactive:**
+
 - Click any insight card to **highlight** corresponding nodes and edges in the graph; click again to deselect
 - Knowledge gaps and bridge nodes have a **Deep Research button** — triggers LLM-optimized research with domain-aware topics (reads overview.md + purpose.md for context)
 - Research topic shown in **editable confirmation dialog** before starting — user can refine topic and search queries
@@ -321,16 +329,16 @@ The original mentions Obsidian Web Clipper. We built a **dedicated Chrome Extens
 
 The original focuses on text/markdown. We support structured extraction preserving document semantics:
 
-| Format | Method |
-|--------|--------|
-| PDF | Built-in pdf-extract (Rust) with file caching; optional MinerU Cloud, Local API, or Pipeline parsing for complex layouts |
-| DOCX | docx-rs — headings, bold/italic, lists, tables → structured Markdown |
-| PPTX | ZIP + XML — slide-by-slide extraction with heading/list structure |
-| XLSX/XLS/ODS | calamine — proper cell types, multi-sheet support, Markdown tables |
-| EPUB/MOBI | Electronic book metadata, chapters, and body text → ingest-ready content |
-| Images | Native preview (png, jpg, gif, webp, svg, etc.) |
-| Video/Audio | Built-in player |
-| Web clips | Readability.js + Turndown.js → clean Markdown |
+| Format       | Method                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| PDF          | Built-in pdf-extract (Rust) with file caching; optional MinerU Cloud, Local API, or Pipeline parsing for complex layouts |
+| DOCX         | docx-rs — headings, bold/italic, lists, tables → structured Markdown                                                     |
+| PPTX         | ZIP + XML — slide-by-slide extraction with heading/list structure                                                        |
+| XLSX/XLS/ODS | calamine — proper cell types, multi-sheet support, Markdown tables                                                       |
+| EPUB/MOBI    | Electronic book metadata, chapters, and body text → ingest-ready content                                                 |
+| Images       | Native preview (png, jpg, gif, webp, svg, etc.)                                                                          |
+| Video/Audio  | Built-in player                                                                                                          |
+| Web clips    | Readability.js + Turndown.js → clean Markdown                                                                            |
 
 > MinerU is optional. Use MinerU Cloud, an official Local API endpoint, or Local Pipeline mode for complex PDFs. Local modes keep processing on your machine, and extracted images are stored in the project-managed `wiki/media` directory. If MinerU fails, LLM Wiki falls back to the built-in parser.
 
@@ -378,26 +386,27 @@ The original is platform-agnostic (abstract pattern). We handle concrete cross-p
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Desktop | Tauri v2 (Rust backend) |
-| Frontend | React 19 + TypeScript + Vite |
-| UI | shadcn/ui + Tailwind CSS v4 |
-| Editor | Milkdown (ProseMirror-based WYSIWYG) |
-| Graph | sigma.js + graphology + ForceAtlas2 |
-| Search | Tokenized search + graph relevance + optional vector (LanceDB) |
-| Vector DB | LanceDB (Rust, embedded, optional) |
-| Documents | pdf-extract + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI extraction |
-| i18n | react-i18next |
-| State | Zustand |
-| LLM | Streaming fetch (OpenAI, Anthropic, Google, Ollama, Custom) |
-| Web Search | Tavily, SerpApi, SearXNG JSON API |
+| Layer      | Technology                                                                   |
+| ---------- | ---------------------------------------------------------------------------- |
+| Desktop    | Tauri v2 (Rust backend)                                                      |
+| Frontend   | React 19 + TypeScript + Vite                                                 |
+| UI         | shadcn/ui + Tailwind CSS v4                                                  |
+| Editor     | Milkdown (ProseMirror-based WYSIWYG)                                         |
+| Graph      | sigma.js + graphology + ForceAtlas2                                          |
+| Search     | Tokenized search + graph relevance + optional vector (LanceDB)               |
+| Vector DB  | LanceDB (Rust, embedded, optional)                                           |
+| Documents  | pdf-extract + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI extraction |
+| i18n       | react-i18next                                                                |
+| State      | Zustand                                                                      |
+| LLM        | Streaming fetch (OpenAI, Anthropic, Google, Ollama, Custom)                  |
+| Web Search | Tavily, SerpApi, SearXNG JSON API                                            |
 
 ## Installation
 
 ### Pre-built Binaries
 
 Download from [Releases](https://github.com/nashsu/llm_wiki/releases):
+
 - **macOS**: `.dmg` (Apple Silicon + Intel)
 - **Windows**: `.msi`
 - **Linux**: `.deb` / `.AppImage`

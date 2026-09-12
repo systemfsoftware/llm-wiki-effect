@@ -1,11 +1,11 @@
-import type { ChatAgentFileChange } from "@/lib/chat-agent-types"
+import type { ChatAgentFileChange } from '@/lib/chat-agent-types'
 
 const MAX_DIFF_LINES = 240
 const MAX_DIFF_CHARS = 48_000
 
 function splitLines(value: string): string[] {
   if (value.length === 0) return []
-  return value.replace(/\r\n/g, "\n").split("\n")
+  return value.replace(/\r\n/g, '\n').split('\n')
 }
 
 /**
@@ -22,7 +22,7 @@ export function summarizeAgentFileChange(input: {
   afterContent: string
   timestamp?: number
 }): ChatAgentFileChange {
-  const before = splitLines(input.beforeContent ?? "")
+  const before = splitLines(input.beforeContent ?? '')
   const after = splitLines(input.afterContent)
   let prefix = 0
   while (prefix < before.length && prefix < after.length && before[prefix] === after[prefix]) {
@@ -30,9 +30,9 @@ export function summarizeAgentFileChange(input: {
   }
   let suffix = 0
   while (
-    suffix < before.length - prefix
-    && suffix < after.length - prefix
-    && before[before.length - 1 - suffix] === after[after.length - 1 - suffix]
+    suffix < before.length - prefix &&
+    suffix < after.length - prefix &&
+    before[before.length - 1 - suffix] === after[after.length - 1 - suffix]
   ) {
     suffix += 1
   }
@@ -44,15 +44,15 @@ export function summarizeAgentFileChange(input: {
     ...removed.map((line) => `-${line}`),
     ...added.map((line) => `+${line}`),
   ]
-  let diff = diffLines.slice(0, MAX_DIFF_LINES).join("\n")
-  if (diffLines.length > MAX_DIFF_LINES) diff += "\n… diff truncated"
+  let diff = diffLines.slice(0, MAX_DIFF_LINES).join('\n')
+  if (diffLines.length > MAX_DIFF_LINES) diff += '\n… diff truncated'
   if (diff.length > MAX_DIFF_CHARS) diff = `${diff.slice(0, MAX_DIFF_CHARS)}\n… diff truncated`
 
   return {
     id: input.id,
     path: input.path,
     tool: input.tool,
-    operation: input.beforeContent === null ? "created" : "modified",
+    operation: input.beforeContent === null ? 'created' : 'modified',
     additions: added.length,
     deletions: removed.length,
     diff,

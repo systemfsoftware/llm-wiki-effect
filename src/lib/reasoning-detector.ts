@@ -36,8 +36,7 @@
  * exact tokens.
  */
 
-const REASONING_FIELD_RE =
-  /"reasoning(?:_content)?"\s*:\s*"((?:[^"\\]|\\.)*)"/g
+const REASONING_FIELD_RE = /"reasoning(?:_content)?"\s*:\s*"((?:[^"\\]|\\.)*)"/g
 
 export function countReasoningCharsInLine(rawLine: string): number {
   let total = 0
@@ -49,34 +48,48 @@ export function countReasoningCharsInLine(rawLine: string): number {
 
 export function extractReasoningTextFromLine(rawLine: string): string[] {
   const line = rawLine.trim()
-  if (!line.startsWith("data: ")) return []
+  if (!line.startsWith('data: ')) return []
   const data = line.slice(6).trim()
-  if (!data || data === "[DONE]") return []
+  if (!data || data === '[DONE]') return []
 
   try {
-    const parsed = JSON.parse(data) as {
-      choices?: Array<{ delta?: { reasoning_content?: string; reasoning?: string } }>
-      delta?: { type?: string; text?: string; thinking?: string }
-      candidates?: Array<{
-        content?: { parts?: Array<{ text?: string; thought?: boolean }> }
-      }>
-    }
+    const parsed: unknown = JSON.parse(data)
+    if (typeof parsed !== 'object' || parsed === null) return []
 
     const out: string[] = []
-    for (const choice of parsed.choices ?? []) {
-      const delta = choice.delta
-      if (typeof delta?.reasoning_content === "string") out.push(delta.reasoning_content)
-      if (typeof delta?.reasoning === "string") out.push(delta.reasoning)
+
+    if ('choices' in parsed && Array.isArray(parsed.choices)) {
+      for (const choice of parsed.choices) {
+        if (typeof choice !== 'object' || choice === null || !('delta' in choice)) continue
+        const delta = choice.delta
+        if (typeof delta !== 'object' || delta === null) continue
+        if ('reasoning_content' in delta && typeof delta.reasoning_content === 'string') {
+          out.push(delta.reasoning_content)
+        }
+        if ('reasoning' in delta && typeof delta.reasoning === 'string') out.push(delta.reasoning)
+      }
     }
 
-    if (parsed.delta?.type === "thinking_delta") {
-      if (typeof parsed.delta.thinking === "string") out.push(parsed.delta.thinking)
-      if (typeof parsed.delta.text === "string") out.push(parsed.delta.text)
+    if ('delta' in parsed) {
+      const delta = parsed.delta
+      if (typeof delta === 'object' && delta !== null && 'type' in delta && delta.type === 'thinking_delta') {
+        if ('thinking' in delta && typeof delta.thinking === 'string') out.push(delta.thinking)
+        if ('text' in delta && typeof delta.text === 'string') out.push(delta.text)
+      }
     }
 
-    for (const candidate of parsed.candidates ?? []) {
-      for (const part of candidate.content?.parts ?? []) {
-        if (part.thought && typeof part.text === "string") out.push(part.text)
+    if ('candidates' in parsed && Array.isArray(parsed.candidates)) {
+      for (const candidate of parsed.candidates) {
+        if (typeof candidate !== 'object' || candidate === null) continue
+        const content = 'content' in candidate ? candidate.content : undefined
+        if (typeof content !== 'object' || content === null) continue
+        const parts = 'parts' in content ? content.parts : undefined
+        if (!Array.isArray(parts)) continue
+        for (const part of parts) {
+          if (typeof part !== 'object' || part === null) continue
+          const text = 'text' in part ? part.text : undefined
+          if ('thought' in part && part.thought && typeof text === 'string') out.push(text)
+        }
       }
     }
 

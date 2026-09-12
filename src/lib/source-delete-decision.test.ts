@@ -16,108 +16,113 @@
  * sources list didn't actually contain the target, and those would
  * then be wiped.
  */
-import { describe, it, expect } from "vitest"
-import { decidePageFate } from "./source-delete-decision"
+import { describe, expect, it } from 'vitest'
+import { decidePageFate, type DeleteDecision } from './source-delete-decision'
 
-describe("decidePageFate — single-source page", () => {
-  it("deletes when the sole source is the one being removed", () => {
-    expect(decidePageFate(["test.md"], "test.md")).toEqual({ action: "delete" })
+function keptSources(decision: DeleteDecision): string[] {
+  if (decision.action !== 'keep') throw new Error(`expected keep, got ${decision.action}`)
+  return decision.updatedSources
+}
+
+describe('decidePageFate — single-source page', () => {
+  it('deletes when the sole source is the one being removed', () => {
+    expect(decidePageFate(['test.md'], 'test.md')).toEqual({ action: 'delete' })
   })
 
-  it("SKIPS when the sole source is NOT the one being removed (Bug #1 fix)", () => {
+  it('SKIPS when the sole source is NOT the one being removed (Bug #1 fix)', () => {
     // The user-reported / review-surfaced data-loss path: page shows up
     // in findRelatedWikiPages via a loose match, but its actual single
     // source is unrelated. Must NOT be deleted.
-    const decision = decidePageFate(["other.md"], "test.md")
-    expect(decision.action).toBe("skip")
+    const decision = decidePageFate(['other.md'], 'test.md')
+    expect(decision.action).toBe('skip')
   })
 
-  it("matches case-insensitively when deciding to delete", () => {
-    expect(decidePageFate(["Test.md"], "test.md")).toEqual({ action: "delete" })
-    expect(decidePageFate(["test.md"], "TEST.MD")).toEqual({ action: "delete" })
+  it('matches case-insensitively when deciding to delete', () => {
+    expect(decidePageFate(['Test.md'], 'test.md')).toEqual({ action: 'delete' })
+    expect(decidePageFate(['test.md'], 'TEST.MD')).toEqual({ action: 'delete' })
   })
 })
 
-describe("decidePageFate — multi-source page", () => {
-  it("keeps and drops the deleted source from the list", () => {
-    expect(decidePageFate(["a.md", "b.md"], "a.md")).toEqual({
-      action: "keep",
-      updatedSources: ["b.md"],
+describe('decidePageFate — multi-source page', () => {
+  it('keeps and drops the deleted source from the list', () => {
+    expect(decidePageFate(['a.md', 'b.md'], 'a.md')).toEqual({
+      action: 'keep',
+      updatedSources: ['b.md'],
     })
   })
 
-  it("preserves the order of surviving sources", () => {
-    expect(decidePageFate(["a.md", "b.md", "c.md"], "b.md")).toEqual({
-      action: "keep",
-      updatedSources: ["a.md", "c.md"],
+  it('preserves the order of surviving sources', () => {
+    expect(decidePageFate(['a.md', 'b.md', 'c.md'], 'b.md')).toEqual({
+      action: 'keep',
+      updatedSources: ['a.md', 'c.md'],
     })
   })
 
-  it("SKIPS when the deleted source is not in the multi-source list", () => {
+  it('SKIPS when the deleted source is not in the multi-source list', () => {
     // Again the false-positive-from-loose-match scenario, but the page
     // has multiple genuine sources, none of which is the deleted one.
-    const decision = decidePageFate(["a.md", "b.md"], "c.md")
-    expect(decision.action).toBe("skip")
+    const decision = decidePageFate(['a.md', 'b.md'], 'c.md')
+    expect(decision.action).toBe('skip')
   })
 
-  it("matches case-insensitively AND strips all case variants on keep", () => {
+  it('matches case-insensitively AND strips all case variants on keep', () => {
     // If a page somehow has both "Test.md" and "test.md" in its sources
     // list (rare but possible via manual editing or ingest glitch), a
     // single deletion request should remove every case variant so
     // residual duplicates don't linger.
     const decision = decidePageFate(
-      ["Test.md", "Other.md", "test.md"],
-      "test.md",
+      ['Test.md', 'Other.md', 'test.md'],
+      'test.md',
     )
     expect(decision).toEqual({
-      action: "keep",
-      updatedSources: ["Other.md"],
+      action: 'keep',
+      updatedSources: ['Other.md'],
     })
   })
 })
 
-describe("decidePageFate — empty / edge inputs", () => {
-  it("skips a page with an empty sources list (no claim on this deletion)", () => {
+describe('decidePageFate — empty / edge inputs', () => {
+  it('skips a page with an empty sources list (no claim on this deletion)', () => {
     // Pre-0.3.x pages without a sources field, or pages manually edited
     // to an empty list. They shouldn't be deleted just because
     // findRelatedWikiPages happened to return them via the file-path
     // heuristic.
-    const decision = decidePageFate([], "test.md")
-    expect(decision.action).toBe("skip")
+    const decision = decidePageFate([], 'test.md')
+    expect(decision.action).toBe('skip')
   })
 
-  it("skips when the deleting source is itself empty", () => {
+  it('skips when the deleting source is itself empty', () => {
     // Defensive: an empty deleting source never matches anything.
-    const decision = decidePageFate(["a.md"], "")
-    expect(decision.action).toBe("skip")
+    const decision = decidePageFate(['a.md'], '')
+    expect(decision.action).toBe('skip')
   })
 
-  it("handles a single-source list where the source is some other casing", () => {
+  it('handles a single-source list where the source is some other casing', () => {
     expect(
-      decidePageFate(["SomeFile.Md"], "somefile.md"),
-    ).toEqual({ action: "delete" })
+      decidePageFate(['SomeFile.Md'], 'somefile.md'),
+    ).toEqual({ action: 'delete' })
   })
 })
 
-describe("decidePageFate — the full lifecycle of a shared page", () => {
-  it("walks from multi-source → multi-source → single-source → deleted across source deletions", () => {
+describe('decidePageFate — the full lifecycle of a shared page', () => {
+  it('walks from multi-source → multi-source → single-source → deleted across source deletions', () => {
     // Page starts with three sources.
-    let sources = ["a.md", "b.md", "c.md"]
+    let sources = ['a.md', 'b.md', 'c.md']
 
     // Delete a.md first → keep, drop a.
-    let d = decidePageFate(sources, "a.md")
-    expect(d.action).toBe("keep")
-    sources = (d as { action: "keep"; updatedSources: string[] }).updatedSources
-    expect(sources).toEqual(["b.md", "c.md"])
+    let d = decidePageFate(sources, 'a.md')
+    expect(d.action).toBe('keep')
+    sources = keptSources(d)
+    expect(sources).toEqual(['b.md', 'c.md'])
 
     // Delete c.md → keep, drop c.
-    d = decidePageFate(sources, "c.md")
-    expect(d.action).toBe("keep")
-    sources = (d as { action: "keep"; updatedSources: string[] }).updatedSources
-    expect(sources).toEqual(["b.md"])
+    d = decidePageFate(sources, 'c.md')
+    expect(d.action).toBe('keep')
+    sources = keptSources(d)
+    expect(sources).toEqual(['b.md'])
 
     // Delete b.md (now the sole source) → delete the page.
-    d = decidePageFate(sources, "b.md")
-    expect(d.action).toBe("delete")
+    d = decidePageFate(sources, 'b.md')
+    expect(d.action).toBe('delete')
   })
 })

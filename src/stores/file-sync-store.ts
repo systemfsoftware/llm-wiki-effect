@@ -1,5 +1,5 @@
-import { create } from "zustand"
-import type { FileChangeTask } from "@/commands/file-sync"
+import type { FileChangeTask } from '@/commands/file-sync'
+import { create } from 'zustand'
 
 interface FileSyncState {
   tasks: FileChangeTask[]

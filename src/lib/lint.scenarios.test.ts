@@ -4,29 +4,30 @@
  * Exercises runStructuralLint (always) and runSemanticLint (when the
  * scenario provides an llm-response.txt) against a materialized wiki dir.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest"
-import path from "node:path"
-import fs from "node:fs/promises"
-import { realFs, createTempProject } from "@/test-helpers/fs-temp"
-import { materializeScenario, copyDir } from "@/test-helpers/scenarios/materialize"
-import { lintScenarios } from "@/test-helpers/scenarios/lint-scenarios"
-import type { LintScenario } from "@/test-helpers/scenarios/types"
+import { createTempProject, realFs } from '@/test-helpers/fs-temp'
+import { lintScenarios } from '@/test-helpers/scenarios/lint-scenarios'
+import { copyDir, materializeScenario } from '@/test-helpers/scenarios/materialize'
+import type { LintScenario } from '@/test-helpers/scenarios/types'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { streamChat } from './llm-client'
 
-vi.mock("@/commands/fs", () => realFs)
+vi.mock('@/commands/fs', () => realFs)
 
 let currentLlmResponse: string | null = null
-vi.mock("./llm-client", () => ({
-  streamChat: vi.fn(async (_cfg, _msgs, cb) => {
+vi.mock('./llm-client', () => ({
+  streamChat: vi.fn<typeof streamChat>(async (_cfg, _msgs, cb) => {
     if (currentLlmResponse !== null) cb.onToken(currentLlmResponse)
     cb.onDone()
   }),
 }))
 
-import { runStructuralLint, runSemanticLint, type LintResult } from "./lint"
-import { useWikiStore } from "@/stores/wiki-store"
-import { useActivityStore } from "@/stores/activity-store"
+import { useActivityStore } from '@/stores/activity-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import { type LintResult, runSemanticLint, runStructuralLint } from './lint'
 
-const FIXTURES_ROOT = path.join(process.cwd(), "tests", "fixtures", "scenarios-lint")
+const FIXTURES_ROOT = path.join(process.cwd(), 'tests', 'fixtures', 'scenarios-lint')
 
 const shimScenarios = lintScenarios // shorthand
 
@@ -50,33 +51,27 @@ let ctx: Ctx | undefined
 
 async function setup(scenario: LintScenario): Promise<Ctx> {
   const tmp = await createTempProject(
-    `lint-${scenario.name.replace(/\//g, "-")}`,
+    `lint-${scenario.name.replace(/\//g, '-')}`,
   )
-  const initialWikiDir = path.join(FIXTURES_ROOT, scenario.name, "initial-wiki")
+  const initialWikiDir = path.join(FIXTURES_ROOT, scenario.name, 'initial-wiki')
   await copyDir(initialWikiDir, tmp.path)
 
   useWikiStore.setState({
-    project: {
-      name: "t",
-      path: tmp.path,
-      createdAt: 0,
-      purposeText: "",
-      fileTree: [],
-    } as unknown as ReturnType<typeof useWikiStore.getState>["project"],
+    project: { id: 't', name: 't', path: tmp.path },
   })
   useWikiStore.getState().setLlmConfig({
-    provider: "openai",
-    apiKey: "test-key",
-    model: "gpt-4",
-    ollamaUrl: "",
-    customEndpoint: "",
+    provider: 'openai',
+    apiKey: 'test-key',
+    model: 'gpt-4',
+    ollamaUrl: '',
+    customEndpoint: '',
     maxContextSize: 128000,
   })
 
   if (scenario.llmResponse !== undefined) {
     currentLlmResponse = await fs.readFile(
-      path.join(FIXTURES_ROOT, scenario.name, "llm-response.txt"),
-      "utf-8",
+      path.join(FIXTURES_ROOT, scenario.name, 'llm-response.txt'),
+      'utf-8',
     )
   }
   return { tmp }
@@ -128,7 +123,7 @@ function assertSemantic(
       const match = actual.find(
         (a) =>
           a.type === e.type &&
-          a.severity === (e.severity as "warning" | "info") &&
+          a.severity === e.severity &&
           (e.titleContains === undefined || a.detail.includes(e.titleContains) ||
             a.page.includes(e.titleContains)),
       )
@@ -146,10 +141,11 @@ function assertSemantic(
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
-describe("lint scenarios (fixture-driven)", () => {
+describe('lint scenarios (fixture-driven)', () => {
   it.each(shimScenarios.map((s) => [s.name, s]))(
-    "%s",
+    '%s',
     async (_name, scenario) => {
+      expect.hasAssertions()
       ctx = await setup(scenario)
 
       const structural = await runStructuralLint(ctx.tmp.path)

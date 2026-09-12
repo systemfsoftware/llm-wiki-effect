@@ -1,73 +1,73 @@
-export type TextDirection = "ltr" | "rtl"
+export type TextDirection = 'ltr' | 'rtl'
 
 interface LanguageMetadata {
   promptName: string
   htmlLang?: string
   direction: TextDirection
-  scriptFamily: "arabic" | "cjk" | "latin" | "other"
+  scriptFamily: 'arabic' | 'cjk' | 'latin' | 'other'
 }
 
 const LANGUAGE_METADATA: Record<string, LanguageMetadata> = {
   English: {
-    promptName: "English",
-    htmlLang: "en",
-    direction: "ltr",
-    scriptFamily: "latin",
+    promptName: 'English',
+    htmlLang: 'en',
+    direction: 'ltr',
+    scriptFamily: 'latin',
   },
   Arabic: {
-    promptName: "Arabic / العربية",
-    htmlLang: "ar",
-    direction: "rtl",
-    scriptFamily: "arabic",
+    promptName: 'Arabic / العربية',
+    htmlLang: 'ar',
+    direction: 'rtl',
+    scriptFamily: 'arabic',
   },
   Persian: {
-    promptName: "Persian (Farsi / فارسی)",
-    htmlLang: "fa",
-    direction: "rtl",
-    scriptFamily: "arabic",
+    promptName: 'Persian (Farsi / فارسی)',
+    htmlLang: 'fa',
+    direction: 'rtl',
+    scriptFamily: 'arabic',
   },
   Hebrew: {
-    promptName: "Hebrew / עברית",
-    htmlLang: "he",
-    direction: "rtl",
-    scriptFamily: "other",
+    promptName: 'Hebrew / עברית',
+    htmlLang: 'he',
+    direction: 'rtl',
+    scriptFamily: 'other',
   },
   Chinese: {
-    promptName: "Chinese",
-    htmlLang: "zh-Hans",
-    direction: "ltr",
-    scriptFamily: "cjk",
+    promptName: 'Chinese',
+    htmlLang: 'zh-Hans',
+    direction: 'ltr',
+    scriptFamily: 'cjk',
   },
-  "Traditional Chinese": {
-    promptName: "Traditional Chinese",
-    htmlLang: "zh-Hant",
-    direction: "ltr",
-    scriptFamily: "cjk",
+  'Traditional Chinese': {
+    promptName: 'Traditional Chinese',
+    htmlLang: 'zh-Hant',
+    direction: 'ltr',
+    scriptFamily: 'cjk',
   },
   Japanese: {
-    promptName: "Japanese",
-    htmlLang: "ja",
-    direction: "ltr",
-    scriptFamily: "cjk",
+    promptName: 'Japanese',
+    htmlLang: 'ja',
+    direction: 'ltr',
+    scriptFamily: 'cjk',
   },
   Korean: {
-    promptName: "Korean",
-    htmlLang: "ko",
-    direction: "ltr",
-    scriptFamily: "cjk",
+    promptName: 'Korean',
+    htmlLang: 'ko',
+    direction: 'ltr',
+    scriptFamily: 'cjk',
   },
   Czech: {
-    promptName: "Czech / čeština",
-    htmlLang: "cs",
-    direction: "ltr",
-    scriptFamily: "latin",
+    promptName: 'Czech / čeština',
+    htmlLang: 'cs',
+    direction: 'ltr',
+    scriptFamily: 'latin',
   },
 }
 
 const DEFAULT_METADATA: LanguageMetadata = {
-  promptName: "English",
-  direction: "ltr",
-  scriptFamily: "latin",
+  promptName: 'English',
+  direction: 'ltr',
+  scriptFamily: 'latin',
 }
 
 export function getLanguageMetadata(language: string): LanguageMetadata {

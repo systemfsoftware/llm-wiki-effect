@@ -1,4 +1,4 @@
-import { preprocessFile } from "@/commands/fs"
+import { preprocessFile } from '@/commands/fs'
 
 export const MIN_PARSING_CONCURRENCY = 1
 export const MAX_PARSING_CONCURRENCY = 8

@@ -15,24 +15,22 @@
  * only source tracked in version control. This lets the author eyeball the
  * generated files on disk during debugging.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest"
-import path from "node:path"
-import fs from "node:fs/promises"
-import { realFs, createTempProject } from "@/test-helpers/fs-temp"
-import {
-  materializeScenario,
-  copyDir,
-} from "@/test-helpers/scenarios/materialize"
-import { sweepScenarios } from "@/test-helpers/scenarios/sweep-scenarios"
-import type { SweepScenario, ReviewFixture } from "@/test-helpers/scenarios/types"
+import { createTempProject, realFs } from '@/test-helpers/fs-temp'
+import { copyDir, materializeScenario } from '@/test-helpers/scenarios/materialize'
+import { sweepScenarios } from '@/test-helpers/scenarios/sweep-scenarios'
+import type { ReviewFixture, SweepScenario } from '@/test-helpers/scenarios/types'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { streamChat } from './llm-client'
 
-vi.mock("@/commands/fs", () => realFs)
+vi.mock('@/commands/fs', () => realFs)
 
 // The LLM client is mocked per-test so we can inject the scenario's
 // llm-response.txt verbatim (streamed as a single token chunk, then onDone).
 let currentLlmResponse: string | null = null
-vi.mock("./llm-client", () => ({
-  streamChat: vi.fn(async (_cfg, _msgs, cb) => {
+vi.mock('./llm-client', () => ({
+  streamChat: vi.fn<typeof streamChat>(async (_cfg, _msgs, cb) => {
     if (currentLlmResponse !== null) {
       cb.onToken(currentLlmResponse)
     }
@@ -40,12 +38,12 @@ vi.mock("./llm-client", () => ({
   }),
 }))
 
-import { sweepResolvedReviews } from "./sweep-reviews"
-import { useWikiStore } from "@/stores/wiki-store"
-import { useReviewStore } from "@/stores/review-store"
-import { useActivityStore } from "@/stores/activity-store"
+import { useActivityStore } from '@/stores/activity-store'
+import { useReviewStore } from '@/stores/review-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import { sweepResolvedReviews } from './sweep-reviews'
 
-const FIXTURES_ROOT = path.join(process.cwd(), "tests", "fixtures", "scenarios")
+const FIXTURES_ROOT = path.join(process.cwd(), 'tests', 'fixtures', 'scenarios')
 
 // ── Setup ────────────────────────────────────────────────────────────────────
 
@@ -73,21 +71,32 @@ interface RunContext {
 }
 
 async function setupScenario(scenario: SweepScenario): Promise<RunContext> {
-  const tmp = await createTempProject(`scenario-${scenario.name.replace(/\//g, "-")}`)
+  const tmp = await createTempProject(`scenario-${scenario.name.replace(/\//g, '-')}`)
 
   // Copy initial-wiki into the tmp project
-  const initialWikiDir = path.join(FIXTURES_ROOT, scenario.name, "initial-wiki")
+  const initialWikiDir = path.join(FIXTURES_ROOT, scenario.name, 'initial-wiki')
   await copyDir(initialWikiDir, tmp.path)
 
   // Inject reviews (fill in the runtime-only fields)
-  const reviewsPath = path.join(FIXTURES_ROOT, scenario.name, "reviews.json")
-  const reviewsRaw = JSON.parse(await fs.readFile(reviewsPath, "utf-8")) as ReviewFixture[]
+  const reviewsPath = path.join(FIXTURES_ROOT, scenario.name, 'reviews.json')
+  const reviewsRaw: unknown = JSON.parse(await fs.readFile(reviewsPath, 'utf-8'))
+  if (!Array.isArray(reviewsRaw)) {
+    throw new Error(`reviews.json must be an array: ${reviewsPath}`)
+  }
+  const fixtures = reviewsRaw.filter((entry): entry is ReviewFixture => {
+    if (!entry || typeof entry !== 'object') return false
+    return (
+      'id' in entry && typeof entry.id === 'string' &&
+      'type' in entry && typeof entry.type === 'string' &&
+      'title' in entry && typeof entry.title === 'string'
+    )
+  })
   useReviewStore.setState({
-    items: reviewsRaw.map((r) => ({
+    items: fixtures.map((r) => ({
       id: r.id,
       type: r.type,
       title: r.title,
-      description: r.description ?? "",
+      description: r.description ?? '',
       affectedPages: r.affectedPages,
       searchQueries: r.searchQueries,
       sourcePath: r.sourcePath,
@@ -100,36 +109,34 @@ async function setupScenario(scenario: SweepScenario): Promise<RunContext> {
   // Project identity for the sweep's project-identity guard
   useWikiStore.setState({
     project: {
-      name: "test",
+      id: 'test-project',
+      name: 'test',
       path: tmp.path,
-      createdAt: 0,
-      purposeText: "",
-      fileTree: [],
-    } as unknown as ReturnType<typeof useWikiStore.getState>["project"],
+    },
   })
 
   // LLM config: real key iff the scenario has an LLM response. Otherwise,
   // empty apiKey makes judgeBatch return an empty Set (no LLM calls).
-  const llmResponsePath = path.join(FIXTURES_ROOT, scenario.name, "llm-response.txt")
+  const llmResponsePath = path.join(FIXTURES_ROOT, scenario.name, 'llm-response.txt')
   try {
-    currentLlmResponse = await fs.readFile(llmResponsePath, "utf-8")
+    currentLlmResponse = await fs.readFile(llmResponsePath, 'utf-8')
     useWikiStore.getState().setLlmConfig({
-      provider: "openai",
-      apiKey: "test-key",
-      model: "gpt-4",
-      ollamaUrl: "",
-      customEndpoint: "",
+      provider: 'openai',
+      apiKey: 'test-key',
+      model: 'gpt-4',
+      ollamaUrl: '',
+      customEndpoint: '',
       maxContextSize: 128000,
     })
   } catch {
     // No llm-response.txt — disable LLM stage
     currentLlmResponse = null
     useWikiStore.getState().setLlmConfig({
-      provider: "openai",
-      apiKey: "",
-      model: "",
-      ollamaUrl: "",
-      customEndpoint: "",
+      provider: 'openai',
+      apiKey: '',
+      model: '',
+      ollamaUrl: '',
+      customEndpoint: '',
       maxContextSize: 0,
     })
   }
@@ -149,10 +156,8 @@ function assertWithDump(
   try {
     expect(actualResolved.sort()).toEqual(expected.resolvedIds.slice().sort())
     expect(actualPending.sort()).toEqual(expected.pendingIds.slice().sort())
-    if (expected.resolvedActions) {
-      for (const [id, action] of Object.entries(expected.resolvedActions)) {
-        expect(actualActions[id]).toBe(action)
-      }
+    for (const [id, action] of Object.entries(expected.resolvedActions ?? {})) {
+      expect(actualActions[id]).toBe(action)
     }
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -176,7 +181,7 @@ function assertWithDump(
 
 // ── Test cases ──────────────────────────────────────────────────────────────
 
-describe("sweep scenarios (fixture-driven)", () => {
+describe('sweep scenarios (fixture-driven)', () => {
   // Keep context at the describe scope so afterEach can clean up even if
   // the test itself throws.
   let ctx: RunContext | undefined
@@ -189,7 +194,7 @@ describe("sweep scenarios (fixture-driven)", () => {
   })
 
   it.each(sweepScenarios.map((s) => [s.name, s]))(
-    "%s",
+    '%s',
     async (_name, scenario) => {
       ctx = await setupScenario(scenario)
 
@@ -198,12 +203,12 @@ describe("sweep scenarios (fixture-driven)", () => {
       const state = useReviewStore.getState().items
       const actualResolved = state.filter((i) => i.resolved).map((i) => i.id)
       const actualPending = state.filter((i) => !i.resolved).map((i) => i.id)
-      const actualActions = Object.fromEntries(
-        state
-          .filter((i) => i.resolved && i.resolvedAction)
-          .map((i) => [i.id, i.resolvedAction!]),
-      )
+      const actualActions: Record<string, string> = {}
+      for (const item of state) {
+        if (item.resolved && item.resolvedAction) actualActions[item.id] = item.resolvedAction
+      }
 
+      expect.hasAssertions()
       assertWithDump(scenario, actualResolved, actualPending, actualActions)
     },
   )

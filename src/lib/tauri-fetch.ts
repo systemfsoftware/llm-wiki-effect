@@ -17,8 +17,8 @@
  * from any environment without crashing at module load.
  */
 
-import { useWikiStore } from "@/stores/wiki-store"
-import { isProxyActive, type ProxyConfig } from "@/lib/proxy-config"
+import { isProxyActive, type ProxyConfig } from '@/lib/proxy-config'
+import { useWikiStore } from '@/stores/wiki-store'
 
 let pluginFetchPromise: Promise<typeof globalThis.fetch> | null = null
 
@@ -29,7 +29,7 @@ let pluginFetchPromise: Promise<typeof globalThis.fetch> | null = null
  * time, so we must avoid invoking it — guard BEFORE the dynamic
  * import rather than trying to .catch() an error that happens later.
  */
-const isNodeEnv = typeof window === "undefined"
+const isNodeEnv = typeof window === 'undefined'
 
 type PluginRequestInit = RequestInit & {
   danger?: {
@@ -43,7 +43,7 @@ export function withProxyTlsSettings(
   proxy: ProxyConfig,
 ): PluginRequestInit | undefined {
   if (!isProxyActive(proxy) || proxy.acceptInvalidCerts !== true) return init
-  const pluginInit = init as PluginRequestInit | undefined
+  const pluginInit: PluginRequestInit | undefined = init
   return {
     ...pluginInit,
     danger: {
@@ -69,7 +69,7 @@ export function getHttpFetch(): Promise<typeof globalThis.fetch> {
       // Bind so `this === globalThis` — Node's fetch requires it.
       pluginFetchPromise = Promise.resolve(globalThis.fetch.bind(globalThis))
     } else {
-      pluginFetchPromise = import("@tauri-apps/plugin-http")
+      pluginFetchPromise = import('@tauri-apps/plugin-http')
         .then((m) => {
           const pluginFetch = m.fetch
           const configuredFetch: typeof globalThis.fetch = (input, init) => {
@@ -103,13 +103,13 @@ export function getHttpFetch(): Promise<typeof globalThis.fetch> {
  */
 export function isFetchNetworkError(err: unknown): boolean {
   if (!(err instanceof Error)) return false
-  if (err.name === "AbortError") return false
+  if (err.name === 'AbortError') return false
   // Chromium / Edge WebView2
-  if (err.name === "TypeError") return true
+  if (err.name === 'TypeError') return true
   // WebKit (macOS / Linux GTK)
-  if (err.message === "Load failed") return true
+  if (err.message === 'Load failed') return true
   // Chromium mid-stream drop
-  if (err.message === "Failed to fetch") return true
-  if (err.message.includes("network error")) return true
+  if (err.message === 'Failed to fetch') return true
+  if (err.message.includes('network error')) return true
   return false
 }

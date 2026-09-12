@@ -47,10 +47,10 @@ export interface DeletedPageInfo {
  * distinct on purpose.
  */
 export function normalizeWikiRefKey(s: string): string {
-  const normalized = s.trim().replace(/\\/g, "/")
-  const leaf = normalized.split("/").pop() ?? normalized
-  const withoutMd = leaf.toLowerCase().endsWith(".md") ? leaf.slice(0, -3) : leaf
-  return withoutMd.toLowerCase().replace(/[\s\-_]+/g, "")
+  const normalized = s.trim().replace(/\\/g, '/')
+  const leaf = normalized.split('/').pop() ?? normalized
+  const withoutMd = leaf.toLowerCase().endsWith('.md') ? leaf.slice(0, -3) : leaf
+  return withoutMd.toLowerCase().replace(/[\s\-_]+/g, '')
 }
 
 /**
@@ -79,7 +79,7 @@ export function buildDeletedKeys(infos: DeletedPageInfo[]): Set<string> {
  */
 export function extractFrontmatterTitle(content: string): string {
   const m = content.match(/^title:\s*["']?(.+?)["']?\s*$/m)
-  return m ? m[1].trim() : ""
+  return m ? m[1].trim() : ''
 }
 
 // Matches a markdown list item whose first wikilink is the logical
@@ -98,13 +98,13 @@ const INDEX_ENTRY_RE = /^\s*[-*]\s*\[\[([^\]|]+?)(?:\|[^\]]+)?\]\]/
 export function cleanIndexListing(text: string, deletedKeys: Set<string>): string {
   if (deletedKeys.size === 0) return text
   return text
-    .split("\n")
+    .split('\n')
     .filter((line) => {
       const m = line.match(INDEX_ENTRY_RE)
       if (!m) return true
       return !deletedKeys.has(normalizeWikiRefKey(m[1].trim()))
     })
-    .join("\n")
+    .join('\n')
 }
 
 const WIKILINK_RE = /\[\[([^\]|]+?)(?:\|([^\]]+))?\]\]/g

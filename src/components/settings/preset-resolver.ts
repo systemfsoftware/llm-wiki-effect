@@ -1,7 +1,7 @@
-import type { LlmConfig } from "@/stores/wiki-store"
-import type { ProviderOverride } from "@/stores/wiki-store"
-import { AZURE_OPENAI_API_VERSION } from "@/lib/azure-openai"
-import type { LlmPreset } from "./llm-presets"
+import { AZURE_OPENAI_API_VERSION } from '@/lib/azure-openai'
+import type { LlmConfig } from '@/stores/wiki-store'
+import type { ProviderOverride } from '@/stores/wiki-store'
+import type { LlmPreset } from './llm-presets'
 
 /**
  * Build the deliberately unusable sentinel config persisted when every
@@ -14,8 +14,8 @@ import type { LlmPreset } from "./llm-presets"
 export function disabledLlmConfig(fallback: LlmConfig): LlmConfig {
   return {
     ...fallback,
-    provider: "openai",
-    apiKey: "",
+    provider: 'openai',
+    apiKey: '',
   }
 }
 
@@ -30,21 +30,20 @@ export function resolveConfig(
   fallback: LlmConfig,
 ): LlmConfig {
   const ov = override ?? {}
-  const apiKey = ov.apiKey ?? ""
-  const model = ov.model ?? preset.defaultModel ?? ""
-  const maxContextSize =
-    ov.maxContextSize ?? preset.suggestedContextSize ?? fallback.maxContextSize
-  const reasoning = ov.reasoning ?? { mode: "auto" as const }
+  const apiKey = ov.apiKey ?? ''
+  const model = ov.model ?? preset.defaultModel ?? ''
+  const maxContextSize = ov.maxContextSize ?? preset.suggestedContextSize ?? fallback.maxContextSize
+  const reasoning = ov.reasoning ?? { mode: 'auto' as const }
   // Carried alongside `reasoning`: without it the ingest selector would save a
   // value the resolved config drops, and ingest would keep using the default.
-  const ingestReasoning = ov.ingestReasoning ?? { mode: "off" as const }
+  const ingestReasoning = ov.ingestReasoning ?? { mode: 'off' as const }
   const localCliIsolation = ov.localCliIsolation === true
   const codexCliTimeoutMinutes =
-    typeof ov.codexCliTimeoutMinutes === "number" && Number.isFinite(ov.codexCliTimeoutMinutes)
+    typeof ov.codexCliTimeoutMinutes === 'number' && Number.isFinite(ov.codexCliTimeoutMinutes)
       ? Math.max(1, Math.min(240, Math.floor(ov.codexCliTimeoutMinutes)))
       : undefined
   const requestTimeoutMinutes =
-    typeof ov.requestTimeoutMinutes === "number" && Number.isFinite(ov.requestTimeoutMinutes)
+    typeof ov.requestTimeoutMinutes === 'number' && Number.isFinite(ov.requestTimeoutMinutes)
       ? Math.max(1, Math.min(1440, Math.floor(ov.requestTimeoutMinutes)))
       : fallback.requestTimeoutMinutes
   const customHeaders = ov.customHeaders
@@ -54,15 +53,15 @@ export function resolveConfig(
   const streamingEnabled = ov.streamingEnabled
   const streamingConfig = streamingEnabled === undefined ? {} : { streamingEnabled }
 
-  if (preset.provider === "custom") {
+  if (preset.provider === 'custom') {
     return {
-      provider: "custom",
+      provider: 'custom',
       apiKey,
       model,
       ollamaUrl: fallback.ollamaUrl,
-      customEndpoint: ov.baseUrl ?? preset.baseUrl ?? "",
+      customEndpoint: ov.baseUrl ?? preset.baseUrl ?? '',
       maxContextSize,
-      apiMode: ov.apiMode ?? preset.apiMode ?? "chat_completions",
+      apiMode: ov.apiMode ?? preset.apiMode ?? 'chat_completions',
       reasoning,
       ingestReasoning,
       localCliIsolation: false,
@@ -72,12 +71,12 @@ export function resolveConfig(
     }
   }
 
-  if (preset.provider === "ollama") {
+  if (preset.provider === 'ollama') {
     return {
-      provider: "ollama",
-      apiKey: "",
+      provider: 'ollama',
+      apiKey: '',
       model,
-      ollamaUrl: ov.baseUrl ?? preset.baseUrl ?? "http://localhost:11434",
+      ollamaUrl: ov.baseUrl ?? preset.baseUrl ?? 'http://localhost:11434',
       customEndpoint: fallback.customEndpoint,
       maxContextSize,
       reasoning,
@@ -89,15 +88,15 @@ export function resolveConfig(
     }
   }
 
-  if (preset.provider === "azure") {
+  if (preset.provider === 'azure') {
     return {
-      provider: "azure",
+      provider: 'azure',
       apiKey,
       model,
       ollamaUrl: fallback.ollamaUrl,
-      customEndpoint: ov.baseUrl ?? preset.baseUrl ?? "",
+      customEndpoint: ov.baseUrl ?? preset.baseUrl ?? '',
       azureApiVersion: ov.azureApiVersion ?? preset.azureApiVersion ?? AZURE_OPENAI_API_VERSION,
-      azureModelFamily: ov.azureModelFamily ?? preset.azureModelFamily ?? "auto",
+      azureModelFamily: ov.azureModelFamily ?? preset.azureModelFamily ?? 'auto',
       maxContextSize,
       reasoning,
       ingestReasoning,
@@ -108,12 +107,12 @@ export function resolveConfig(
     }
   }
 
-  if (preset.provider === "claude-code" || preset.provider === "codex-cli") {
+  if (preset.provider === 'claude-code' || preset.provider === 'codex-cli') {
     // Subprocess transport — no apiKey, no endpoint URL. Model id is
     // passed straight to the local CLI's model flag.
     return {
       provider: preset.provider,
-      apiKey: "",
+      apiKey: '',
       model,
       ollamaUrl: fallback.ollamaUrl,
       customEndpoint: fallback.customEndpoint,
@@ -121,7 +120,7 @@ export function resolveConfig(
       reasoning,
       ingestReasoning,
       localCliIsolation,
-      codexCliTimeoutMinutes: preset.provider === "codex-cli" ? codexCliTimeoutMinutes : undefined,
+      codexCliTimeoutMinutes: preset.provider === 'codex-cli' ? codexCliTimeoutMinutes : undefined,
       requestTimeoutMinutes,
       ...streamingConfig,
     }

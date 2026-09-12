@@ -10,19 +10,19 @@
  * should auto-resolve, this could falsely mark a still-missing page as
  * resolved.
  */
-import { describe, it, expect, vi } from "vitest"
-import type { FileNode } from "@/types/wiki"
+import type { FileNode } from '@/types/wiki'
+import { describe, expect, it, vi } from 'vitest'
 
-const mockListDirectory = vi.fn()
-const mockReadFile = vi.fn()
+const mockListDirectory = vi.fn<(path: string) => Promise<FileNode[]>>()
+const mockReadFile = vi.fn<(path: string) => Promise<string>>()
 
-vi.mock("@/commands/fs", () => ({
-  listDirectory: (...args: unknown[]) => mockListDirectory(...args),
-  readFile: (...args: unknown[]) => mockReadFile(...args),
+vi.mock('@/commands/fs', () => ({
+  listDirectory: (path: string) => mockListDirectory(path),
+  readFile: (path: string) => mockReadFile(path),
 }))
 
 async function loadBuildWikiIndex() {
-  const mod = await import("./sweep-reviews")
+  const mod = await import('./sweep-reviews')
   return mod.buildWikiIndex
 }
 
@@ -30,27 +30,27 @@ function mdFile(name: string): FileNode {
   return { name, path: `/project/wiki/${name}`, is_dir: false }
 }
 
-describe("buildWikiIndex", () => {
-  it("does not add a body prose line starting with title: to byTitle", async () => {
+describe('buildWikiIndex', () => {
+  it('does not add a body prose line starting with title: to byTitle', async () => {
     const buildWikiIndex = await loadBuildWikiIndex()
-    mockListDirectory.mockResolvedValue([mdFile("other.md")])
+    mockListDirectory.mockResolvedValue([mdFile('other.md')])
     mockReadFile.mockResolvedValue(
-      "---\ntype: entity\n---\n# Real Heading\n\nSome text.\ntitle: Attention Mechanism\n",
+      '---\ntype: entity\n---\n# Real Heading\n\nSome text.\ntitle: Attention Mechanism\n',
     )
 
-    const index = await buildWikiIndex("/project")
+    const index = await buildWikiIndex('/project')
 
-    expect(index.byTitle.has("attention mechanism")).toBe(false)
+    expect(index.byTitle.has('attention mechanism')).toBe(false)
     expect(index.pages[0].title).toBeNull()
   })
 
-  it("still indexes a genuine frontmatter title", async () => {
+  it('still indexes a genuine frontmatter title', async () => {
     const buildWikiIndex = await loadBuildWikiIndex()
-    mockListDirectory.mockResolvedValue([mdFile("real.md")])
-    mockReadFile.mockResolvedValue("---\ntitle: Real Title\n---\n# Real Title\n")
+    mockListDirectory.mockResolvedValue([mdFile('real.md')])
+    mockReadFile.mockResolvedValue('---\ntitle: Real Title\n---\n# Real Title\n')
 
-    const index = await buildWikiIndex("/project")
+    const index = await buildWikiIndex('/project')
 
-    expect(index.byTitle.has("real title")).toBe(true)
+    expect(index.byTitle.has('real title')).toBe(true)
   })
 })

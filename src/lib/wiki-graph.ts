@@ -1,9 +1,9 @@
-import { readFile, listDirectory } from "@/commands/fs"
-import type { FileNode } from "@/types/wiki"
-import { buildRetrievalGraph, calculateRelevance } from "./graph-relevance"
-import { normalizePath } from "@/lib/path-utils"
-import { parseFrontmatter } from "@/lib/frontmatter"
-import { detectCommunities } from "./wiki-graph-analysis"
+import { listDirectory, readFile } from '@/commands/fs'
+import { parseFrontmatter } from '@/lib/frontmatter'
+import { normalizePath } from '@/lib/path-utils'
+import type { FileNode } from '@/types/wiki'
+import { buildRetrievalGraph, calculateRelevance } from './graph-relevance'
+import { detectCommunities } from './wiki-graph-analysis'
 
 export interface GraphNode {
   id: string
@@ -44,19 +44,21 @@ async function analyzeCommunities(
   nodes: { id: string; label: string; linkCount: number }[],
   edges: GraphEdge[],
 ): Promise<{ assignments: Map<string, number>; communities: CommunityInfo[] }> {
-  if (nodes.length < COMMUNITY_WORKER_THRESHOLD || typeof Worker === "undefined") {
+  if (nodes.length < COMMUNITY_WORKER_THRESHOLD || typeof Worker === 'undefined') {
     return detectCommunities(nodes, edges)
   }
 
   return new Promise((resolve, reject) => {
     const worker = new Worker(
-      new URL("./wiki-graph-analysis.worker.ts", import.meta.url),
-      { type: "module" },
+      new URL('./wiki-graph-analysis.worker.ts', import.meta.url),
+      { type: 'module' },
     )
-    worker.onmessage = (event: MessageEvent<{
-      assignments: [string, number][]
-      communities: CommunityInfo[]
-    }>) => {
+    worker.onmessage = (
+      event: MessageEvent<{
+        assignments: [string, number][]
+        communities: CommunityInfo[]
+      }>,
+    ) => {
       worker.terminate()
       resolve({
         assignments: new Map(event.data.assignments),
@@ -65,7 +67,7 @@ async function analyzeCommunities(
     }
     worker.onerror = (event) => {
       worker.terminate()
-      reject(new Error(event.message || "Knowledge graph analysis worker failed"))
+      reject(new Error(event.message || 'Knowledge graph analysis worker failed'))
     }
     worker.postMessage({ nodes, edges })
   })
@@ -78,7 +80,7 @@ function flattenMdFiles(nodes: FileNode[]): FileNode[] {
   for (const node of nodes) {
     if (node.is_dir && node.children) {
       files.push(...flattenMdFiles(node.children))
-    } else if (!node.is_dir && node.name.endsWith(".md")) {
+    } else if (!node.is_dir && node.name.endsWith('.md')) {
       files.push(node)
     }
   }
@@ -87,23 +89,23 @@ function flattenMdFiles(nodes: FileNode[]): FileNode[] {
 
 function extractTitle(content: string, fileName: string): string {
   const title = parseFrontmatter(content).frontmatter?.title
-  if (typeof title === "string" && title.trim()) return title.trim()
+  if (typeof title === 'string' && title.trim()) return title.trim()
 
   const headingMatch = content.match(/^#\s+(.+)$/m)
   if (headingMatch) return headingMatch[1].trim()
 
-  return fileName.replace(/\.md$/, "").replace(/-/g, " ")
+  return fileName.replace(/\.md$/, '').replace(/-/g, ' ')
 }
 
 function extractType(content: string): string {
   const type = parseFrontmatter(content).frontmatter?.type
-  if (typeof type === "string" && type.trim()) return type.trim().toLowerCase()
-  return "other"
+  if (typeof type === 'string' && type.trim()) return type.trim().toLowerCase()
+  return 'other'
 }
 
 function extractWikilinks(content: string): string[] {
   const links: string[] = []
-  const regex = new RegExp(WIKILINK_REGEX.source, "g")
+  const regex = new RegExp(WIKILINK_REGEX.source, 'g')
   let match: RegExpExecArray | null
   while ((match = regex.exec(content)) !== null) {
     links.push(match[1].trim())
@@ -112,12 +114,12 @@ function extractWikilinks(content: string): string[] {
 }
 
 function fileNameToId(fileName: string): string {
-  return fileName.replace(/\.md$/, "")
+  return fileName.replace(/\.md$/, '')
 }
 
 function targetAliases(value: string): string[] {
   const lower = value.toLowerCase()
-  return [value, lower, lower.replace(/\s+/g, "-")]
+  return [value, lower, lower.replace(/\s+/g, '-')]
 }
 
 function buildTargetIndex(nodeIds: Iterable<string>): Map<string, string> {
@@ -166,7 +168,7 @@ export async function buildWikiGraph(
     if (cached?.dataVersion === dataVersion) return cached.result
   }
 
-  const buildKey = `${normalizedProjectPath}\u0000${dataVersion ?? "uncached"}`
+  const buildKey = `${normalizedProjectPath}\u0000${dataVersion ?? 'uncached'}`
   const pending = graphBuilds.get(buildKey)
   if (pending) return pending
   const build = buildWikiGraphUncached(normalizedProjectPath)
@@ -239,7 +241,7 @@ async function buildWikiGraphUncached(projectPath: string): Promise<WikiGraphRes
   // Filter out query nodes (research results, saved chat answers) — they are
   // intermediate artifacts, not knowledge structure. The entities/concepts
   // extracted from them via auto-ingest are what belong in the graph.
-  const HIDDEN_TYPES = new Set(["query"])
+  const HIDDEN_TYPES = new Set(['query'])
   for (const [id, node] of nodeMap) {
     if (HIDDEN_TYPES.has(node.type)) {
       nodeMap.delete(id)
@@ -285,7 +287,7 @@ async function buildWikiGraphUncached(projectPath: string): Promise<WikiGraphRes
   let retrievalGraph: Awaited<ReturnType<typeof buildRetrievalGraph>> | null = null
   if (nodeMap.size <= MAX_WEIGHTED_GRAPH_NODES) {
     try {
-      const { useWikiStore } = await import("@/stores/wiki-store")
+      const { useWikiStore } = await import('@/stores/wiki-store')
       const dv = useWikiStore.getState().dataVersion
       retrievalGraph = await buildRetrievalGraph(normalizePath(projectPath), dv)
     } catch {

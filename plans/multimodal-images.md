@@ -7,6 +7,7 @@
 via the existing wiki search + chat flow alongside the document's text.
 
 **Non-goals (this round):**
+
 - "Search by image" / image-to-image retrieval — deferred to Phase 5.
 - Editing or annotating images post-ingest.
 - OCR-only path (Tesseract). VLM caption is strictly more capable; if
@@ -21,12 +22,12 @@ via the existing wiki search + chat flow alongside the document's text.
 
 `src-tauri/src/commands/fs.rs::preprocess_file`:
 
-| Format | Current behavior | Image handling |
-|---|---|---|
-| PDF | `pdfium_render` → `page.text().all()` | **Ignored.** Embedded images, scans, charts all dropped. |
-| PPTX | unzip → parse `ppt/slides/slideN.xml` | **Ignored.** `ppt/media/*.png|jpg` already in the ZIP, just not read. |
-| DOCX | unzip → parse `word/document.xml` | **Ignored.** `word/media/*` same as above. |
-| XLSX/ODS | `calamine` → cell text | Ignored. |
+| Format                            | Current behavior                                     | Image handling                                                 |
+| --------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------- |
+| PDF                               | `pdfium_render` → `page.text().all()`                | **Ignored.** Embedded images, scans, charts all dropped.       |
+| PPTX                              | unzip → parse `ppt/slides/slideN.xml`                | **Ignored.** `ppt/media/*.png                                  |
+| DOCX                              | unzip → parse `word/document.xml`                    | **Ignored.** `word/media/*` same as above.                     |
+| XLSX/ODS                          | `calamine` → cell text                               | Ignored.                                                       |
 | Standalone images (.png/.jpg/...) | Read as binary in `read_file`; preview UI shows them | **Do NOT enter the ingest pipeline.** Never become wiki pages. |
 
 Whole TS chain (`text-chunker.ts`, `embedding.ts`, `search.ts`,
@@ -34,6 +35,7 @@ Whole TS chain (`text-chunker.ts`, `embedding.ts`, `search.ts`,
 `chunk_text: Utf8` — no provision for image bytes or paths.
 
 Dependencies already present we can lean on:
+
 - `pdfium-render` 0.9 — supports `page.objects()` iteration, including
   `PdfPageObjectType::Image` extraction
 - `zip` 2.x — direct access to PPTX/DOCX `media/` directories
@@ -122,6 +124,7 @@ async fn extract_office_images(path: String) -> Result<Vec<ExtractedImage>, Stri
 ```
 
 Implementation notes:
+
 - **PDF**: iterate `doc.pages()` → `page.objects()` → filter
   `PdfPageObjectType::Image` → `as_image_object().get_raw_image()`
   → encode to PNG via `image` crate (already a transitive dep
@@ -139,6 +142,7 @@ Implementation notes:
   document — add a `max_images: 500` cap.
 
 Tests (`src-tauri/src/commands/extract_images.rs::tests`):
+
 - Synthetic PDF with 1 known image → extract returns 1 entry with
   expected dims and non-empty bytes.
 - Real PPTX from `tests/fixtures/` with multiple slides containing
@@ -154,11 +158,11 @@ Tests (`src-tauri/src/commands/extract_images.rs::tests`):
 ```ts
 // New union — replaces the existing `content: string` on ChatMessage
 export type ContentBlock =
-  | { type: "text"; text: string }
-  | { type: "image"; mediaType: string; dataBase64: string }
+  | { type: 'text'; text: string }
+  | { type: 'image'; mediaType: string; dataBase64: string }
 
 export interface ChatMessage {
-  role: "system" | "user" | "assistant"
+  role: 'system' | 'user' | 'assistant'
   // Backwards-compatible: providers that don't get an image keep
   // calling sites working with plain strings. Block-array form
   // unlocks vision input.
@@ -167,6 +171,7 @@ export interface ChatMessage {
 ```
 
 Each provider's `buildBody` learns to translate `ContentBlock[]`:
+
 - **OpenAI**: `[{type:"text",...}, {type:"image_url",image_url:{url:"data:image/png;base64,..."}}]`
 - **Anthropic**: `[{type:"text",...}, {type:"image",source:{type:"base64",media_type:"image/png",data:"..."}}]`
 - **Gemini**: `parts:[{text:"..."},{inline_data:{mime_type:"image/png",data:"..."}}]`
@@ -339,16 +344,19 @@ current LM Studio `qwen3-embedding-0.6b` is NOT.
 Per phase, in priority order:
 
 **Phase 1 (Rust extraction):**
+
 - Unit tests with synthetic + real fixtures
 - Test on a known-good PDF (e.g. an arxiv paper) — verify image
   count matches manual count
 
 **Phase 2 (vision message format):**
+
 - Per-provider unit tests: assert correct wire format for each
 - Mock-server test that the bytes-on-wire match each provider's
   documented schema
 
 **Phase 3 (captioning + ingest):**
+
 - Real-LLM test (gated by `RUN_LLM_TESTS=1`): pass a known image,
   verify caption is non-trivial and contains expected keywords
 - Integration test: full autoIngest on a small fixture PDF with 2
@@ -356,6 +364,7 @@ Per phase, in priority order:
   page references them in markdown
 
 **Phase 4 (toggle):**
+
 - UI smoke test (manual)
 - Unit test: when toggle is off, extract_*_images is never called
 

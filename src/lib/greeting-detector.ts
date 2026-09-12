@@ -49,7 +49,7 @@ export function isGreeting(text: string): boolean {
   // matching. CJK chars are unaffected by toLowerCase().
   const normalized = text
     .trim()
-    .replace(TRAILING_PUNCT, "")
+    .replace(TRAILING_PUNCT, '')
     .trim()
     .toLowerCase()
 

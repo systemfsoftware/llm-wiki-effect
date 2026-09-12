@@ -1,29 +1,29 @@
-import { createDirectory, deleteFile, readFile, writeFileAtomic } from "@/commands/fs"
-import { getFileName, getRelativePath, isAbsolutePath, normalizePath } from "@/lib/path-utils"
+import { createDirectory, deleteFile, readFile, writeFileAtomic } from '@/commands/fs'
+import { getFileName, getRelativePath, isAbsolutePath, normalizePath } from '@/lib/path-utils'
 
 const PARSED_MARKDOWN_EXTENSIONS = new Set([
-  "pdf",
-  "doc",
-  "docx",
-  "docm",
-  "ppt",
-  "pps",
-  "pot",
-  "pptx",
-  "pptm",
-  "ppsx",
-  "ppsm",
-  "xls",
-  "xlsx",
-  "xlsm",
-  "xlsb",
-  "odt",
-  "ods",
-  "odp",
-  "rtf",
-  "epub",
-  "mobi",
-  "org",
+  'pdf',
+  'doc',
+  'docx',
+  'docm',
+  'ppt',
+  'pps',
+  'pot',
+  'pptx',
+  'pptm',
+  'ppsx',
+  'ppsm',
+  'xls',
+  'xlsx',
+  'xlsm',
+  'xlsb',
+  'odt',
+  'ods',
+  'odp',
+  'rtf',
+  'epub',
+  'mobi',
+  'org',
 ])
 
 /**
@@ -37,19 +37,21 @@ export function parsedMarkdownOutputPath(
   projectPath: string,
   sourcePath: string,
 ): string | null {
-  const project = normalizePath(projectPath).replace(/\/+$/, "")
+  const project = normalizePath(projectPath).replace(/\/+$/, '')
   const source = normalizePath(sourcePath)
   const sourceRoot = `${project}/raw/sources`
-  const relative = source.toLowerCase().startsWith("raw/sources/")
-    ? source.slice("raw/sources/".length)
+  const relative = source.toLowerCase().startsWith('raw/sources/')
+    ? source.slice('raw/sources/'.length)
     : getRelativePath(source, sourceRoot)
-  if (!relative || (relative === source && !source.toLowerCase().startsWith("raw/sources/")) || isAbsolutePath(relative)) return null
-  if (relative.split("/").some((part) => !part || part === "." || part === "..")) return null
+  if (
+    !relative || (relative === source && !source.toLowerCase().startsWith('raw/sources/')) || isAbsolutePath(relative)
+  ) return null
+  if (relative.split('/').some((part) => !part || part === '.' || part === '..')) return null
 
   const fileName = getFileName(relative)
-  const extension = fileName.includes(".")
-    ? fileName.split(".").pop()?.toLowerCase() ?? ""
-    : ""
+  const extension = fileName.includes('.')
+    ? fileName.split('.').pop()?.toLowerCase() ?? ''
+    : ''
   if (!PARSED_MARKDOWN_EXTENSIONS.has(extension)) return null
   return `${project}/raw/parsed/${relative}.md`
 }
@@ -61,7 +63,7 @@ export async function persistParsedMarkdown(
 ): Promise<string | null> {
   const outputPath = parsedMarkdownOutputPath(projectPath, sourcePath)
   if (!outputPath) return null
-  const parent = outputPath.slice(0, outputPath.lastIndexOf("/"))
+  const parent = outputPath.slice(0, outputPath.lastIndexOf('/'))
   await createDirectory(parent)
   await writeFileAtomic(outputPath, markdown)
   return outputPath
@@ -96,7 +98,7 @@ export async function moveParsedMarkdown(
   } catch {
     return
   }
-  await createDirectory(newOutputPath.slice(0, newOutputPath.lastIndexOf("/")))
+  await createDirectory(newOutputPath.slice(0, newOutputPath.lastIndexOf('/')))
   await writeFileAtomic(newOutputPath, markdown)
   try {
     await deleteFile(oldOutputPath)

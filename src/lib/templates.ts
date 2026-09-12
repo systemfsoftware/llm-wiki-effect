@@ -67,11 +67,11 @@ const BASE_CONTRADICTION = `When sources contradict each other:
 4. Resolve in a synthesis page once sufficient evidence exists`
 
 const researchTemplate: WikiTemplate = {
-  id: "research",
-  name: "Research",
-  description: "Deep-dive research with hypothesis tracking and methodology notes",
-  icon: "🔬",
-  extraDirs: ["wiki/methodology", "wiki/findings", "wiki/thesis"],
+  id: 'research',
+  name: 'Research',
+  description: 'Deep-dive research with hypothesis tracking and methodology notes',
+  icon: '🔬',
+  extraDirs: ['wiki/methodology', 'wiki/findings', 'wiki/thesis'],
   schema: `# Wiki Schema — Research Deep-Dive
 
 ## Page Types
@@ -187,11 +187,11 @@ ${BASE_CONTRADICTION}
 }
 
 const readingTemplate: WikiTemplate = {
-  id: "reading",
-  name: "Reading",
+  id: 'reading',
+  name: 'Reading',
   description: "Track a book's characters, themes, plot threads, and chapter notes",
-  icon: "📚",
-  extraDirs: ["wiki/characters", "wiki/themes", "wiki/plot-threads", "wiki/chapters"],
+  icon: '📚',
+  extraDirs: ['wiki/characters', 'wiki/themes', 'wiki/plot-threads', 'wiki/chapters'],
   schema: `# Wiki Schema — Reading a Book
 
 ## Page Types
@@ -304,11 +304,11 @@ ${BASE_CONTRADICTION}
 }
 
 const personalTemplate: WikiTemplate = {
-  id: "personal",
-  name: "Personal Growth",
-  description: "Track goals, habits, reflections, and journal entries for self-improvement",
-  icon: "🌱",
-  extraDirs: ["wiki/goals", "wiki/habits", "wiki/reflections", "wiki/journal"],
+  id: 'personal',
+  name: 'Personal Growth',
+  description: 'Track goals, habits, reflections, and journal entries for self-improvement',
+  icon: '🌱',
+  extraDirs: ['wiki/goals', 'wiki/habits', 'wiki/reflections', 'wiki/journal'],
   schema: `# Wiki Schema — Personal Growth
 
 ## Page Types
@@ -432,11 +432,11 @@ ${BASE_CONTRADICTION}
 }
 
 const businessTemplate: WikiTemplate = {
-  id: "business",
-  name: "Business",
-  description: "Manage meetings, decisions, projects, and stakeholder context for a team",
-  icon: "💼",
-  extraDirs: ["wiki/meetings", "wiki/decisions", "wiki/projects", "wiki/stakeholders"],
+  id: 'business',
+  name: 'Business',
+  description: 'Manage meetings, decisions, projects, and stakeholder context for a team',
+  icon: '💼',
+  extraDirs: ['wiki/meetings', 'wiki/decisions', 'wiki/projects', 'wiki/stakeholders'],
   schema: `# Wiki Schema — Business / Team
 
 ## Page Types
@@ -570,10 +570,10 @@ ${BASE_CONTRADICTION}
 }
 
 const generalTemplate: WikiTemplate = {
-  id: "general",
-  name: "General",
-  description: "Minimal setup — a blank slate for any purpose",
-  icon: "📄",
+  id: 'general',
+  name: 'General',
+  description: 'Minimal setup — a blank slate for any purpose',
+  icon: '📄',
   extraDirs: [],
   schema: `# Wiki Schema
 

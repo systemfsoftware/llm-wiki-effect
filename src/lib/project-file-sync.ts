@@ -1,26 +1,26 @@
-import { listen, type UnlistenFn } from "@tauri-apps/api/event"
-import { readFile } from "@/commands/fs"
 import {
+  type FileSyncPayload,
   rescanProjectFiles,
   startProjectFileWatcher,
   stopProjectFileWatcher,
-  type FileSyncPayload,
-} from "@/commands/file-sync"
-import { useFileSyncStore } from "@/stores/file-sync-store"
-import { useWikiStore } from "@/stores/wiki-store"
-import { getFileStem, normalizePath } from "@/lib/path-utils"
-import type { WikiProject } from "@/types/wiki"
-import type { SourceWatchConfig } from "@/stores/wiki-store"
-import type { FileChangeTask } from "@/commands/file-sync"
+} from '@/commands/file-sync'
+import type { FileChangeTask } from '@/commands/file-sync'
+import { readFile } from '@/commands/fs'
+import { getFileStem, normalizePath } from '@/lib/path-utils'
+import { refreshProjectFileTree } from '@/lib/project-file-tree-refresh'
 import {
   cleanupDeletedWikiPages,
   deleteSourceFiles,
   enqueueSourceIngest,
   isIngestableSourcePath,
   migrateSourcePath,
-} from "@/lib/source-lifecycle"
-import { isPathAllowedBySourceWatch, normalizeSourceWatchConfig } from "@/lib/source-watch-config"
-import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
+} from '@/lib/source-lifecycle'
+import { isPathAllowedBySourceWatch, normalizeSourceWatchConfig } from '@/lib/source-watch-config'
+import { useFileSyncStore } from '@/stores/file-sync-store'
+import { useWikiStore } from '@/stores/wiki-store'
+import type { SourceWatchConfig } from '@/stores/wiki-store'
+import type { WikiProject } from '@/types/wiki'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 let unlistenQueue: UnlistenFn | null = null
 let unlistenChanged: UnlistenFn | null = null
@@ -41,12 +41,12 @@ export async function startProjectFileSync(
   useFileSyncStore.getState().setRunning(true)
   useFileSyncStore.getState().setLastError(null)
 
-  unlistenQueue = await listen<FileSyncPayload>("file-sync://queue-updated", (event) => {
+  unlistenQueue = await listen<FileSyncPayload>('file-sync://queue-updated', (event) => {
     if (event.payload.projectId !== useWikiStore.getState().project?.id) return
     useFileSyncStore.getState().setTasks(event.payload.tasks)
   })
 
-  unlistenChanged = await listen<FileSyncPayload>("file-sync://changed", (event) => {
+  unlistenChanged = await listen<FileSyncPayload>('file-sync://changed', (event) => {
     const current = useWikiStore.getState().project
     if (!current || event.payload.projectId !== current.id) return
     scheduleRefreshAfterFileChanges(event.payload.tasks)
@@ -141,14 +141,14 @@ function scheduleRefreshAfterFileChanges(tasks: FileChangeTask[]): void {
       pendingChangeTasks.clear()
       return
     }
-    const tasks = mergeChangeTasks([...pendingChangeTasks.values()])
+    const mergedTasks = mergeChangeTasks([...pendingChangeTasks.values()])
       .filter((task) => !handledChangeTaskKeys.has(changeTaskKey(task)))
-    const paths = tasks.length > 0
-      ? [...new Set(tasks.map((task) => task.path))]
+    const paths = mergedTasks.length > 0
+      ? [...new Set(mergedTasks.map((task) => task.path))]
       : [...pendingRefreshPaths]
     pendingRefreshPaths.clear()
     pendingChangeTasks.clear()
-    void processFileChangeBatch(project, paths, tasks)
+    void processFileChangeBatch(project, paths, mergedTasks)
   }, 250)
 }
 
@@ -194,11 +194,11 @@ async function migrateUnchangedSourceMoves(
   const deletedByHash = new Map<string, FileChangeTask[]>()
   for (const task of tasks) {
     if (!isRawSourcePathForCascade(task.path)) continue
-    if (task.kind === "created" && task.hashAfter && (task.size ?? 0) >= 32) {
+    if (task.kind === 'created' && task.hashAfter && (task.size ?? 0) >= 32) {
       const matches = createdByHash.get(task.hashAfter) ?? []
       matches.push(task)
       createdByHash.set(task.hashAfter, matches)
-    } else if (task.kind === "deleted" && task.hashBefore && (task.size ?? 0) >= 32) {
+    } else if (task.kind === 'deleted' && task.hashBefore && (task.size ?? 0) >= 32) {
       const matches = deletedByHash.get(task.hashBefore) ?? []
       matches.push(task)
       deletedByHash.set(task.hashBefore, matches)
@@ -216,7 +216,7 @@ async function migrateUnchangedSourceMoves(
       moved.add(deleted.id)
       moved.add(created.id)
     } catch (err) {
-      console.error("[file-sync] failed to migrate unchanged source move:", err)
+      console.error('[file-sync] failed to migrate unchanged source move:', err)
       // The hash pair still proves this is a move. Suppress destructive
       // delete/create fallback after a transactional migration rollback;
       // surface the failure so the user can retry with a manual rescan.
@@ -249,7 +249,7 @@ async function refreshAfterFileChanges(project: WikiProject, relativePaths: stri
     useWikiStore.getState().setFileContent(content)
   } catch {
     useWikiStore.getState().setSelectedFile(null)
-    useWikiStore.getState().setFileContent("")
+    useWikiStore.getState().setFileContent('')
   }
 }
 
@@ -259,7 +259,7 @@ async function enqueueRawSourceChanges(project: WikiProject, tasks: FileChangeTa
 
   const candidates = tasks
     .filter((task) => task.projectId === project.id)
-    .filter((task) => task.kind === "created" || task.kind === "modified")
+    .filter((task) => task.kind === 'created' || task.kind === 'modified')
     .map((task) => task.path)
     .filter(isIngestableRawSource)
 
@@ -270,19 +270,19 @@ async function enqueueRawSourceChanges(project: WikiProject, tasks: FileChangeTa
   try {
     await enqueueSourceIngest(project, paths, useWikiStore.getState().llmConfig)
   } catch (err) {
-    console.error("[file-sync] failed to enqueue raw source ingest:", err)
+    console.error('[file-sync] failed to enqueue raw source ingest:', err)
   }
 }
 
 function isIngestableRawSource(relativePath: string): boolean {
   const path = normalizePath(relativePath)
-  if (!path.startsWith("raw/sources/")) return false
+  if (!path.startsWith('raw/sources/')) return false
   return isIngestableSourcePath(path)
 }
 
 async function cleanupDeletedFiles(project: WikiProject, tasks: FileChangeTask[]): Promise<void> {
   const deleted = tasks
-    .filter((task) => task.projectId === project.id && task.kind === "deleted")
+    .filter((task) => task.projectId === project.id && task.kind === 'deleted')
     .map((task) => normalizePath(task.path))
 
   if (deleted.length === 0) return
@@ -295,11 +295,11 @@ async function cleanupDeletedFiles(project: WikiProject, tasks: FileChangeTask[]
     try {
       const result = await deleteSourceFiles(project.path, rawSources, {
         fileAlreadyDeleted: true,
-        logReason: rawSources.length === 1 ? "external delete" : "external batch delete",
+        logReason: rawSources.length === 1 ? 'external delete' : 'external batch delete',
       })
       deletedWikiSlugs = new Set(result.deletedWikiPaths.map((path) => getFileStem(path)))
     } catch (err) {
-      console.error("[file-sync] failed to clean deleted raw sources:", err)
+      console.error('[file-sync] failed to clean deleted raw sources:', err)
     }
   }
 
@@ -308,26 +308,26 @@ async function cleanupDeletedFiles(project: WikiProject, tasks: FileChangeTask[]
     try {
       await cleanupDeletedWikiPages(project.path, wikiPagesToClean)
     } catch (err) {
-      console.error("[file-sync] failed to clean deleted wiki pages:", err)
+      console.error('[file-sync] failed to clean deleted wiki pages:', err)
     }
   }
 }
 
 function isRawSourcePathForCascade(relativePath: string): boolean {
   const path = normalizePath(relativePath)
-  if (!path.startsWith("raw/sources/")) return false
-  if (path.includes("/.cache/")) return false
-  const fileName = path.split("/").pop() ?? ""
-  return Boolean(fileName && !fileName.startsWith("."))
+  if (!path.startsWith('raw/sources/')) return false
+  if (path.includes('/.cache/')) return false
+  const fileName = path.split('/').pop() ?? ''
+  return Boolean(fileName && !fileName.startsWith('.'))
 }
 
 function isWikiPageForCascade(relativePath: string): boolean {
   const path = normalizePath(relativePath)
   const lower = path.toLowerCase()
-  if (!lower.startsWith("wiki/") || !lower.endsWith(".md")) return false
-  const name = lower.split("/").pop()
-  if (name === "index.md" || name === "log.md" || name === "overview.md") {
+  if (!lower.startsWith('wiki/') || !lower.endsWith('.md')) return false
+  const name = lower.split('/').pop()
+  if (name === 'index.md' || name === 'log.md' || name === 'overview.md') {
     return false
   }
-  return !lower.startsWith("wiki/media/")
+  return !lower.startsWith('wiki/media/')
 }

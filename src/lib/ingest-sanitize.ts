@@ -138,8 +138,8 @@ function addMissingOpeningFrontmatterFence(content: string): string {
   const searchEnd = Math.min(lines.length, firstContentIdx + 30)
   for (let i = firstContentIdx + 1; i < searchEnd; i += 1) {
     const trimmed = lines[i].trim()
-    if (trimmed === "---") {
-      return `---\n${lines.slice(firstContentIdx).join("\n")}`
+    if (trimmed === '---') {
+      return `---\n${lines.slice(firstContentIdx).join('\n')}`
     }
     if (/^#{1,6}\s+/.test(trimmed)) break
   }
@@ -165,11 +165,11 @@ function repairWikilinkListsInFrontmatter(content: string): string {
       )
       if (!lm) return line
       const items = lm[2]
-        .split(",")
+        .split(',')
         .map((s) => s.trim())
         .filter(Boolean)
         .map((s) => `"${s}"`)
-        .join(", ")
+        .join(', ')
       return `${lm[1]}[${items}]`
     })
     .join(m[2])

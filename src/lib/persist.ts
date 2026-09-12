@@ -1,10 +1,10 @@
-import { writeFile, readFile, createDirectory, listDirectory } from "@/commands/fs"
-import { normalizeReviewItems, type ReviewItem } from "@/stores/review-store"
-import type { LintItem } from "@/stores/lint-store"
-import type { DisplayMessage, Conversation } from "@/stores/chat-store"
-import type { ChatAgentMode, ChatRetrievalMode } from "@/lib/chat-agent-types"
-import { normalizePath } from "@/lib/path-utils"
-import type { FileNode } from "@/types/wiki"
+import { createDirectory, listDirectory, readFile, writeFile } from '@/commands/fs'
+import type { ChatAgentMode, ChatRetrievalMode } from '@/lib/chat-agent-types'
+import { normalizePath } from '@/lib/path-utils'
+import type { Conversation, DisplayMessage } from '@/stores/chat-store'
+import type { LintItem } from '@/stores/lint-store'
+import { normalizeReviewItems, type ReviewItem } from '@/stores/review-store'
+import type { FileNode } from '@/types/wiki'
 
 async function ensureDir(projectPath: string): Promise<void> {
   await createDirectory(`${projectPath}/.llm-wiki`).catch(() => {})
@@ -21,7 +21,8 @@ export async function loadReviewItems(projectPath: string): Promise<ReviewItem[]
   const pp = normalizePath(projectPath)
   try {
     const content = await readFile(`${pp}/.llm-wiki/review.json`)
-    return normalizeReviewItems(JSON.parse(content) as ReviewItem[])
+    const parsed: ReviewItem[] = JSON.parse(content)
+    return normalizeReviewItems(parsed)
   } catch {
     return []
   }
@@ -37,7 +38,8 @@ export async function loadLintItems(projectPath: string): Promise<LintItem[]> {
   const pp = normalizePath(projectPath)
   try {
     const content = await readFile(`${pp}/.llm-wiki/lint.json`)
-    return JSON.parse(content) as LintItem[]
+    const parsed: LintItem[] = JSON.parse(content)
+    return parsed
   } catch {
     return []
   }
@@ -63,7 +65,7 @@ function stripPersistedMessageImages(msg: DisplayMessage): DisplayMessage {
     const { images: _images, ...rest } = msg
     return rest
   })()
-  if (!withoutImages.agentFileChanges?.some((change) => "beforeContent" in change || "afterContent" in change)) {
+  if (!withoutImages.agentFileChanges?.some((change) => 'beforeContent' in change || 'afterContent' in change)) {
     return withoutImages
   }
   return {
@@ -79,7 +81,7 @@ function stripPersistedMessageImages(msg: DisplayMessage): DisplayMessage {
 export async function saveChatHistory(
   projectPath: string,
   conversations: Conversation[],
-  messages: DisplayMessage[]
+  messages: DisplayMessage[],
 ): Promise<void> {
   const pp = normalizePath(projectPath)
   await ensureDir(pp)
@@ -87,7 +89,7 @@ export async function saveChatHistory(
   // Save conversation list
   await writeFile(
     `${pp}/.llm-wiki/conversations.json`,
-    JSON.stringify(conversations, null, 2)
+    JSON.stringify(conversations, null, 2),
   )
 
   // Save each conversation's messages separately
@@ -106,7 +108,7 @@ export async function saveChatHistory(
     const toSave = msgs.slice(-100)
     await writeFile(
       `${pp}/.llm-wiki/chats/${convId}.json`,
-      JSON.stringify(toSave, null, 2)
+      JSON.stringify(toSave, null, 2),
     )
   }
 }
@@ -116,13 +118,13 @@ export async function loadChatHistory(projectPath: string): Promise<PersistedCha
   try {
     // Try new format: separate files per conversation
     const convContent = await readFile(`${pp}/.llm-wiki/conversations.json`)
-    const conversations = JSON.parse(convContent) as Conversation[]
+    const conversations: Conversation[] = JSON.parse(convContent)
 
     const allMessages: DisplayMessage[] = []
     for (const conv of conversations) {
       try {
         const msgContent = await readFile(`${pp}/.llm-wiki/chats/${conv.id}.json`)
-        const msgs = JSON.parse(msgContent) as DisplayMessage[]
+        const msgs: DisplayMessage[] = JSON.parse(msgContent)
         allMessages.push(...msgs)
       } catch {
         // Conversation file missing, skip
@@ -151,22 +153,22 @@ export async function loadChatHistory(projectPath: string): Promise<PersistedCha
 
       if (Array.isArray(parsed)) {
         // Very old format: flat array
-        const legacyMessages = parsed as DisplayMessage[]
+        const legacyMessages: DisplayMessage[] = parsed
         const defaultConv: Conversation = {
-          id: "default",
-          title: "Previous Conversations",
+          id: 'default',
+          title: 'Previous Conversations',
           createdAt: legacyMessages[0]?.timestamp ?? Date.now(),
           updatedAt: legacyMessages[legacyMessages.length - 1]?.timestamp ?? Date.now(),
         }
         const migratedMessages = legacyMessages.map((m) => ({
           ...m,
-          conversationId: "default",
+          conversationId: 'default',
         }))
         return { conversations: [defaultConv], messages: migratedMessages }
       }
 
       // Old combined format
-      const data = parsed as PersistedChatData
+      const data: PersistedChatData = parsed
       return data
     } catch {
       return { conversations: [], messages: [] }
@@ -193,10 +195,10 @@ function conversationFromMessages(id: string, messages: DisplayMessage[]): Conve
     .filter((timestamp) => Number.isFinite(timestamp))
   const createdAt = timestamps.length > 0 ? Math.min(...timestamps) : Date.now()
   const updatedAt = timestamps.length > 0 ? Math.max(...timestamps) : createdAt
-  const firstUser = messages.find((message) => message.role === "user" && message.content.trim())
+  const firstUser = messages.find((message) => message.role === 'user' && message.content.trim())
   return {
     id,
-    title: firstUser?.content.slice(0, 50) || "Previous Conversation",
+    title: firstUser?.content.slice(0, 50) || 'Previous Conversation',
     createdAt,
     updatedAt,
   }
@@ -206,7 +208,7 @@ async function recoverChatHistoryFromOrphanChatFiles(projectPath: string): Promi
   try {
     const chatDir = `${projectPath}/.llm-wiki/chats`
     const files = flattenFiles(await listDirectory(chatDir))
-      .filter((node) => node.name.endsWith(".json"))
+      .filter((node) => node.name.endsWith('.json'))
       .sort((a, b) => a.name.localeCompare(b.name))
     const conversations: Conversation[] = []
     const allMessages: DisplayMessage[] = []
@@ -216,12 +218,12 @@ async function recoverChatHistoryFromOrphanChatFiles(projectPath: string): Promi
         const raw = await readFile(file.path)
         const parsed = JSON.parse(raw)
         if (!Array.isArray(parsed)) continue
-        const id = file.name.replace(/\.json$/i, "")
-        const messages = (parsed as DisplayMessage[])
-          .filter((message) => message && typeof message === "object")
+        const id = file.name.replace(/\.json$/i, '')
+        const messages: DisplayMessage[] = parsed
+          .filter((message) => message && typeof message === 'object')
           .map((message) => ({
             ...message,
-            conversationId: typeof message.conversationId === "string" && message.conversationId
+            conversationId: typeof message.conversationId === 'string' && message.conversationId
               ? message.conversationId
               : id,
           }))
@@ -254,7 +256,7 @@ export async function loadChatPreferences(projectPath: string): Promise<ChatPref
   const pp = normalizePath(projectPath)
   try {
     const content = await readFile(`${pp}/.llm-wiki/chat-preferences.json`)
-    const parsed = JSON.parse(content) as Partial<ChatPreferences>
+    const parsed: Partial<ChatPreferences> = JSON.parse(content)
     return {
       useWebSearch: parsed.useWebSearch === true,
       useAnyTxtSearch: parsed.useAnyTxtSearch === true,
@@ -267,8 +269,8 @@ export async function loadChatPreferences(projectPath: string): Promise<ChatPref
     return {
       useWebSearch: false,
       useAnyTxtSearch: false,
-      agentMode: "standard",
-      retrievalMode: "standard",
+      agentMode: 'standard',
+      retrievalMode: 'standard',
       selectedSkills: [],
       disabledSkills: [],
     }
@@ -280,7 +282,7 @@ function normalizePersistedSkillList(value: unknown): string[] {
   return Array.from(
     new Set(
       value
-        .filter((item): item is string => typeof item === "string")
+        .filter((item): item is string => typeof item === 'string')
         .map((item) => item.trim())
         .filter(Boolean),
     ),
@@ -289,16 +291,16 @@ function normalizePersistedSkillList(value: unknown): string[] {
 
 function normalizePersistedAgentMode(value: unknown): ChatAgentMode {
   switch (value) {
-    case "fast":
-    case "standard":
-    case "deep":
-    case "local_first":
+    case 'fast':
+    case 'standard':
+    case 'deep':
+    case 'local_first':
       return value
     default:
-      return "standard"
+      return 'standard'
   }
 }
 
 function normalizePersistedRetrievalMode(value: unknown): ChatRetrievalMode {
-  return value === "smart" || value === "faithful" ? value : "standard"
+  return value === 'smart' || value === 'faithful' ? value : 'standard'
 }

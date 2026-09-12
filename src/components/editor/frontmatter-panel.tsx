@@ -1,45 +1,45 @@
-import { useMemo } from "react"
-import {
-  FileText as FileTextIcon,
-  FileSpreadsheet,
-  FileJson,
-  FileCode,
-  FileImage,
-  Film,
-  Music,
-  File as FileIcon,
-  ArrowUpRight,
-  AlertTriangle,
-  Layers,
-  Calendar,
-  Tag as TagIcon,
-} from "lucide-react"
-import { openUrl } from "@tauri-apps/plugin-opener"
-import type { FrontmatterValue } from "@/lib/frontmatter"
-import { getWikiTypeStyle } from "@/lib/wiki-type-style"
+import type { FrontmatterValue } from '@/lib/frontmatter'
+import { normalizePath } from '@/lib/path-utils'
 import {
   resolveRelatedSlug,
   resolveSourceReference,
   type SourceReferenceResolution,
   unwrapWikilink,
-} from "@/lib/wiki-page-resolver"
-import { useWikiStore } from "@/stores/wiki-store"
-import { normalizePath } from "@/lib/path-utils"
-import { useTranslation } from "react-i18next"
+} from '@/lib/wiki-page-resolver'
+import { getWikiTypeStyle } from '@/lib/wiki-type-style'
+import { useWikiStore } from '@/stores/wiki-store'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Calendar,
+  File as FileIcon,
+  FileCode,
+  FileImage,
+  FileJson,
+  FileSpreadsheet,
+  FileText as FileTextIcon,
+  Film,
+  Layers,
+  Music,
+  Tag as TagIcon,
+} from 'lucide-react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface FrontmatterPanelProps {
   data: Record<string, FrontmatterValue>
 }
 
 const TOP_LEVEL_KEYS = new Set([
-  "title",
-  "type",
-  "tags",
-  "created",
-  "description",
-  "sources",
-  "related",
-  "origin",
+  'title',
+  'type',
+  'tags',
+  'created',
+  'description',
+  'sources',
+  'related',
+  'origin',
 ])
 
 export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
@@ -62,7 +62,7 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
       Object.entries(data).filter(([k, v]) => {
         if (TOP_LEVEL_KEYS.has(k)) return false
         if (Array.isArray(v) && v.length === 0) return false
-        if (v === "") return false
+        if (v === '') return false
         return true
       }),
     [data],
@@ -77,8 +77,7 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
 
   const hasIdentity = title || type || tags.length > 0 || created
   const hasRelations = sources.length > 0 || related.length > 0
-  const hasContent =
-    hasIdentity || description || origin || hasRelations || extras.length > 0
+  const hasContent = hasIdentity || description || origin || hasRelations || extras.length > 0
   if (!hasContent) return null
 
   function handleNavigate(path: string | null) {
@@ -88,27 +87,27 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
 
   function handleOpenExternal(url: string) {
     void openUrl(url).catch((err) => {
-      console.warn("[frontmatter] openUrl failed:", err)
+      console.warn('[frontmatter] openUrl failed:', err)
     })
   }
 
   return (
-    <div className="not-prose mb-5 overflow-hidden rounded-xl border border-border/60 bg-gradient-to-br from-muted/40 to-muted/10 shadow-sm">
+    <div className='not-prose mb-5 overflow-hidden rounded-xl border border-border/60 bg-gradient-to-br from-muted/40 to-muted/10 shadow-sm'>
       {/* Identity strip ─────────────────────────────────────────── */}
-      <div className="flex items-start gap-3 px-4 pt-4">
+      <div className='flex items-start gap-3 px-4 pt-4'>
         <div
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${typeStyle.chipClass}`}
           title={typeStyle.label}
         >
-          <TypeIcon className="h-5 w-5" />
+          <TypeIcon className='h-5 w-5' />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className='min-w-0 flex-1'>
           {title && (
-            <div className="truncate text-base font-semibold leading-tight text-foreground">
+            <div className='truncate text-base font-semibold leading-tight text-foreground'>
               {title}
             </div>
           )}
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+          <div className='mt-1 flex flex-wrap items-center gap-1.5 text-xs'>
             {type && (
               <span
                 className={`rounded px-1.5 py-0.5 font-medium uppercase tracking-wide ${typeStyle.chipClass}`}
@@ -117,17 +116,17 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
               </span>
             )}
             {created && (
-              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <Calendar className="h-3 w-3" />
+              <span className='inline-flex items-center gap-1 text-muted-foreground'>
+                <Calendar className='h-3 w-3' />
                 {created}
               </span>
             )}
             {tags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 text-muted-foreground"
+                className='inline-flex items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 text-muted-foreground'
               >
-                <TagIcon className="h-3 w-3" />
+                <TagIcon className='h-3 w-3' />
                 {tag}
               </span>
             ))}
@@ -136,27 +135,27 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
       </div>
 
       {description && (
-        <div className="px-4 pt-2 text-sm italic leading-relaxed text-muted-foreground">
+        <div className='px-4 pt-2 text-sm italic leading-relaxed text-muted-foreground'>
           {description}
         </div>
       )}
 
       {origin && (
-        <div className="mx-4 mt-3 rounded border-l-2 border-primary/40 bg-primary/5 px-3 py-1.5 text-xs text-foreground/80">
-          <span className="font-medium text-muted-foreground">{t("editor.frontmatter.origin")}: </span>
+        <div className='mx-4 mt-3 rounded border-l-2 border-primary/40 bg-primary/5 px-3 py-1.5 text-xs text-foreground/80'>
+          <span className='font-medium text-muted-foreground'>{t('editor.frontmatter.origin')}:</span>
           {origin}
         </div>
       )}
 
       {/* Sources card row ───────────────────────────────────────── */}
       {sources.length > 0 && (
-        <div className="px-4 pt-4">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Layers className="h-3.5 w-3.5" />
+        <div className='px-4 pt-4'>
+          <div className='mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground'>
+            <Layers className='h-3.5 w-3.5' />
             Sources
-            <span className="text-muted-foreground/60">({sources.length})</span>
+            <span className='text-muted-foreground/60'>({sources.length})</span>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className='flex flex-wrap gap-2'>
             {sources.map((source) => {
               const { slug, label } = unwrapWikilink(source)
               const resolution = resolveSourceReference(
@@ -164,18 +163,17 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
                 slug,
                 sourcesRoot,
               )
-              const onClick =
-                resolution.kind === "local"
-                  ? () => handleNavigate(resolution.path)
-                  : resolution.kind === "external"
-                    ? () => handleOpenExternal(resolution.url)
-                    : undefined
+              const onClick = resolution.kind === 'local'
+                ? () => handleNavigate(resolution.path)
+                : resolution.kind === 'external'
+                ? () => handleOpenExternal(resolution.url)
+                : undefined
               return (
                 <SourceCard
                   key={source}
                   name={label}
                   status={resolution.kind}
-                  externalUrl={resolution.kind === "external" ? resolution.url : undefined}
+                  externalUrl={resolution.kind === 'external' ? resolution.url : undefined}
                   onClick={onClick}
                 />
               )
@@ -186,13 +184,13 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
 
       {/* Related chips ──────────────────────────────────────────── */}
       {related.length > 0 && (
-        <div className="px-4 pt-4">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <ArrowUpRight className="h-3.5 w-3.5" />
+        <div className='px-4 pt-4'>
+          <div className='mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground'>
+            <ArrowUpRight className='h-3.5 w-3.5' />
             Related
-            <span className="text-muted-foreground/60">({related.length})</span>
+            <span className='text-muted-foreground/60'>({related.length})</span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className='flex flex-wrap gap-1.5'>
             {related.map((entry) => {
               const { slug, label } = unwrapWikilink(entry)
               const path = wikiRoot
@@ -213,16 +211,16 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
 
       {/* Extras (any other key/values we didn't surface above) ──── */}
       {extras.length > 0 && (
-        <div className="mx-4 mt-4 rounded border border-border/40 bg-background/50 px-3 py-2 text-xs">
-          <div className="mb-1 font-medium text-muted-foreground/80">{t("editor.frontmatter.more")}</div>
-          <div className="space-y-0.5">
+        <div className='mx-4 mt-4 rounded border border-border/40 bg-background/50 px-3 py-2 text-xs'>
+          <div className='mb-1 font-medium text-muted-foreground/80'>{t('editor.frontmatter.more')}</div>
+          <div className='space-y-0.5'>
             {extras.map(([k, v]) => (
-              <div key={k} className="flex gap-2">
-                <span className="shrink-0 font-mono text-muted-foreground">
+              <div key={k} className='flex gap-2'>
+                <span className='shrink-0 font-mono text-muted-foreground'>
                   {k}:
                 </span>
-                <span className="text-foreground/80">
-                  {Array.isArray(v) ? v.join(", ") : v}
+                <span className='text-foreground/80'>
+                  {Array.isArray(v) ? v.join(', ') : v}
                 </span>
               </div>
             ))}
@@ -230,10 +228,12 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
         </div>
       )}
 
-      {/* Bottom padding — done via wrapper not last child to keep
+      {
+        /* Bottom padding — done via wrapper not last child to keep
           per-section spacing consistent regardless of which sections
-          are present. */}
-      <div className="h-4" />
+          are present. */
+      }
+      <div className='h-4' />
     </div>
   )
 }
@@ -245,34 +245,34 @@ function SourceCard({
   onClick,
 }: {
   name: string
-  status: SourceReferenceResolution["kind"]
+  status: SourceReferenceResolution['kind']
   externalUrl?: string
   onClick?: () => void
 }) {
-  const isMissing = status === "missing"
-  const Icon = status === "external" ? ArrowUpRight : iconForSource(name)
-  const title = status === "external"
+  const isMissing = status === 'missing'
+  const iconClass = `h-4 w-4 shrink-0 ${isMissing ? 'text-muted-foreground/60' : 'text-foreground/70'}`
+  const title = status === 'external'
     ? `Open external source: ${externalUrl}`
-    : status === "local"
-      ? `Open ${name}`
-      : `Source not found in raw/sources/: ${name}`
+    : status === 'local'
+    ? `Open ${name}`
+    : `Source not found in raw/sources/: ${name}`
   return (
     <button
-      type="button"
+      type='button'
       onClick={onClick}
       title={title}
       aria-label={title}
       className={`group flex min-w-0 max-w-[200px] items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-xs transition-colors ${
         isMissing
-          ? "border-dashed border-border/50 bg-muted/20 text-muted-foreground/70 cursor-default"
-          : "border-border/60 bg-background hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
+          ? 'border-dashed border-border/50 bg-muted/20 text-muted-foreground/70 cursor-default'
+          : 'border-border/60 bg-background hover:border-primary/40 hover:bg-primary/5 cursor-pointer'
       }`}
     >
-      <Icon className={`h-4 w-4 shrink-0 ${
-        isMissing ? "text-muted-foreground/60" : "text-foreground/70"
-      }`} />
-      <span className="truncate">{name}</span>
-      {isMissing && <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500/70" />}
+      {status === 'external'
+        ? <ArrowUpRight className={iconClass} />
+        : sourceIcon(name, iconClass)}
+      <span className='truncate'>{name}</span>
+      {isMissing && <AlertTriangle className='h-3 w-3 shrink-0 text-amber-500/70' />}
     </button>
   )
 }
@@ -288,97 +288,95 @@ function RelatedChip({
 }) {
   return (
     <button
-      type="button"
+      type='button'
       onClick={resolved ? onClick : undefined}
       title={resolved ? `Open ${slug}` : `Related page not found: ${slug}`}
       className={`group inline-flex max-w-[260px] items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
         resolved
-          ? "border-border/60 bg-background hover:border-primary/50 hover:bg-primary/10 cursor-pointer"
-          : "border-dashed border-border/50 bg-muted/20 text-muted-foreground/70 cursor-default"
+          ? 'border-border/60 bg-background hover:border-primary/50 hover:bg-primary/10 cursor-pointer'
+          : 'border-dashed border-border/50 bg-muted/20 text-muted-foreground/70 cursor-default'
       }`}
     >
-      <span className="truncate">{slug}</span>
-      {resolved ? (
-        <ArrowUpRight className="h-3 w-3 shrink-0 opacity-60 group-hover:opacity-100" />
-      ) : (
-        <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500/70" />
-      )}
+      <span className='truncate'>{slug}</span>
+      {resolved
+        ? <ArrowUpRight className='h-3 w-3 shrink-0 opacity-60 group-hover:opacity-100' />
+        : <AlertTriangle className='h-3 w-3 shrink-0 text-amber-500/70' />}
     </button>
   )
 }
 
-function iconForSource(name: string) {
-  const ext = name.split(".").pop()?.toLowerCase() ?? ""
+function sourceIcon(name: string, className: string) {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
   switch (ext) {
-    case "pdf":
-      return FileTextIcon
-    case "xlsx":
-    case "xls":
-    case "csv":
-    case "tsv":
-    case "ods":
-      return FileSpreadsheet
-    case "json":
-    case "jsonl":
-    case "yaml":
-    case "yml":
-    case "ndjson":
-      return FileJson
-    case "py":
-    case "js":
-    case "ts":
-    case "tsx":
-    case "jsx":
-    case "rs":
-    case "go":
-    case "java":
-    case "c":
-    case "cpp":
-    case "rb":
-    case "php":
-      return FileCode
-    case "png":
-    case "jpg":
-    case "jpeg":
-    case "gif":
-    case "webp":
-    case "bmp":
-    case "svg":
-      return FileImage
-    case "mp4":
-    case "webm":
-    case "mov":
-    case "avi":
-    case "mkv":
-      return Film
-    case "mp3":
-    case "wav":
-    case "ogg":
-    case "flac":
-    case "m4a":
-      return Music
-    case "md":
-    case "mdx":
-    case "txt":
-    case "rtf":
-    case "html":
-    case "htm":
-    case "xml":
-    case "docx":
-    case "doc":
-    case "pptx":
-    case "ppt":
-      return FileTextIcon
+    case 'pdf':
+      return <FileTextIcon className={className} />
+    case 'xlsx':
+    case 'xls':
+    case 'csv':
+    case 'tsv':
+    case 'ods':
+      return <FileSpreadsheet className={className} />
+    case 'json':
+    case 'jsonl':
+    case 'yaml':
+    case 'yml':
+    case 'ndjson':
+      return <FileJson className={className} />
+    case 'py':
+    case 'js':
+    case 'ts':
+    case 'tsx':
+    case 'jsx':
+    case 'rs':
+    case 'go':
+    case 'java':
+    case 'c':
+    case 'cpp':
+    case 'rb':
+    case 'php':
+      return <FileCode className={className} />
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'webp':
+    case 'bmp':
+    case 'svg':
+      return <FileImage className={className} />
+    case 'mp4':
+    case 'webm':
+    case 'mov':
+    case 'avi':
+    case 'mkv':
+      return <Film className={className} />
+    case 'mp3':
+    case 'wav':
+    case 'ogg':
+    case 'flac':
+    case 'm4a':
+      return <Music className={className} />
+    case 'md':
+    case 'mdx':
+    case 'txt':
+    case 'rtf':
+    case 'html':
+    case 'htm':
+    case 'xml':
+    case 'docx':
+    case 'doc':
+    case 'pptx':
+    case 'ppt':
+      return <FileTextIcon className={className} />
     default:
-      return FileIcon
+      return <FileIcon className={className} />
   }
 }
 
 function stringValue(v: FrontmatterValue | undefined): string | null {
-  return typeof v === "string" && v.trim() !== "" ? v : null
+  return typeof v === 'string' && v.trim() !== '' ? v : null
 }
 
 function arrayValue(v: FrontmatterValue | undefined): string[] {
   if (!Array.isArray(v)) return []
-  return v.filter((x): x is string => typeof x === "string" && x.trim() !== "")
+  return v.filter((x): x is string => typeof x === 'string' && x.trim() !== '')
 }

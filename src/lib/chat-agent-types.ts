@@ -9,16 +9,16 @@
  */
 
 export type ChatAgentEventStage =
-  | "understanding"
-  | "routing"
-  | "tool_call"
-  | "tool_result"
-  | "searching_wiki"
-  | "searching_graph"
-  | "searching_web"
-  | "searching_anytxt"
-  | "reading_context"
-  | "writing"
+  | 'understanding'
+  | 'routing'
+  | 'tool_call'
+  | 'tool_result'
+  | 'searching_wiki'
+  | 'searching_graph'
+  | 'searching_web'
+  | 'searching_anytxt'
+  | 'reading_context'
+  | 'writing'
 
 export interface ChatAgentEvent {
   stage: ChatAgentEventStage
@@ -26,22 +26,22 @@ export interface ChatAgentEvent {
   tool?: ChatAgentToolName
   message?: string
   count?: number
-  status?: "running" | "success" | "error" | "skipped"
+  status?: 'running' | 'success' | 'error' | 'skipped'
   timestamp?: number
 }
 
-export type ChatAgentMode = "fast" | "standard" | "deep" | "local_first"
-export type ChatRetrievalMode = "standard" | "smart" | "faithful"
+export type ChatAgentMode = 'fast' | 'standard' | 'deep' | 'local_first'
+export type ChatRetrievalMode = 'standard' | 'smart' | 'faithful'
 
 export type ChatAgentToolName =
-  | "project_files"
-  | "project_file_read"
-  | "wiki_search"
-  | "graph_search"
-  | "web_search"
-  | "anytxt_search"
-  | "shell_exec"
-  | "unknown_tool"
+  | 'project_files'
+  | 'project_file_read'
+  | 'wiki_search'
+  | 'graph_search'
+  | 'web_search'
+  | 'anytxt_search'
+  | 'shell_exec'
+  | 'unknown_tool'
 
 export interface ChatUserInputOption {
   label: string
@@ -50,7 +50,7 @@ export interface ChatUserInputOption {
   recommended?: boolean
 }
 
-export type ChatUserInputFieldType = "single" | "multi" | "text" | "textarea" | "confirm"
+export type ChatUserInputFieldType = 'single' | 'multi' | 'text' | 'textarea' | 'confirm'
 
 export interface ChatUserInputField {
   id: string
@@ -71,12 +71,12 @@ export interface ChatUserInputRequest {
 
 export interface ChatAgentStep {
   id: string
-  type: "understanding" | "routing" | "tool_call" | "tool_result" | "final"
+  type: 'understanding' | 'routing' | 'tool_call' | 'tool_result' | 'final'
   tool?: ChatAgentToolName
   query?: string
   message?: string
   count?: number
-  status?: "running" | "success" | "error" | "skipped"
+  status?: 'running' | 'success' | 'error' | 'skipped'
   timestamp?: number
 }
 
@@ -84,7 +84,7 @@ export interface ChatAgentFileChange {
   id: string
   path: string
   tool: string
-  operation: "created" | "modified"
+  operation: 'created' | 'modified'
   additions: number
   deletions: number
   diff: string

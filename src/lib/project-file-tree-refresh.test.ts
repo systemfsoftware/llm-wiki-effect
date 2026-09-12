@@ -1,27 +1,29 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
-import { useWikiStore } from "@/stores/wiki-store"
-import type { FileNode, WikiProject } from "@/types/wiki"
-import { buildProjectPathIndexFromTree } from "@/lib/wiki-page-resolver"
+import { refreshProjectFileTree } from '@/lib/project-file-tree-refresh'
+import { buildProjectPathIndexFromTree } from '@/lib/wiki-page-resolver'
+import { useWikiStore } from '@/stores/wiki-store'
+import type { FileNode, WikiProject } from '@/types/wiki'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  listDirectory: vi.fn(),
+  listDirectory: vi.fn<
+    (path: string, options?: { maxDepth?: number; includeHidden?: boolean }) => Promise<FileNode[]>
+  >(),
 }))
 
-vi.mock("@/commands/fs", () => ({
+vi.mock('@/commands/fs', () => ({
   listDirectory: mocks.listDirectory,
 }))
 
 const project: WikiProject = {
-  id: "project-1",
-  name: "Project",
-  path: "/tmp/project",
+  id: 'project-1',
+  name: 'Project',
+  path: '/tmp/project',
 }
 
 const shallowTree: FileNode[] = [
   {
-    name: "wiki",
-    path: "/tmp/project/wiki",
+    name: 'wiki',
+    path: '/tmp/project/wiki',
     is_dir: true,
     children: [],
   },
@@ -29,18 +31,18 @@ const shallowTree: FileNode[] = [
 
 const fullTree: FileNode[] = [
   {
-    name: "wiki",
-    path: "/tmp/project/wiki",
+    name: 'wiki',
+    path: '/tmp/project/wiki',
     is_dir: true,
     children: [
       {
-        name: "entities",
-        path: "/tmp/project/wiki/entities",
+        name: 'entities',
+        path: '/tmp/project/wiki/entities',
         is_dir: true,
         children: [
           {
-            name: "alpha.md",
-            path: "/tmp/project/wiki/entities/alpha.md",
+            name: 'alpha.md',
+            path: '/tmp/project/wiki/entities/alpha.md',
             is_dir: false,
           },
         ],
@@ -54,7 +56,7 @@ async function flushMicrotasks() {
   await Promise.resolve()
 }
 
-describe("refreshProjectFileTree", () => {
+describe('refreshProjectFileTree', () => {
   beforeEach(() => {
     mocks.listDirectory.mockReset()
     useWikiStore.setState({
@@ -65,7 +67,7 @@ describe("refreshProjectFileTree", () => {
     })
   })
 
-  it("updates the visible tree shallowly and refreshes the full resolver index in the background", async () => {
+  it('updates the visible tree shallowly and refreshes the full resolver index in the background', async () => {
     mocks.listDirectory.mockImplementation(async (_path: string, options?: { maxDepth?: number }) =>
       options?.maxDepth === 2 ? shallowTree : fullTree
     )
@@ -82,25 +84,25 @@ describe("refreshProjectFileTree", () => {
       includeHidden: true,
     })
     expect(useWikiStore.getState().fileTree).toEqual(shallowTree)
-    expect(useWikiStore.getState().projectPathIndex.byPath.has("/tmp/project/wiki/entities/alpha.md")).toBe(true)
+    expect(useWikiStore.getState().projectPathIndex.byPath.has('/tmp/project/wiki/entities/alpha.md')).toBe(true)
     expect(useWikiStore.getState().dataVersion).toBe(1)
   })
 
-  it("includes raw/sources dotfolders in the resolver index via a hidden scan", async () => {
+  it('includes raw/sources dotfolders in the resolver index via a hidden scan', async () => {
     const rawSourcesHiddenTree: FileNode[] = [
       {
-        name: ".claude",
-        path: "/tmp/project/raw/sources/.claude",
+        name: '.claude',
+        path: '/tmp/project/raw/sources/.claude',
         is_dir: true,
         children: [
           {
-            name: "memory.md",
-            path: "/tmp/project/raw/sources/.claude/memory.md",
+            name: 'memory.md',
+            path: '/tmp/project/raw/sources/.claude/memory.md',
             is_dir: false,
           },
           {
-            name: "settings.json",
-            path: "/tmp/project/raw/sources/.claude/settings.json",
+            name: 'settings.json',
+            path: '/tmp/project/raw/sources/.claude/settings.json',
             is_dir: false,
           },
         ],
@@ -109,7 +111,7 @@ describe("refreshProjectFileTree", () => {
     mocks.listDirectory.mockImplementation(
       async (path: string, options?: { maxDepth?: number; includeHidden?: boolean }) => {
         if (options?.maxDepth === 2) return shallowTree
-        if (path === "/tmp/project/raw/sources") return rawSourcesHiddenTree
+        if (path === '/tmp/project/raw/sources') return rawSourcesHiddenTree
         return fullTree
       },
     )
@@ -121,17 +123,17 @@ describe("refreshProjectFileTree", () => {
     await flushMicrotasks()
 
     const index = useWikiStore.getState().projectPathIndex
-    expect(index.byPath.has("/tmp/project/wiki/entities/alpha.md")).toBe(true)
-    expect(index.byPath.has("/tmp/project/raw/sources/.claude/memory.md")).toBe(true)
-    expect(index.byPath.has("/tmp/project/raw/sources/.claude/settings.json")).toBe(false)
+    expect(index.byPath.has('/tmp/project/wiki/entities/alpha.md')).toBe(true)
+    expect(index.byPath.has('/tmp/project/raw/sources/.claude/memory.md')).toBe(true)
+    expect(index.byPath.has('/tmp/project/raw/sources/.claude/settings.json')).toBe(false)
   })
 
-  it("does not write stale results after the active project changes", async () => {
+  it('does not write stale results after the active project changes', async () => {
     mocks.listDirectory.mockImplementation(async (_path: string, options?: { maxDepth?: number }) =>
       options?.maxDepth === 2 ? shallowTree : fullTree
     )
     useWikiStore.setState({
-      project: { ...project, id: "other-project", path: "/tmp/other" },
+      project: { ...project, id: 'other-project', path: '/tmp/other' },
     })
 
     await refreshProjectFileTree(project.path, {
@@ -146,7 +148,7 @@ describe("refreshProjectFileTree", () => {
     expect(useWikiStore.getState().dataVersion).toBe(0)
   })
 
-  it("keeps the existing full resolver index when shallow refresh succeeds but full refresh fails", async () => {
+  it('keeps the existing full resolver index when shallow refresh succeeds but full refresh fails', async () => {
     vi.useFakeTimers()
     const existingIndex = buildProjectPathIndexFromTree(fullTree)
     try {
@@ -155,7 +157,7 @@ describe("refreshProjectFileTree", () => {
       })
       mocks.listDirectory.mockImplementation(async (_path: string, options?: { maxDepth?: number }) => {
         if (options?.maxDepth === 2) return shallowTree
-        throw new Error("full scan failed")
+        throw new Error('full scan failed')
       })
 
       await refreshProjectFileTree(project.path, { projectId: project.id })
@@ -172,27 +174,27 @@ describe("refreshProjectFileTree", () => {
       )
       expect(fullScanCalls).toHaveLength(3)
       expect(useWikiStore.getState().fileTree).toEqual(shallowTree)
-      expect(useWikiStore.getState().projectPathIndex.byPath.has("/tmp/project/wiki/entities/alpha.md")).toBe(true)
+      expect(useWikiStore.getState().projectPathIndex.byPath.has('/tmp/project/wiki/entities/alpha.md')).toBe(true)
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it("preserves already-loaded display children when refreshing the shallow tree", async () => {
+  it('preserves already-loaded display children when refreshing the shallow tree', async () => {
     const loadedTree: FileNode[] = [
       {
-        name: "wiki",
-        path: "/tmp/project/wiki",
+        name: 'wiki',
+        path: '/tmp/project/wiki',
         is_dir: true,
         children: [
           {
-            name: "entities",
-            path: "/tmp/project/wiki/entities",
+            name: 'entities',
+            path: '/tmp/project/wiki/entities',
             is_dir: true,
             children: [
               {
-                name: "alpha.md",
-                path: "/tmp/project/wiki/entities/alpha.md",
+                name: 'alpha.md',
+                path: '/tmp/project/wiki/entities/alpha.md',
                 is_dir: false,
               },
             ],
@@ -202,18 +204,18 @@ describe("refreshProjectFileTree", () => {
     ]
     const refreshedShallowTree: FileNode[] = [
       {
-        name: "wiki",
-        path: "/tmp/project/wiki",
+        name: 'wiki',
+        path: '/tmp/project/wiki',
         is_dir: true,
         children: [
           {
-            name: "entities",
-            path: "/tmp/project/wiki/entities",
+            name: 'entities',
+            path: '/tmp/project/wiki/entities',
             is_dir: true,
           },
           {
-            name: "concepts",
-            path: "/tmp/project/wiki/concepts",
+            name: 'concepts',
+            path: '/tmp/project/wiki/concepts',
             is_dir: true,
           },
         ],
@@ -231,25 +233,25 @@ describe("refreshProjectFileTree", () => {
 
     expect(useWikiStore.getState().fileTree).toEqual([
       {
-        name: "wiki",
-        path: "/tmp/project/wiki",
+        name: 'wiki',
+        path: '/tmp/project/wiki',
         is_dir: true,
         children: [
           {
-            name: "entities",
-            path: "/tmp/project/wiki/entities",
+            name: 'entities',
+            path: '/tmp/project/wiki/entities',
             is_dir: true,
             children: [
               {
-                name: "alpha.md",
-                path: "/tmp/project/wiki/entities/alpha.md",
+                name: 'alpha.md',
+                path: '/tmp/project/wiki/entities/alpha.md',
                 is_dir: false,
               },
             ],
           },
           {
-            name: "concepts",
-            path: "/tmp/project/wiki/concepts",
+            name: 'concepts',
+            path: '/tmp/project/wiki/concepts',
             is_dir: true,
           },
         ],
@@ -257,11 +259,11 @@ describe("refreshProjectFileTree", () => {
     ])
   })
 
-  it("retries the shallow display tree refresh before showing an empty sidebar", async () => {
+  it('retries the shallow display tree refresh before showing an empty sidebar', async () => {
     vi.useFakeTimers()
     try {
       mocks.listDirectory
-        .mockRejectedValueOnce(new Error("transient list failure"))
+        .mockRejectedValueOnce(new Error('transient list failure'))
         .mockResolvedValueOnce(shallowTree)
 
       const pending = refreshProjectFileTree(project.path, {
@@ -282,12 +284,12 @@ describe("refreshProjectFileTree", () => {
     }
   })
 
-  it("does not start the background full scan once the shallow refresh reveals a stale project", async () => {
+  it('does not start the background full scan once the shallow refresh reveals a stale project', async () => {
     mocks.listDirectory.mockImplementation(async (_path: string, options?: { maxDepth?: number }) => {
       if (options?.maxDepth === 2) {
         // Simulate switching projects while the shallow tree request is in flight.
         useWikiStore.setState({
-          project: { ...project, id: "other-project", path: "/tmp/other" },
+          project: { ...project, id: 'other-project', path: '/tmp/other' },
         })
         return shallowTree
       }

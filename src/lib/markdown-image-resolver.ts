@@ -34,13 +34,13 @@
  * the appropriate `convertFileSrc(...)` URL or the original src
  * verbatim.
  */
-import { convertFileSrc } from "@tauri-apps/api/core"
-import { normalizePath } from "@/lib/path-utils"
+import { normalizePath } from '@/lib/path-utils'
+import { convertFileSrc } from '@tauri-apps/api/core'
 
 const PASSTHROUGH_RE = /^(https?:|data:|blob:|file:|tauri:)/i
 
 function trimTrailingSlash(path: string): string {
-  return path.replace(/\/+$/, "")
+  return path.replace(/\/+$/, '')
 }
 
 function comparePath(path: string): string {
@@ -68,19 +68,19 @@ function decodePathSrc(src: string): string {
  * references should degrade gracefully, not crash the renderer.
  */
 function collapsePath(p: string): string {
-  const isAbsolute = p.startsWith("/")
+  const isAbsolute = p.startsWith('/')
   const out: string[] = []
-  for (const seg of p.split("/")) {
-    if (seg === "" || seg === ".") continue
-    if (seg === "..") {
-      if (out.length > 0 && out[out.length - 1] !== "..") out.pop()
-      else if (!isAbsolute) out.push("..")
+  for (const seg of p.split('/')) {
+    if (seg === '' || seg === '.') continue
+    if (seg === '..') {
+      if (out.length > 0 && out[out.length - 1] !== '..') out.pop()
+      else if (!isAbsolute) out.push('..')
       // absolute path: `..` above root is simply ignored
     } else {
       out.push(seg)
     }
   }
-  return (isAbsolute ? "/" : "") + out.join("/")
+  return (isAbsolute ? '/' : '') + out.join('/')
 }
 
 /**
@@ -105,8 +105,7 @@ export function resolveMarkdownImageSrc(
   if (!projectPath) return rawSrc
 
   const pp = normalizePath(projectPath)
-  const isAbsolute =
-    rawSrc.startsWith("/") || /^[a-zA-Z]:/.test(rawSrc) || rawSrc.startsWith("\\\\")
+  const isAbsolute = rawSrc.startsWith('/') || /^[a-zA-Z]:/.test(rawSrc) || rawSrc.startsWith('\\\\')
 
   // Absolute paths are allowed only inside the current project. This resolver
   // is used for both generated/imported markdown and normal wiki reading, so
@@ -121,7 +120,7 @@ export function resolveMarkdownImageSrc(
 
   // Strip a leading `./` for cleanliness; treat `media/foo.png` and
   // `./media/foo.png` identically.
-  const stripped = rawSrc.replace(/^\.\//, "")
+  const stripped = rawSrc.replace(/^\.\//, '')
 
   // Decode percent-encoding BEFORE assembling the filesystem path.
   // ReactMarkdown / remark normalize image URLs and percent-encode
@@ -145,10 +144,9 @@ export function resolveMarkdownImageSrc(
   // Treat both forms as wiki-root media refs; otherwise call sites that
   // do not know the current file dir (chat/search snippets) would resolve
   // `../media/...` against `<project>/wiki/` and escape to `<project>/media`.
-  const isGeneratedMediaRef =
-    cleaned.startsWith("media/") || cleaned.startsWith("../media/")
-  const wikiRootMediaPath = cleaned.startsWith("../media/")
-    ? cleaned.slice("../".length)
+  const isGeneratedMediaRef = cleaned.startsWith('media/') || cleaned.startsWith('../media/')
+  const wikiRootMediaPath = cleaned.startsWith('../media/')
+    ? cleaned.slice('../'.length)
     : cleaned
 
   // Preferred path: resolve relative to the markdown file's own
@@ -159,10 +157,9 @@ export function resolveMarkdownImageSrc(
   // collapse `..`/`.` segments.
   if (currentFileDir && !isGeneratedMediaRef) {
     const dir = normalizePath(currentFileDir)
-    const dirIsAbsolute =
-      dir.startsWith("/") || /^[a-zA-Z]:/.test(dir) || dir.startsWith("\\\\")
+    const dirIsAbsolute = dir.startsWith('/') || /^[a-zA-Z]:/.test(dir) || dir.startsWith('\\\\')
     const baseDir = dirIsAbsolute ? dir : `${pp}/${dir}`
-    const absolute = collapsePath(`${baseDir.replace(/\/+$/, "")}/${cleaned}`)
+    const absolute = collapsePath(`${baseDir.replace(/\/+$/, '')}/${cleaned}`)
     return isInsideProject(absolute, pp) ? convertFileSrc(absolute) : rawSrc
   }
 

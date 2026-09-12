@@ -4,19 +4,19 @@
  * functions; everything below is about read/write/spawn-llm so
  * the algorithm core stays testable without mocks of all that.
  */
-import { listDirectory, readFile, writeFile, deleteFile } from "@/commands/fs"
-import { streamChat } from "@/lib/llm-client"
+import { deleteFile, listDirectory, readFile, writeFile } from '@/commands/fs'
 import {
+  type CandidatePair,
   candidatePairs,
   clusterByPairs,
   DuplicatePrefilterCancelledError,
-  type CandidatePair,
   type Page as DedupEmbeddingPage,
-} from "@/lib/dedup_embedding"
-import { loadEmbeddingConfig } from "@/lib/project-store"
-import { normalizePath } from "@/lib/path-utils"
-import type { EmbeddingConfig, LlmConfig } from "@/stores/wiki-store"
-import type { FileNode } from "@/types/wiki"
+} from '@/lib/dedup_embedding'
+import { streamChat } from '@/lib/llm-client'
+import { normalizePath } from '@/lib/path-utils'
+import { loadEmbeddingConfig } from '@/lib/project-store'
+import type { EmbeddingConfig, LlmConfig } from '@/stores/wiki-store'
+import type { FileNode } from '@/types/wiki'
 
 /**
  * Detection emits a bounded JSON list of duplicate groups — a few tens
@@ -49,18 +49,18 @@ const DEDUP_EMPTY_PREFILTER_FULL_SCAN_LIMIT = 250
  * drag in the heavy ingest dependency graph.
  */
 const DEDUP_MERGE_MAX_TOKENS = 16_384
+import { resolveIngestReasoning } from '@/lib/reasoning-capabilities'
 import {
-  detectDuplicateGroups,
-  extractEntitySummary,
-  mergeDuplicateGroup,
-  rewriteIndexMd,
   type DedupLlmCall,
+  detectDuplicateGroups,
   type DuplicateGroup,
   type EntitySummary,
+  extractEntitySummary,
+  mergeDuplicateGroup,
   type MergeResult,
-} from "./dedup"
-import { loadNotDuplicates } from "./dedup-storage"
-import { resolveIngestReasoning } from "@/lib/reasoning-capabilities"
+  rewriteIndexMd,
+} from './dedup'
+import { loadNotDuplicates } from './dedup-storage'
 
 /**
  * Wrap streamChat into the (system, user, signal) → string shape
@@ -78,14 +78,14 @@ export function buildDedupLlmCall(
   maxTokens: number,
 ): DedupLlmCall {
   return async (systemPrompt, userMessage, signal) => {
-    let result = ""
+    let result = ''
     let streamError: Error | null = null
     await new Promise<void>((resolve) => {
       streamChat(
         llmConfig,
         [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
         ],
         {
           onToken: (t) => {
@@ -119,7 +119,7 @@ function* walkMd(nodes: FileNode[], prefix: string): Generator<FileNode> {
       if (node.children) yield* walkMd(node.children, prefix)
       continue
     }
-    if (node.name.endsWith(".md") && node.path.includes(`${prefix}/`)) {
+    if (node.name.endsWith('.md') && node.path.includes(`${prefix}/`)) {
       yield node
     }
   }
@@ -145,7 +145,7 @@ export async function loadAllEntitySummaries(
   const pp = normalizePath(projectPath)
   const tree = await listDirectory(pp)
   const out: EntitySummary[] = []
-  for (const prefix of ["wiki/entities", "wiki/concepts"]) {
+  for (const prefix of ['wiki/entities', 'wiki/concepts']) {
     for (const node of walkMd(tree, prefix)) {
       try {
         const content = await readFile(node.path)
@@ -168,7 +168,7 @@ export async function loadAllWikiPages(
   const pp = normalizePath(projectPath)
   const tree = await listDirectory(pp)
   const out: { path: string; content: string }[] = []
-  for (const node of walkMd(tree, "wiki")) {
+  for (const node of walkMd(tree, 'wiki')) {
     try {
       const content = await readFile(node.path)
       out.push({ path: toWikiRelative(pp, node.path), content })
@@ -195,8 +195,7 @@ export async function runDuplicateDetection(
   const llm = buildDedupLlmCall(llmConfig, DEDUP_DETECTION_MAX_TOKENS)
   const embeddingConfig = await loadEmbeddingConfig()
 
-  const embeddingEndpoint =
-    typeof embeddingConfig?.endpoint === "string" ? embeddingConfig.endpoint.trim() : ""
+  const embeddingEndpoint = typeof embeddingConfig?.endpoint === 'string' ? embeddingConfig.endpoint.trim() : ''
   if (embeddingConfig?.enabled && embeddingEndpoint) {
     try {
       return await detectDuplicateGroupsWithEmbeddingPrefilter(
@@ -211,10 +210,10 @@ export async function runDuplicateDetection(
     } catch (err) {
       if (isAbortError(err) || options.signal?.aborted) throw err
       if (summaries.length > DEDUP_EMPTY_PREFILTER_FULL_SCAN_LIMIT && isEmbeddingCoverageError(err)) {
-        console.warn("[dedup] embedding prefilter coverage too low; skipping full fallback for large wiki:", err)
+        console.warn('[dedup] embedding prefilter coverage too low; skipping full fallback for large wiki:', err)
         return []
       }
-      console.warn("[dedup] embedding prefilter failed; falling back to full LLM scan:", err)
+      console.warn('[dedup] embedding prefilter failed; falling back to full LLM scan:', err)
     }
   }
 
@@ -236,12 +235,12 @@ async function detectDuplicateGroupsInBoundedBatches(
   // Keep likely aliases adjacent while bounding every LLM request. A small
   // overlap prevents a duplicate pair at a batch boundary from being split.
   const ordered = [...summaries].sort((left, right) =>
-    `${left.title}\u0000${left.slug}`.localeCompare(`${right.title}\u0000${right.slug}`),
+    `${left.title}\u0000${left.slug}`.localeCompare(`${right.title}\u0000${right.slug}`)
   )
   const stride = DEDUP_DETECTOR_BATCH_SUMMARIES - DEDUP_FALLBACK_BATCH_OVERLAP
   const groups: DuplicateGroup[] = []
   for (let start = 0; start < ordered.length; start += stride) {
-    if (options.signal?.aborted) throw new Error("Duplicate scan cancelled")
+    if (options.signal?.aborted) throw new Error('Duplicate scan cancelled')
     const batch = ordered.slice(start, start + DEDUP_DETECTOR_BATCH_SUMMARIES)
     if (batch.length < 2) break
     groups.push(...await detectDuplicateGroups(batch, llm, options))
@@ -284,7 +283,7 @@ async function detectDuplicateGroupsWithEmbeddingPrefilter(
   const out: DuplicateGroup[] = []
 
   for (const batch of batches) {
-    if (options.signal?.aborted) throw new Error("Duplicate scan cancelled")
+    if (options.signal?.aborted) throw new Error('Duplicate scan cancelled')
     const detected = await detectDuplicateGroups(batch, llm, options)
     out.push(...detected)
   }
@@ -296,7 +295,7 @@ function summaryToEmbeddingPage(summary: EntitySummary): DedupEmbeddingPage {
   return {
     id: summary.path,
     title: summary.title,
-    body: summary.description ?? "",
+    body: summary.description ?? '',
     tags: summary.tags,
   }
 }
@@ -315,8 +314,8 @@ function batchCandidateClusters(
     if (summaries.length < 2) continue
 
     if (
-      current.length > 0
-      && current.length + summaries.length > DEDUP_DETECTOR_BATCH_SUMMARIES
+      current.length > 0 &&
+      current.length + summaries.length > DEDUP_DETECTOR_BATCH_SUMMARIES
     ) {
       batches.push(current)
       current = []
@@ -338,7 +337,7 @@ function uniqueDuplicateGroups(groups: DuplicateGroup[]): DuplicateGroup[] {
   const seen = new Set<string>()
   const out: DuplicateGroup[] = []
   for (const group of groups) {
-    const key = group.slugs.map((slug) => slug.toLowerCase()).sort().join("\t")
+    const key = group.slugs.map((slug) => slug.toLowerCase()).sort().join('\t')
     if (seen.has(key)) continue
     seen.add(key)
     out.push(group)
@@ -362,17 +361,17 @@ function filterWhitelistedPairs(
 }
 
 function normalizeSlugGroupKey(slugs: readonly string[]): string {
-  return slugs.map((slug) => slug.toLowerCase()).sort().join("\t")
+  return slugs.map((slug) => slug.toLowerCase()).sort().join('\t')
 }
 
 function isAbortError(err: unknown): boolean {
-  return err instanceof DuplicatePrefilterCancelledError
-    || (err instanceof Error && err.name === "AbortError")
+  return err instanceof DuplicatePrefilterCancelledError ||
+    (err instanceof Error && err.name === 'AbortError')
 }
 
 function isEmbeddingCoverageError(err: unknown): boolean {
-  return err instanceof Error
-    && /could not embed enough pages|embedded only \d+\/\d+ pages/i.test(err.message)
+  return err instanceof Error &&
+    /could not embed enough pages|embedded only \d+\/\d+ pages/i.test(err.message)
 }
 
 /**
@@ -404,8 +403,8 @@ export async function executeMerge(
   const allPages = await loadAllWikiPages(pp)
   const pathBySlug = new Map<string, string>()
   for (const p of allPages) {
-    const base = p.path.split("/").pop() ?? ""
-    if (base.endsWith(".md")) {
+    const base = p.path.split('/').pop() ?? ''
+    if (base.endsWith('.md')) {
       pathBySlug.set(base.slice(0, -3), p.path)
     }
   }
@@ -444,10 +443,10 @@ export async function executeMerge(
   // 2. Snapshot backup before any writes. If a write fails partway
   //    through, the user has the pre-merge state intact in
   //    .llm-wiki/page-history/.
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const backupDir = `${pp}/.llm-wiki/page-history/dedup-${stamp}`
   for (const b of result.backup) {
-    const sanitized = b.path.replace(/[/\\]/g, "_")
+    const sanitized = b.path.replace(/[/\\]/g, '_')
     await writeFile(`${backupDir}/${sanitized}`, b.content)
   }
 
@@ -465,13 +464,13 @@ export async function executeMerge(
       await deleteFile(`${pp}/${dead}`)
     } catch (err) {
       // Surface as a warning — backup is still safe.
-      console.warn(`[dedup] failed to delete ${dead}: ${err}`)
+      console.warn(`[dedup] failed to delete ${dead}: ${String(err)}`)
     }
   }
 
   // 6. Rewrite index.md to drop merged-away entries.
   const indexPath = `${pp}/wiki/index.md`
-  const indexEntry = allPages.find((p) => p.path === "wiki/index.md")
+  const indexEntry = allPages.find((p) => p.path === 'wiki/index.md')
   if (indexEntry) {
     const removed = new Set(
       group.slugs.filter((s) => s !== canonicalSlug),

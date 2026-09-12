@@ -1,5 +1,5 @@
-import { readFile, writeFile, fileExists } from "@/commands/fs"
-import { normalizePath, isAbsolutePath } from "@/lib/path-utils"
+import { fileExists, readFile, writeFile } from '@/commands/fs'
+import { isAbsolutePath, normalizePath } from '@/lib/path-utils'
 
 /**
  * SHA256-based ingest cache.
@@ -20,19 +20,45 @@ interface CacheData {
 async function sha256(content: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(content)
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 function cachePath(projectPath: string): string {
   return `${normalizePath(projectPath)}/.llm-wiki/ingest-cache.json`
 }
 
+function isCacheEntry(value: unknown): value is CacheEntry {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'hash' in value &&
+    typeof value.hash === 'string' &&
+    'timestamp' in value &&
+    typeof value.timestamp === 'number' &&
+    'filesWritten' in value &&
+    Array.isArray(value.filesWritten) &&
+    value.filesWritten.every((file) => typeof file === 'string')
+  )
+}
+
+function isCacheData(value: unknown): value is CacheData {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'entries' in value &&
+    typeof value.entries === 'object' &&
+    value.entries !== null &&
+    Object.values(value.entries).every(isCacheEntry)
+  )
+}
+
 async function loadCache(projectPath: string): Promise<CacheData> {
   try {
     const raw = await readFile(cachePath(projectPath))
-    return JSON.parse(raw) as CacheData
+    const parsed: unknown = JSON.parse(raw)
+    return isCacheData(parsed) ? parsed : { entries: {} }
   } catch {
     return { entries: {} }
   }

@@ -79,7 +79,9 @@ no diagnostic on a file that plainly violates them, with or without
 `--type-aware`; enabling them would add a green line that measures nothing.
 
 **A judgment surface has one owner.** The work being graded and the instrument
-that grades it are changed by different hands (CONST-E1).
+that grades it are changed by different hands. A branch that adds a rule and the
+fixes that satisfy it has chosen both sides of the verdict, so the exceptions it
+carves are the ones a second reviewer has to look at hardest.
 
 ## When to Apply
 

@@ -8,7 +8,7 @@ Chrome clipper.
 | Surface        | Paths                                                                                                                   | Rule                                            |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | Evaluator      | `oxlint.config.ts`, `dprint.json`, `commitlint.config.ts`, `.lintstagedrc.js`, `tsconfig*.json`, `.github/workflows/**` | Read-only. Never edit to make your change pass. |
-| Doctrine       | `CONSTITUTION.md`, `AGENTS.md`                                                                                          | Edit only on explicit direction.                |
+| Doctrine       | `AGENTS.md`                                                                                                             | Edit only on explicit direction.                |
 | Vendored       | `extension/Readability.js`, `extension/Turndown.js`, `src-tauri/pdfium/**`, `llm-wiki.md`                               | Third-party. Never hand-edit.                   |
 | Human approval | Releases, tags, signing keys, npm publishing                                                                            | Ask first.                                      |
 | Editable       | `src/**`, `src-tauri/src/**`, `mcp-server/**`, `docs/solutions/**`                                                      | Edit freely.                                    |

@@ -34,7 +34,6 @@ const isDoc = matchesAny(
   /(^|\/)README\.md$/i,
   /(^|\/)AGENTS\.md$/i,
   /(^|\/)CLAUDE\.md$/i,
-  /(^|\/)CONSTITUTION\.md$/i,
   /(^|\/)CONTRIBUTING\.md$/i,
   /(^|\/)CHANGELOG\.md$/i,
 )

@@ -1,10 +1,14 @@
 packages:
+  # The root is the desktop app, and changesets can only version what the
+  # workspace lists, so it is named explicitly.
+  - "."
   - mcp-server
 
 # Versions shared by more than one package live here so the root app and the
 # MCP server cannot drift apart. `rolldown` is pinned to the same range vite
 # resolves so the MCP server is bundled by exactly one copy of the bundler.
 catalog:
+  "@changesets/cli": ^3.0.2
   "@commitlint/cli": ^21.2.2
   "@commitlint/config-conventional": ^21.2.2
   "@commitlint/types": ^21.2.0

@@ -18,6 +18,10 @@
     "mcp:test": "pnpm --filter llm-wiki-mcp-server test",
     "format": "./bin/dprint fmt",
     "format:check": "./bin/dprint check",
+    "changeset": "changeset",
+    "changeset:status": "changeset status --since=origin/main",
+    "version:sync": "node scripts/sync-app-version.mjs",
+    "release:version": "changeset version && pnpm version:sync",
     "lint": "oxlint . --type-aware --type-check --format=${OXLINT_FORMAT:-default}",
     "precommit": "pnpm exec lint-staged --no-revert --config .lintstagedrc.js",
     "prepare": "husky",
@@ -70,6 +74,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
     "@commitlint/types": "catalog:",

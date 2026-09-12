@@ -22,6 +22,7 @@ Chrome clipper.
 | LW-3 | Types check in app and node projects | `pnpm typecheck`                   |
 | LW-4 | Unit and MCP suites pass             | `pnpm test:mocks && pnpm mcp:test` |
 | LW-5 | Everything above, in one command     | `pnpm check:ci`                    |
+| LW-6 | An app change ships a change intent  | `Changeset` job / `pnpm changeset` |
 
 `pnpm test` also runs `test:llm`, which needs paid API keys and a built app;
 CI and local gates use `pnpm test:mocks`.
@@ -33,6 +34,11 @@ CI and local gates use `pnpm test:mocks`.
 - `mcp-server/` — workspace package, bundled into the app as a resource.
 - `extension/` — Chrome clipper.
 - `docs/solutions/<category>/<slug>.md` — one durable doc per solved problem.
+- `.changeset/` — pending change intents. `pnpm release:version` consumes them
+  into `package.json` and `CHANGELOG.md`, then syncs the copies in
+  `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`.
+  `src/lib/changelog.test.ts` holds all of them equal; the in-app changelog in
+  `src/lib/changelog.ts` is the one entry a release still writes by hand.
 
 ## End of Session
 

@@ -1,8 +1,8 @@
 {
   "bundle": {
     "resources": {
-      "../mcp-server/package.json": "mcp-server/package.json",
-      "../mcp-server/dist": "mcp-server/dist"
+      "../../mcp-server/package.json": "mcp-server/package.json",
+      "../../mcp-server/dist": "mcp-server/dist"
     },
     "macOS": {
       "frameworks": ["pdfium/libpdfium.dylib"]

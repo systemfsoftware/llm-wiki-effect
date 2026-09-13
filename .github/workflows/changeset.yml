@@ -12,6 +12,7 @@ on:
       - "apps/desktop/src-tauri/**"
       - "extension/**"
       - "apps/mcp-server/**"
+      - "packages/protocol/**"
       - "scripts/**"
 
 permissions:

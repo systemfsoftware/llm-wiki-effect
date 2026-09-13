@@ -18,7 +18,13 @@ catalog:
   oxlint-tsgolint: 7.0.2001
   rolldown: ~1.2.6
   turbo: ^2.10.12
-  typescript: ^5.7.3
+  "effect": 4.0.0-rc.115
+  "@effect/platform-node": 4.0.0-rc.115
+  "fast-check": ^4.7.0
+  "vitest": ^4.1.4
+  "@stryker-mutator/core": 10.0.0
+  "@stryker-mutator/vitest-runner": 10.0.0
+  "typescript": ^5.7.3
 
 catalogMode: prefer
 

@@ -16,31 +16,49 @@ import { connect } from 'node:net'
 import { dirname } from 'node:path'
 import { isAllowedBrowserOrigin } from '../auth/cors.js'
 import type { AppContext } from './app.js'
-import type { ServerEnv } from './handlers.js'
 import { handlersLayer } from './handlers.js'
-import { apiGroup, rpcMiddlewareLayer } from './middleware.js'
+import type { ServerEnv } from './handlers.js'
+import { apiGroup, rpcMiddlewareLayer, workerApiGroup } from './middleware.js'
+import type { RpcMode } from './middleware.js'
 
 type Response = HttpServerResponse.HttpServerResponse
 
 export const RPC_PATH = '/rpc'
 export const RPC_STREAM_PATH = '/rpc/stream'
 
-const servicesLayer = (app: AppContext, env: ServerEnv) =>
-  Layer.mergeAll(handlersLayer(env), rpcMiddlewareLayer).pipe(
-    Layer.provide(Layer.succeedContext(app)),
+const rpcServicesLayer = (input: {
+  readonly app: AppContext
+  readonly env: ServerEnv
+}) =>
+  Layer.mergeAll(handlersLayer(input.env), rpcMiddlewareLayer).pipe(
+    Layer.provide(Layer.succeedContext(input.app)),
   )
 
-export const socketRpcLayer = (input: {
+export interface SocketMountInput {
   readonly app: AppContext
   readonly env: ServerEnv
   readonly socketServer: SocketServer.SocketServer['Service']
-}): Layer.Layer<never> =>
+  readonly mode?: RpcMode | undefined
+}
+
+const standaloneSocketLayer = (input: SocketMountInput): Layer.Layer<never> =>
   RpcServer.layer(apiGroup).pipe(
     Layer.provide(RpcServer.layerProtocolSocketServer),
     Layer.provide(Api.ApiSerializationLayer),
     Layer.provide(Layer.succeed(SocketServer.SocketServer, input.socketServer)),
-    Layer.provide(servicesLayer(input.app, input.env)),
+    Layer.provide(rpcServicesLayer(input)),
   )
+
+const workerSocketLayer = (input: SocketMountInput): Layer.Layer<never> =>
+  RpcServer.layer(workerApiGroup).pipe(
+    Layer.provide(RpcServer.layerProtocolSocketServer),
+    Layer.provide(Api.ApiSerializationLayer),
+    Layer.provide(Layer.succeed(SocketServer.SocketServer, input.socketServer)),
+    Layer.provide(rpcServicesLayer(input)),
+  )
+
+export const socketRpcLayer = (input: SocketMountInput): Layer.Layer<never> =>
+  input.mode === 'worker' ? workerSocketLayer(input) : standaloneSocketLayer(input)
 
 export interface HttpRpcEffects {
   readonly post: Effect.Effect<Response, never, HttpServerRequest.HttpServerRequest | Scope.Scope>
@@ -52,7 +70,7 @@ export const makeHttpRpcEffects = (input: {
   readonly env: ServerEnv
 }): Effect.Effect<HttpRpcEffects, never, Scope.Scope> =>
   Effect.gen(function*() {
-    const services = servicesLayer(input.app, input.env)
+    const services = rpcServicesLayer(input)
     const post = yield* RpcServer.toHttpEffect(apiGroup).pipe(
       Effect.provide(services),
       Effect.provide(Api.ApiSerializationLayer),
@@ -141,6 +159,7 @@ export const serveSocket = (input: {
   readonly app: AppContext
   readonly env: ServerEnv
   readonly path: string
+  readonly mode?: RpcMode | undefined
 }): Effect.Effect<{ readonly path: string }, Errors.BindConflict, Scope.Scope> =>
   Effect.gen(function*() {
     if (yield* Effect.promise(() => isSocketAlive(input.path))) {

@@ -169,6 +169,42 @@ describe('embedAllPages', () => {
     expect(mockVectorOptimize).toHaveBeenCalledWith({ projectId: projectPath })
   })
 
+  it('drops the obsolete legacy table once the forced rebuild re-indexed every page', async () => {
+    mockEmbedPage.mockImplementation((input) => ok(pageResult(input.path.replace(/^wiki\/|\.md$/g, ''))))
+
+    await embedAllPages(projectPath, cfg, undefined, { clearExisting: true })
+
+    expect(mockVectorDropLegacy).toHaveBeenCalledWith({ projectId: projectPath })
+  })
+
+  it('keeps the legacy table when a forced rebuild left a page unindexed', async () => {
+    mockEmbedPage.mockImplementation((input) =>
+      input.path.endsWith('beta.md')
+        ? Promise.reject(new Error('provider down'))
+        : ok(pageResult('alpha'))
+    )
+
+    await expect(embedAllPages(projectPath, cfg, undefined, { clearExisting: true })).resolves.toBe(1)
+
+    expect(mockVectorDropLegacy).not.toHaveBeenCalled()
+  })
+
+  it('keeps the legacy table during an incremental embed', async () => {
+    mockEmbedPage.mockImplementation((input) => ok(pageResult(input.path.replace(/^wiki\/|\.md$/g, ''))))
+
+    await embedAllPages(projectPath, cfg)
+
+    expect(mockVectorDropLegacy).not.toHaveBeenCalled()
+  })
+
+  it('does not fail the forced rebuild when the legacy drop fails', async () => {
+    mockEmbedPage.mockImplementation((input) => ok(pageResult(input.path.replace(/^wiki\/|\.md$/g, ''))))
+    mockVectorDropLegacy.mockRejectedValueOnce(new Error('worker unreachable'))
+
+    await expect(embedAllPages(projectPath, cfg, undefined, { clearExisting: true })).resolves.toBe(2)
+    expect(getEmbeddingReindexState()).toEqual({ kind: 'done', projectPath, count: 2 })
+  })
+
   it('leaves the existing index alone when the wiki tree has no content pages', async () => {
     mockListDirectory.mockResolvedValueOnce([])
     mockVectorStats.mockResolvedValueOnce(new Domain.VectorStatsResponse({ chunks: 12, legacyRows: 0 }))

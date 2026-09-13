@@ -25,8 +25,6 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 anydoc = "0.1.6"
 # tokio provided by tauri runtime for async commands
-arrow-array = "57"
-arrow-schema = "57"
 base64 = "0.22"
 calamine = "0.34.0"
 chrono = { version = "0.4", features = ["clock"] }
@@ -45,7 +43,6 @@ html2text = { version = "0.17.1", default-features = false, features = ["xml"] }
 #   same caption, no redundant VLM calls. Pulled in here so the
 #   extraction layer can also expose the hash if a caller wants it.
 image = { version = "0.25", default-features = false, features = ["png"] }
-lancedb = "0.27.2"
 md-5 = "0.10"
 mobi = "0.8"
 notify = "8"

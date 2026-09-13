@@ -72,6 +72,7 @@ export interface WorkerConfigInput {
   readonly mode: 'worker'
   readonly appStatePath: string
   readonly projectRoots?: ReadonlyArray<string>
+  readonly approvalSocket?: string | undefined
   readonly env?: Readonly<Record<string, string | undefined>>
   readonly now?: () => number
 }
@@ -85,7 +86,11 @@ export interface StandaloneConfigInput {
 
 export type ConfigInput = WorkerConfigInput | StandaloneConfigInput
 
-const WORKER_FLAGS: Record<string, true> = { 'app-state': true, 'project-root': true }
+const WORKER_FLAGS: Record<string, true> = {
+  'app-state': true,
+  'project-root': true,
+  'approval-socket': true,
+}
 const STANDALONE_FLAGS: Record<string, true> = { config: true }
 
 export const sanitizeBindHost = (value: string): Option.Option<string> => {
@@ -332,7 +337,13 @@ export const parseWorkerSpawnArgs = (
       )
     }
     const projectRoots = values.get('project-root') ?? []
-    return Effect.succeed({ mode: 'worker', appStatePath, projectRoots })
+    const approvalSocket = values.get('approval-socket')?.[0]
+    return Effect.succeed({
+      mode: 'worker',
+      appStatePath,
+      projectRoots,
+      ...(approvalSocket === undefined ? {} : { approvalSocket }),
+    })
   })
 
 export const parseStandaloneFlags = (

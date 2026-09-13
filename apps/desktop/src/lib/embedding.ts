@@ -166,6 +166,10 @@ export async function embedAllPages(
 
   if (indexed > 0) await optimizeChunkVectorTableBestEffort(pp)
 
+  if (options?.clearExisting === true && failures.length === 0) {
+    await dropLegacyVectorTableBestEffort(pp)
+  }
+
   if (failures.length > 0 && indexed === 0) {
     const message = `None of the ${files.length} pages could be embedded (${failures[0]}).`
     setEmbeddingReindexState({ kind: 'error', projectPath: pp, message })
@@ -216,5 +220,13 @@ async function optimizeChunkVectorTableBestEffort(projectPath: string): Promise<
     await relay().vectorOptimize({ projectId: normalizePath(projectPath) })
   } catch {
     // Search keeps working on an uncompacted index.
+  }
+}
+
+async function dropLegacyVectorTableBestEffort(projectPath: string): Promise<void> {
+  try {
+    await relay().vectorDropLegacy({ projectId: normalizePath(projectPath) })
+  } catch {
+    // Non-fatal: the next forced rebuild retries the drop.
   }
 }

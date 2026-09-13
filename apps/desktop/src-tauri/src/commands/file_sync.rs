@@ -326,88 +326,6 @@ pub fn stop_project_file_watcher(state: State<FileSyncState>) -> Result<(), Stri
     })
 }
 
-#[tauri::command]
-pub fn rescan_project_files(
-    app: AppHandle,
-    project_id: String,
-    project_path: String,
-    source_watch_config: Option<SourceWatchConfig>,
-) -> Result<FileChangeRescanResult, String> {
-    run_guarded("rescan_project_files", || {
-        let root = PathBuf::from(project_path);
-        let source_watch_config = normalize_source_watch_config(source_watch_config);
-        ensure_sync_dir(&root)?;
-        enqueue_rescan_changes(&root, &project_id, &source_watch_config)?;
-        let changed_tasks = process_queue(&app, &root, &project_id)?;
-        let queue = with_queue_lock(&root, || read_queue(&root))?;
-        emit_queue(&app, &project_id, &queue);
-        Ok(FileChangeRescanResult {
-            queue,
-            changed_tasks,
-        })
-    })
-}
-
-#[tauri::command]
-pub fn get_file_change_queue(project_path: String) -> Result<FileChangeQueue, String> {
-    run_guarded("get_file_change_queue", || {
-        let root = PathBuf::from(project_path);
-        with_queue_lock(&root, || read_queue(&root))
-    })
-}
-
-#[tauri::command]
-pub fn retry_file_change_task(
-    app: AppHandle,
-    project_id: String,
-    project_path: String,
-    task_id: String,
-) -> Result<FileChangeQueue, String> {
-    run_guarded("retry_file_change_task", || {
-        let root = PathBuf::from(project_path);
-        with_queue_lock(&root, || {
-            let mut queue = read_queue(&root)?;
-            let now = now_ms();
-            for task in &mut queue.tasks {
-                if task.id == task_id && task.project_id == project_id {
-                    task.status = FileChangeStatus::Pending;
-                    task.error = None;
-                    task.retry_count = 0;
-                    task.needs_rerun = false;
-                    task.updated_at = now;
-                }
-            }
-            write_queue(&root, &queue)
-        })?;
-        process_queue(&app, &root, &project_id)?;
-        let queue = with_queue_lock(&root, || read_queue(&root))?;
-        emit_queue(&app, &project_id, &queue);
-        Ok(queue)
-    })
-}
-
-#[tauri::command]
-pub fn ignore_file_change_task(
-    app: AppHandle,
-    project_id: String,
-    project_path: String,
-    task_id: String,
-) -> Result<FileChangeQueue, String> {
-    run_guarded("ignore_file_change_task", || {
-        let root = PathBuf::from(project_path);
-        let queue = with_queue_lock(&root, || {
-            let mut queue = read_queue(&root)?;
-            queue
-                .tasks
-                .retain(|task| !(task.id == task_id && task.project_id == project_id));
-            write_queue(&root, &queue)?;
-            read_queue(&root)
-        })?;
-        emit_queue(&app, &project_id, &queue);
-        Ok(queue)
-    })
-}
-
 pub fn mark_app_write_path(path: &Path) {
     let key = path_key(path);
     let now = now_ms();
@@ -605,35 +523,6 @@ fn sync_snapshot_paths(root: &Path, rels: BTreeSet<String>) -> Result<(), String
         snapshot.updated_at = now_ms();
         write_snapshot(root, &snapshot)
     })
-}
-
-fn enqueue_rescan_changes(
-    root: &Path,
-    project_id: &str,
-    source_watch_config: &SourceWatchConfig,
-) -> Result<(), String> {
-    let rules = SourceWatchRules::new(source_watch_config);
-    let mut rels = BTreeSet::<String>::new();
-    for entry in WalkDir::new(root).into_iter().filter_map(Result::ok) {
-        if entry.file_type().is_file() {
-            if let Some(rel) = relative_watch_path(
-                root,
-                entry.path(),
-                &rules,
-                entry.metadata().ok().map(|m| m.len()),
-            ) {
-                rels.insert(rel);
-            }
-        }
-    }
-
-    let snapshot = with_queue_lock(root, || read_snapshot(root))?;
-    for rel in snapshot.files.keys() {
-        if !root.join(rel).exists() {
-            rels.insert(rel.clone());
-        }
-    }
-    enqueue_paths(root, project_id, rels)
 }
 
 fn enqueue_startup_rescan_changes(
@@ -1426,7 +1315,7 @@ mod tests {
         fs::write(root.join(rel), "aaaa").unwrap();
 
         ensure_sync_dir(&root).unwrap();
-        enqueue_rescan_changes(&root, "p1", &default_watch_config()).unwrap();
+        enqueue_paths(&root, "p1", BTreeSet::from([rel.to_string()])).unwrap();
         let first = read_queue(&root).unwrap().tasks[0].clone();
         apply_task_to_snapshot(&root, &first).unwrap();
         write_queue(

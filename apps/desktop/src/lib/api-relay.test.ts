@@ -53,7 +53,7 @@ describe('apiRelayClient wire contract', () => {
 
     const health = await apiRelayClient.health()
 
-    expect(mockInvoke).toHaveBeenCalledWith('api_rpc', { op: 'health', payload: {} })
+    expect(mockInvoke).toHaveBeenCalledWith('api_rpc', { op: 'health', payload: null })
     expect(health.status).toBe('running')
     expect(health.mcpEnabled).toBe(true)
   })

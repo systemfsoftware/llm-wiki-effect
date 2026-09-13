@@ -74,13 +74,13 @@ async function callCommand(
   throw new RelayError(envelope.value.error)
 }
 
-async function callRpc(operation: string, payload: Record<string, unknown>): Promise<unknown> {
+async function callRpc(operation: string, payload: Record<string, unknown> | null): Promise<unknown> {
   return callCommand(RPC_COMMAND, { op: operation, payload }, operation)
 }
 
 async function call<A>(
   operation: string,
-  payload: Record<string, unknown>,
+  payload: Record<string, unknown> | null,
   schema: Schema.ConstraintDecoder<A>,
 ): Promise<A> {
   const decoded = Schema.decodeUnknownOption(schema)(await callRpc(operation, payload))
@@ -214,8 +214,8 @@ export interface RelayClient {
 }
 
 export const apiRelayClient: RelayClient = {
-  health: () => call('health', {}, Domain.Health),
-  projects: () => call('projects', {}, Domain.ProjectsResponse),
+  health: () => call('health', null, Domain.Health),
+  projects: () => call('projects', null, Domain.ProjectsResponse),
   files: (input) =>
     call(
       'files',
@@ -342,7 +342,7 @@ export const apiRelayClient: RelayClient = {
     ),
   setCurrentProject: (input) =>
     call('setCurrentProject', { projectId: input.projectId }, Domain.SetCurrentProjectResponse),
-  reloadConfig: () => call('reloadConfig', {}, Domain.ReloadConfigResponse),
+  reloadConfig: () => call('reloadConfig', null, Domain.ReloadConfigResponse),
 }
 
 let injected: RelayClient | null = null

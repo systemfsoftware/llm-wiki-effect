@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::agent::tools::{run_anytxt_search, run_web_search, AnyTxtConfig, WebSearchConfig};
+mod providers;
+
+use providers::{run_anytxt_search, run_web_search, AnyTxtConfig, WebSearchConfig};
 use crate::panic_guard::run_guarded_async;
 
 /// Frontend-facing search result shape. The Rust Agent uses

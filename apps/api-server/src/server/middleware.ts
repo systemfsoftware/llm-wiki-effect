@@ -68,13 +68,27 @@ export class ApiBodyLimit extends RpcMiddleware.Service<ApiBodyLimit>()(
 
 const HEALTH_OPERATION: ApiOperationName = 'health'
 
+export const SURFACE_HEADER = 'x-llm-wiki-surface'
+export const SUPERVISOR_SURFACE = 'supervisor'
+
+export type RpcMode = 'worker' | 'standalone'
+
+const surfaceOf = (headers: Headers.Headers): string | undefined => {
+  const value = Headers.get(headers, SURFACE_HEADER)
+  return value._tag === 'Some' ? value.value.trim() : undefined
+}
+
+export const isSupervisorSurface = (headers: Headers.Headers): boolean => surfaceOf(headers) === SUPERVISOR_SURFACE
+
 const apiGateLive: Layer.Layer<ApiGate, never, Gate> = Layer.effect(
   ApiGate,
   Effect.map(Gate, (gate) => (effect, options) => {
     const operation = operationOf(options)
-    return operation === HEALTH_OPERATION
-      ? effect
-      : Effect.andThen(gate.requireApi, Effect.andThen(gate.requireMcp(operation), effect))
+    if (operation === HEALTH_OPERATION) return effect
+    if (isSupervisorSurface(options.headers)) {
+      return Effect.andThen(gate.requireApi, effect)
+    }
+    return Effect.andThen(gate.requireApi, Effect.andThen(gate.requireMcp(operation), effect))
   }),
 )
 
@@ -133,4 +147,16 @@ export const apiGroup: ApiGroup = Api.ApiProtocol
   .middleware(ApiBodyLimit)
   .middleware(ApiRateLimit)
   .middleware(ApiAuth)
+  .middleware(ApiGate)
+
+export type ApiWorkerGroup = RpcGroup.RpcGroup<
+  Rpc.AddMiddleware<
+    Rpc.AddMiddleware<Rpc.AddMiddleware<Api.ApiRpc, typeof ApiBodyLimit>, typeof ApiRateLimit>,
+    typeof ApiGate
+  >
+>
+
+export const workerApiGroup: ApiWorkerGroup = Api.ApiProtocol
+  .middleware(ApiBodyLimit)
+  .middleware(ApiRateLimit)
   .middleware(ApiGate)

@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Scope } from 'effect'
+import { Context, Effect, Layer, Result, Scope } from 'effect'
 import { HttpClient } from 'effect/unstable/http'
 import { Errors } from 'llm-wiki-protocol'
 import { Redactor } from '../agent/redaction/Redactor.js'
@@ -6,12 +6,14 @@ import { AgentRuntime, agentRuntimeLayer } from '../agent/runtime/AgentRuntime.j
 import type { AgentRuntimeOptions } from '../agent/runtime/AgentRuntime.js'
 import { CancelRegistry } from '../agent/sessions/CancelRegistry.js'
 import { SessionStore } from '../agent/sessions/SessionStore.js'
+import { denyAll } from '../agent/tools/Approver.js'
+import type { Approver } from '../agent/tools/Approver.js'
 import { Auth } from '../auth/auth.js'
 import { Gate } from '../auth/gate.js'
 import { RateLimiter } from '../auth/limits.js'
 import type { RateLimiterOptions } from '../auth/limits.js'
 import { ChatService } from '../chat/ChatService.js'
-import { Config } from '../config/Config.js'
+import { Config, normalizeProjectPath } from '../config/Config.js'
 import type { ConfigInput, ConfigShape } from '../config/Config.js'
 import { Embeddings } from '../embeddings/Embeddings.js'
 import type { EmbeddingTransport } from '../embeddings/Embeddings.js'
@@ -27,16 +29,23 @@ import { ReviewsStore } from '../reviews/ReviewsStore.js'
 import { Search } from '../search/Search.js'
 import type { SearchOptions } from '../search/Search.js'
 import { makeVectorStore } from '../search/vector.js'
+import { makeApprovalChannel, makeSupervisorApprover } from './approval.js'
 import type { ServerEnv } from './handlers.js'
 import { RescanSources } from './rescan.js'
 import type { RescanOptions } from './rescan.js'
 import { httpEmbeddingTransport, httpQueryEmbedder } from './transports.js'
+
+export interface ApprovalChannelInput {
+  readonly socketPath: string
+  readonly timeoutMillis?: number | undefined
+}
 
 export interface ServerAppInput {
   readonly config: ConfigInput
   readonly env?: ServerEnv | undefined
   readonly registryStatePath?: string | undefined
   readonly agent: AgentRuntimeOptions
+  readonly approval?: ApprovalChannelInput | undefined
   readonly rateLimit?: RateLimiterOptions | undefined
   readonly rescan?: RescanOptions | undefined
   readonly embeddings?: {
@@ -50,6 +59,37 @@ export interface ServerAppInput {
 class EmbeddingTransportService extends Context.Service<EmbeddingTransportService, EmbeddingTransport>()(
   'llm-wiki-api-server/server/EmbeddingTransport',
 ) {}
+
+class ApproverOption extends Context.Service<ApproverOption, Approver>()(
+  'llm-wiki-api-server/server/ApproverOption',
+) {}
+
+const approvalApproverLayer = (
+  input: ServerAppInput,
+): Layer.Layer<ApproverOption, Errors.BindConflict, ProjectRegistry> => {
+  const approval = input.approval
+  if (approval === undefined) {
+    return Layer.succeed(ApproverOption, input.agent.approver ?? denyAll)
+  }
+  return Layer.effect(
+    ApproverOption,
+    Effect.gen(function*() {
+      const registry = yield* ProjectRegistry
+      const channel = yield* makeApprovalChannel({
+        path: approval.socketPath,
+        ...(approval.timeoutMillis === undefined ? {} : { timeoutMillis: approval.timeoutMillis }),
+      })
+      const projectIdFor = (projectRoot: string): Effect.Effect<string> => {
+        const normalized = normalizeProjectPath(projectRoot)
+        return Effect.map(Effect.result(registry.list), (outcome) => {
+          if (Result.isFailure(outcome)) return normalized
+          return outcome.success.find((project) => project.path === normalized)?.id ?? normalized
+        })
+      }
+      return makeSupervisorApprover({ decide: channel.decide, projectIdFor })
+    }),
+  )
+}
 
 export type AppService =
   | Config
@@ -76,7 +116,7 @@ export type AppContext = Context.Context<AppService>
 
 export const appLayer = (
   input: ServerAppInput,
-): Layer.Layer<AppService, Errors.InvalidRequest, HttpClient.HttpClient> => {
+): Layer.Layer<AppService, Errors.InvalidRequest | Errors.BindConflict, HttpClient.HttpClient> => {
   const configLayer = Config.layer(input.config)
 
   const registryLayer = Layer.effect(
@@ -138,9 +178,14 @@ export const appLayer = (
 
   const provider = providerLayer.pipe(Layer.provide(shared))
 
-  const runtime = agentRuntimeLayer(input.agent).pipe(
-    Layer.provide(Layer.mergeAll(shared, provider)),
-  )
+  const approver = approvalApproverLayer(input).pipe(Layer.provide(shared))
+
+  const runtime = Layer.unwrap(
+    Effect.map(
+      ApproverOption,
+      (resolved) => agentRuntimeLayer({ ...input.agent, approver: resolved }),
+    ),
+  ).pipe(Layer.provide(Layer.mergeAll(shared, provider, approver)))
 
   return Layer.mergeAll(
     shared,
@@ -161,4 +206,8 @@ export const appLayer = (
 
 export const buildApp = (
   input: ServerAppInput,
-): Effect.Effect<AppContext, Errors.InvalidRequest, HttpClient.HttpClient | Scope.Scope> => Layer.build(appLayer(input))
+): Effect.Effect<
+  AppContext,
+  Errors.InvalidRequest | Errors.BindConflict,
+  HttpClient.HttpClient | Scope.Scope
+> => Layer.build(appLayer(input))

@@ -22,15 +22,15 @@ export default defineConfig({
   ],
 
   ignorePatterns: [
-    'dist/**',
-    'dist-test/**',
-    'dist-rc/**',
-    'dist-portable/**',
-    'coverage/**',
-    'reports/**',
+    '**/dist/**',
+    '**/dist-test/**',
+    '**/dist-rc/**',
+    '**/dist-portable/**',
+    '**/coverage/**',
+    '**/reports/**',
     'extension/Readability.js',
     'extension/Turndown.js',
-    'src-tauri/**',
-    'repos/**',
+    '**/src-tauri/**',
+    '**/repos/**',
   ],
 })

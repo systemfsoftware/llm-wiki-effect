@@ -73,8 +73,8 @@ const isTooling = matchesAny(
   /(^|\/)pnpm-workspace\.yaml$/,
   /(^|\/)\.npmrc$/,
   /^bin\//,
-  /^src-tauri\/tauri\..*\.json$/,
-  /^src-tauri\/Cargo\.toml$/,
+  /^apps\/desktop\/src-tauri\/tauri\..*\.json$/,
+  /^apps\/desktop\/src-tauri\/Cargo\.toml$/,
 )
 
 const ALLOWED_BY_SHAPE: readonly {

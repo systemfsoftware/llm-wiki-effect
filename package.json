@@ -33,6 +33,7 @@
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
     "@commitlint/types": "catalog:",
+    "@types/node": "^25.5.2",
     "dprint": "catalog:",
     "husky": "catalog:",
     "lint-staged": "catalog:",

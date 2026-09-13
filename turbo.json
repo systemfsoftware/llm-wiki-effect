@@ -3,9 +3,26 @@
   "globalEnv": ["CI", "NODE_ENV"],
   "globalPassThroughEnv": ["XDG_CACHE_HOME", "GITHUB_ACTIONS", "AGENT"],
   "tasks": {
-    "llm-wiki#lint": {
+    "//#lint": {
       "outputLogs": "errors-only",
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.md",
+        "!**/repos/**",
+        "!**/src-tauri/**",
+        "apps/*/src/**",
+        "apps/*/test/**",
+        "apps/*/*.ts",
+        "apps/*/*.json",
+        "apps/*/index.html",
+        "extension/**/*.js"
+      ],
+      "outputs": [],
+      "cache": true
+    },
+    "//#typecheck": {
+      "outputLogs": "errors-only",
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/repos/**"],
       "outputs": [],
       "cache": true
     },

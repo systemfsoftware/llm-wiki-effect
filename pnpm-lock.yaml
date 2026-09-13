@@ -59,6 +59,9 @@ importers:
       '@commitlint/types':
         specifier: 'catalog:'
         version: 21.2.0
+      '@types/node':
+        specifier: ^25.5.2
+        version: 25.9.6
       dprint:
         specifier: 'catalog:'
         version: 0.54.0

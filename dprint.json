@@ -20,11 +20,11 @@
     "coverage/**",
     "reports/**",
     "**/snapshots/*.md",
-    "src-tauri/**",
+    "**/src-tauri/**",
     "extension/Readability.js",
     "extension/Turndown.js",
     "llm-wiki.md",
-    "repos/**"
+    "**/repos/**"
   ],
   "plugins": [
     "https://plugins.dprint.dev/typescript-0.96.1.wasm",

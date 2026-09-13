@@ -54,25 +54,19 @@ phase.
 **Task definitions are unqualified; only the gate's selection may name a
 package.** `turbo.json` defines `lint`, `typecheck`, `build`, `test:mocks`, and
 `test`, and turbo runs each in the packages that define the script. The gate
-selects `llm-wiki-mcp-server#test` because the desktop app's own `test` script
-is the paid-API suite (`pnpm test:mocks && pnpm test:llm`), which CI must not
-run; the qualified name picks one package without giving `test` a
-package-specific definition. A package-qualified key in `turbo.json` would
-instead make the task's `inputs`, `outputs`, and `dependsOn` apply to that
-package alone. Gate: `pnpm exec turbo run lint typecheck test:mocks
+selects `llm-wiki#test:mocks` (the desktop's mock suite) plus a qualified `#test`
+per shipped package because the desktop's own `test` script is the paid-API
+suite (`pnpm test:mocks && pnpm test:llm`), which CI must not run; the qualified
+name picks one package without giving `test` a package-specific definition. A
+package-qualified key in `turbo.json` would instead make the task's `inputs`,
+`outputs`, and `dependsOn` apply to that package alone. Gate:
+`pnpm exec turbo run lint typecheck llm-wiki#test:mocks
 llm-wiki-mcp-server#test llm-wiki-protocol#test llm-wiki-api-server#test
---dry=json` returns 21 task entries: the 17 that execute (`llm-wiki#lint`,
-`llm-wiki#typecheck`, `llm-wiki#test:mocks`, `llm-wiki-oxlint-config#lint`,
-`llm-wiki-oxlint-config#typecheck`, `llm-wiki-mcp-server#build`,
-`llm-wiki-mcp-server#lint`, `llm-wiki-mcp-server#typecheck`,
-`llm-wiki-mcp-server#test`, `llm-wiki-protocol#build`, `llm-wiki-protocol#lint`,
-`llm-wiki-protocol#typecheck`, `llm-wiki-protocol#test`,
-`llm-wiki-api-server#build`, `llm-wiki-api-server#lint`,
-`llm-wiki-api-server#typecheck`, `llm-wiki-api-server#test`) plus four
-`test:mocks` selections that carry no command (`<NONEXISTENT>` in the API server,
-MCP server, protocol, and lint-config packages, none of which defines the
-script), and no root task. Those four are exactly why the census must be read
-per command and not per entry.
+--dry=json` returns 18 task entries, every one backed by a real script and none
+`<NONEXISTENT>` — an earlier gate spelled the desktop suite as the unqualified
+`test:mocks`, which produced four phantom selections (one per package that does
+not define the script) and is why the census is read per command and not per
+entry.
 
 **`dependsOn` replaces an inline chained command, and the release path restates
 it.** The app's `build` script is `vite build`; the ordering that used to be
@@ -227,7 +221,7 @@ pnpm gate:tasks
 ```
 
 The cold-gate measurement this doc was founded on: `pnpm gate:tasks` ran six
-tasks in about 13 seconds pre-move (it schedules 17 executing tasks today); the
+tasks in about 13 seconds pre-move (it schedules 18 executing tasks today); the
 same command on an unchanged tree finishes in under a tenth of a second. Deleting
 `apps/desktop/dist/` and `apps/mcp-server/dist/` and running
 `pnpm build:desktop` restores both from cache, which is what makes the
@@ -287,7 +281,7 @@ task: a dry run lists no `//#` entry, and every task key is `package#task`.
 
 `.github/workflows/ci.yml` restores `.turbo/cache` under
 `turbo-${{ runner.os }}-gate-${{ github.event.pull_request.head.sha || github.sha }}`
-with prefix `restore-keys`, so the gate's 17 executing tasks run warm on all
+with prefix `restore-keys`, so the gate's 18 executing tasks run warm on all
 three matrix platforms instead of cold. The key names the pull request's head commit rather
 than `github.sha`, because on a `pull_request` event `github.sha` is the merge
 commit GitHub synthesizes for the run: it moves every time the base branch does,

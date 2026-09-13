@@ -1,0 +1,7 @@
+{
+  "extends": "@systemfsoftware/tsconfig/node",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["oxlint.config.ts", "vitest.config.ts"]
+}

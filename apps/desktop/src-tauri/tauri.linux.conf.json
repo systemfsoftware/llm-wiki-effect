@@ -3,7 +3,9 @@
     "resources": {
       "pdfium/libpdfium.so": "pdfium/libpdfium.so",
       "../../mcp-server/package.json": "mcp-server/package.json",
-      "../../mcp-server/dist": "mcp-server/dist"
+      "../../mcp-server/dist": "mcp-server/dist",
+      "../../api-server/package.json": "api-server/package.json",
+      "../../api-server/dist": "api-server/dist"
     }
   }
 }

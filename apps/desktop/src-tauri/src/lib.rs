@@ -327,6 +327,50 @@ fn mcp_server_entry_path(app: tauri::AppHandle) -> Result<String, String> {
     })
 }
 
+#[tauri::command]
+fn api_server_entry_path(app: tauri::AppHandle) -> Result<String, String> {
+    run_guarded("api_server_entry_path", || {
+        let relative = std::path::Path::new("api-server")
+            .join("dist")
+            .join("src")
+            .join("entries")
+            .join("worker.js");
+        let mut candidates = Vec::new();
+
+        let mut push_repo_candidates = |base: std::path::PathBuf| {
+            candidates.push(base.join(&relative));
+            candidates.push(base.join("..").join(&relative));
+            candidates.push(base.join("..").join("..").join(&relative));
+        };
+
+        push_repo_candidates(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")));
+        if let Ok(cwd) = std::env::current_dir() {
+            push_repo_candidates(cwd);
+        }
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            candidates.push(resource_dir.join(&relative));
+        }
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(exe_dir) = exe.parent() {
+                candidates.push(exe_dir.join(&relative));
+                candidates.push(exe_dir.join("..").join("Resources").join(&relative));
+            }
+        }
+
+        for candidate in &candidates {
+            if candidate.is_file() {
+                return Ok(candidate
+                    .canonicalize()
+                    .unwrap_or_else(|_| candidate.clone())
+                    .to_string_lossy()
+                    .into_owned());
+            }
+        }
+
+        Err("API server entry was not found. Run `pnpm api:build` from the LLM Wiki repository, then reopen Settings.".to_string())
+    })
+}
+
 fn resolve_agent_project(
     app: &tauri::AppHandle,
     project_id: &str,
@@ -669,6 +713,7 @@ pub fn run() {
             agent_list_sessions,
             agent::skills::agent_list_skills,
             mcp_server_entry_path,
+            api_server_entry_path,
             commands::vectorstore::vector_upsert,
             commands::vectorstore::vector_search,
             commands::vectorstore::vector_delete,

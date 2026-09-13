@@ -1,29 +1,23 @@
 {
-  "name": "llm-wiki-protocol",
+  "name": "llm-wiki-api-server",
   "version": "0.1.0",
-  "description": "Wire contract for the LLM Wiki API server: schemas, RPC group, typed errors, client factories, and golden ndjson fixtures",
+  "description": "Standalone Effect RPC server for LLM Wiki: the API as a deployable process, in worker and standalone modes",
   "type": "module",
-  "main": "dist/src/index.js",
-  "exports": {
-    ".": {
-      "types": "./dist/src/index.d.ts",
-      "default": "./dist/src/index.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "lint": "oxlint . --type-aware --type-check",
-    "build": "rolldown -c rolldown.config.js && tsc -p tsconfig.build.json",
+    "build": "rolldown -c rolldown.config.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "test:mutation": "stryker run"
   },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "llm-wiki-protocol": "workspace:*"
   },
   "devDependencies": {
     "@stryker-mutator/core": "catalog:",
@@ -37,9 +31,5 @@
     "rolldown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "license": "MIT"
+  }
 }

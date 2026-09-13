@@ -19,8 +19,8 @@ catalogs:
       specifier: ^21.2.0
       version: 21.2.0
     '@effect/platform-node':
-      specifier: 4.0.0-rc.115
-      version: 4.0.0-rc.115
+      specifier: 4.0.0-rc.113
+      version: 4.0.0-rc.113
     '@stryker-mutator/core':
       specifier: 10.0.0
       version: 10.0.0
@@ -34,8 +34,8 @@ catalogs:
       specifier: 0.54.0
       version: 0.54.0
     effect:
-      specifier: 4.0.0-rc.115
-      version: 4.0.0-rc.115
+      specifier: 4.0.0-rc.113
+      version: 4.0.0-rc.113
     fast-check:
       specifier: ^4.7.0
       version: 4.10.0
@@ -110,6 +110,52 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
+
+  apps/api-server:
+    dependencies:
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.0.0-rc.113(effect@4.0.0-rc.113)(redis@6.2.1)
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-rc.113
+      llm-wiki-protocol:
+        specifier: workspace:*
+        version: link:../../packages/protocol
+    devDependencies:
+      '@stryker-mutator/core':
+        specifier: 'catalog:'
+        version: 10.0.0(@types/node@20.19.43)
+      '@stryker-mutator/vitest-runner':
+        specifier: 'catalog:'
+        version: 10.0.0(@stryker-mutator/core@10.0.0(@types/node@20.19.43))(vitest@4.1.11(@types/node@20.19.43)(vite@8.3.0(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.0)))
+      '@systemfsoftware/tsconfig':
+        specifier: 'catalog:'
+        version: 1.3.3
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.0
+      llm-wiki-oxlint-config:
+        specifier: workspace:*
+        version: link:../../packages/oxlint-config
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.82.0(oxlint-tsgolint@7.0.2001)
+      oxlint-tsgolint:
+        specifier: 'catalog:'
+        version: 7.0.2001
+      rolldown:
+        specifier: 'catalog:'
+        version: 1.2.8
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@20.19.43)(vite@8.3.0(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.0))
 
   apps/desktop:
     dependencies:
@@ -325,10 +371,10 @@ importers:
     dependencies:
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)(redis@6.2.1)
+        version: 4.0.0-rc.113(effect@4.0.0-rc.113)(redis@6.2.1)
       effect:
         specifier: 'catalog:'
-        version: 4.0.0-rc.115
+        version: 4.0.0-rc.113
     devDependencies:
       '@stryker-mutator/core':
         specifier: 'catalog:'
@@ -1042,11 +1088,11 @@ packages:
     peerDependencies:
       effect: ^4.0.0-rc.115
 
-  '@effect/platform-node@4.0.0-rc.115':
-    resolution: {integrity: sha512-mW03Wjq2FiTL5oi9yOkaKpCyUNBaduKgTk7qMHNELvC21Jq2qOAfdsfH+p+s2zmpB9w2RSa+ApODv4WjO9wQfw==}
+  '@effect/platform-node@4.0.0-rc.113':
+    resolution: {integrity: sha512-8luSE2JcGVsALQ6cZOWh5jdZu+VgcUKIKPfhN/MjX+ZzIuK/krm3jZBHYZdhqkXjM9s8aYGBxNMHGF0WzF+Gpg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.113
       redis: '>=5.0.0 <7.0.0'
 
   '@floating-ui/core@1.8.0':
@@ -2856,8 +2902,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.0-rc.115:
-    resolution: {integrity: sha512-ogYulZ5ffeOzrJqQrG0XOkDO5lKn2s9KNHhoxJy/6wKUkF0i12dlVXWA9TgsgQ+zV/JzizyG0+XMPepZEQX6vw==}
+  effect@4.0.0-rc.113:
+    resolution: {integrity: sha512-uZ4Bh7KSlw2sdVdNDHPLSNjLGH+MWap7cheIHZoB/1T/ZJ3pvI4KiN3kUp50MpFKXhygOMmReJJOwWMQPwpPAg==}
 
   electron-to-chromium@1.5.427:
     resolution: {integrity: sha512-n14zb3FdsChZ2BNobqNHAJMcP3ifFv4paox2LvCrfVAQcqGiSURgbJl+PfMpHVCNFkStnNc+RRVtPBTVW5PDgw==}
@@ -5858,19 +5904,19 @@ snapshots:
   '@dprint/win32-x64@0.54.0':
     optional: true
 
-  '@effect/platform-node-shared@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/platform-node-shared@4.0.0-rc.115(effect@4.0.0-rc.113)':
     dependencies:
       '@types/ws': 8.18.1
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.113
       ws: 8.21.3
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.0.0-rc.115(effect@4.0.0-rc.115)(redis@6.2.1)':
+  '@effect/platform-node@4.0.0-rc.113(effect@4.0.0-rc.113)(redis@6.2.1)':
     dependencies:
-      '@effect/platform-node-shared': 4.0.0-rc.115(effect@4.0.0-rc.115)
-      effect: 4.0.0-rc.115
+      '@effect/platform-node-shared': 4.0.0-rc.115(effect@4.0.0-rc.113)
+      effect: 4.0.0-rc.113
       redis: 6.2.1
       undici: 8.10.2
     transitivePeerDependencies:
@@ -7796,7 +7842,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.0-rc.115: {}
+  effect@4.0.0-rc.113: {}
 
   electron-to-chromium@1.5.427: {}
 

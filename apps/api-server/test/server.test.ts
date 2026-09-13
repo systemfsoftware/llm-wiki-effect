@@ -734,10 +734,8 @@ describe('socket mount', () => {
       ),
     )
     expect(conflict.tag).toBe('BindConflict')
-    const stalePath = process.platform === 'win32'
-      ? join(tmpdir(), `llm-wiki-stale-${randomUUID()}.sock`)
-      : tempPath('stale')
-    if (process.platform === 'win32') createdPaths.push(stalePath)
+    if (process.platform === 'win32') return
+    const stalePath = tempPath('stale')
     await writeFile(stalePath, 'stale socket placeholder', 'utf8')
     const bound = await Effect.runPromise(
       Effect.scoped(

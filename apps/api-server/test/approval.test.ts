@@ -466,7 +466,7 @@ describe('supervisor approval channel', () => {
     expect(frame?.sessionId).toBe('s1')
     expect(frame?.commands).toEqual(['echo approved'])
     expect(calls.map((call) => call.input['command'])).toEqual(['echo approved'])
-    expect(calls[0]?.projectRoot).toBe(outcome.root)
+    expect(calls[0]?.projectRoot).toBe(outcome.root.replace(/\\/g, '/'))
     expect(
       outcome.response.toolEvents.some(
         (event) => event.tool === 'shell.exec' && event.status === 'completed',

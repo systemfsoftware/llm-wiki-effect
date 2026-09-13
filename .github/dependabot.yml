@@ -20,6 +20,72 @@ updates:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
     groups:
+      toolchain-minor-patch:
+        patterns: [
+          "oxlint",
+          "oxlint-tsgolint",
+          "dprint",
+          "husky",
+          "lint-staged",
+          "@commitlint/*",
+          "@changesets/*",
+          "turbo",
+        ]
+        update-types: ["minor", "patch"]
+      toolchain-major:
+        patterns: [
+          "oxlint",
+          "oxlint-tsgolint",
+          "dprint",
+          "husky",
+          "lint-staged",
+          "@commitlint/*",
+          "@changesets/*",
+          "turbo",
+        ]
+        update-types: ["major"]
+      types-minor-patch:
+        patterns: ["@types/*"]
+        update-types: ["minor", "patch"]
+      other-minor-patch:
+        patterns: ["*"]
+        exclude-patterns:
+          - "oxlint"
+          - "oxlint-tsgolint"
+          - "dprint"
+          - "husky"
+          - "lint-staged"
+          - "@commitlint/*"
+          - "@changesets/*"
+          - "turbo"
+          - "@types/*"
+        update-types: ["minor", "patch"]
+      other-major:
+        patterns: ["*"]
+        exclude-patterns:
+          - "oxlint"
+          - "oxlint-tsgolint"
+          - "dprint"
+          - "husky"
+          - "lint-staged"
+          - "@commitlint/*"
+          - "@changesets/*"
+          - "turbo"
+          - "@types/*"
+        update-types: ["major"]
+
+  # Desktop app: react, tauri, vite/vitest, and the moved runtime set.
+  - package-ecosystem: "npm"
+    directory: "/apps/desktop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    versioning-strategy: "increase"
+    open-pull-requests-limit: 15
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    groups:
       react-minor-patch:
         patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
         update-types: ["minor", "patch"]
@@ -31,12 +97,6 @@ updates:
         update-types: ["minor", "patch"]
       tauri-major:
         patterns: ["@tauri-apps/*"]
-        update-types: ["major"]
-      toolchain-minor-patch:
-        patterns: ["oxlint", "oxlint-tsgolint", "dprint", "husky", "lint-staged", "@commitlint/*"]
-        update-types: ["minor", "patch"]
-      toolchain-major:
-        patterns: ["oxlint", "oxlint-tsgolint", "dprint", "husky", "lint-staged", "@commitlint/*"]
         update-types: ["major"]
       testing-minor-patch:
         patterns: ["vitest", "@vitest/*", "fast-check"]
@@ -54,12 +114,6 @@ updates:
           - "react-dom"
           - "@types/*"
           - "@tauri-apps/*"
-          - "oxlint"
-          - "oxlint-tsgolint"
-          - "dprint"
-          - "husky"
-          - "lint-staged"
-          - "@commitlint/*"
           - "vitest"
           - "@vitest/*"
           - "fast-check"
@@ -71,19 +125,29 @@ updates:
           - "react-dom"
           - "@types/*"
           - "@tauri-apps/*"
-          - "oxlint"
-          - "oxlint-tsgolint"
-          - "dprint"
-          - "husky"
-          - "lint-staged"
-          - "@commitlint/*"
           - "vitest"
           - "@vitest/*"
           - "fast-check"
         update-types: ["major"]
 
-  - package-ecosystem: "cargo"
-    directory: "/src-tauri"
+  # MCP server: bundled into the app as a Tauri resource, versioned
+  # independently.
+  - package-ecosystem: "npm"
+    directory: "/apps/mcp-server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    versioning-strategy: "increase"
+    open-pull-requests-limit: 15
+    groups:
+      other-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      other-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
+    directory: "/apps/desktop/src-tauri"
     schedule:
       interval: "weekly"
       day: "monday"

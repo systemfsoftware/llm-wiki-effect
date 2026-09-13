@@ -6,9 +6,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "../..")
-$ExePath = Join-Path $RepoRoot "src-tauri/target/release/llm-wiki.exe"
-$PdfiumPath = Join-Path $RepoRoot "src-tauri/pdfium/pdfium.dll"
-$McpRoot = Join-Path $RepoRoot "mcp-server"
+$ExePath = Join-Path $RepoRoot "apps/desktop/src-tauri/target/release/llm-wiki.exe"
+$PdfiumPath = Join-Path $RepoRoot "apps/desktop/src-tauri/pdfium/pdfium.dll"
+$McpRoot = Join-Path $RepoRoot "apps/mcp-server"
 $DistRoot = Join-Path $RepoRoot "dist-portable"
 $PortableRoot = Join-Path $DistRoot "LLM-Wiki-$Version-windows-x64-portable"
 $ZipPath = Join-Path $DistRoot "LLM-Wiki-$Version-windows-x64-portable.zip"

@@ -8,10 +8,10 @@ on:
     # itself. `package.json` and the lockfile stay out: dependabot cannot author
     # a change intent, so gating them would stall every dependency PR.
     paths:
-      - "src/**"
-      - "src-tauri/**"
+      - "apps/desktop/src/**"
+      - "apps/desktop/src-tauri/**"
       - "extension/**"
-      - "mcp-server/**"
+      - "apps/mcp-server/**"
       - "scripts/**"
 
 permissions:

@@ -1,7 +1,7 @@
 {
   "$schema": "https://v2-10-1.turborepo.dev/schema.json",
   "globalEnv": ["CI", "NODE_ENV"],
-  "globalPassThroughEnv": ["XDG_CACHE_HOME", "GITHUB_ACTIONS", "OXLINT_FORMAT", "AGENT"],
+  "globalPassThroughEnv": ["XDG_CACHE_HOME", "GITHUB_ACTIONS", "AGENT"],
   "tasks": {
     "llm-wiki#lint": {
       "outputLogs": "errors-only",

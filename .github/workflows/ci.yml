@@ -69,7 +69,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-gate-${{ github.sha }}
+          key: turbo-${{ runner.os }}-gate-${{ github.event.pull_request.head.sha || github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-gate-
             turbo-${{ runner.os }}-

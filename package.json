@@ -26,7 +26,7 @@
     "precommit": "pnpm exec lint-staged --no-revert --config .lintstagedrc.js",
     "prepare": "husky",
     "gate:tasks": "turbo run --continue --concurrency=100% lint typecheck test:mocks llm-wiki-mcp-server#test",
-    "gate:dist": "turbo run --concurrency=100% build",
+    "gate:dist": "turbo run --concurrency=100% --continue build",
     "check:ci": "node scripts/check-ci.mjs format:check gate:tasks gate:dist",
     "tauri": "tauri"
   },

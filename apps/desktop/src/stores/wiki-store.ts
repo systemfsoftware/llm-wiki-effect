@@ -524,7 +524,6 @@ export const useWikiStore = create<WikiState>((set) => ({
     enabled: false,
     presetId: null,
     model: '',
-    profile: undefined,
   },
 
   dataVersion: 0,

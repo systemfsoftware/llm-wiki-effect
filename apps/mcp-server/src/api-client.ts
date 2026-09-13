@@ -190,12 +190,12 @@ function requireNumber(value: unknown, context: string): number {
 
 export class LlmWikiApiClient {
   private readonly baseUrl: string
-  private readonly token?: string
+  private readonly token: string | undefined
   private readonly fetchImpl: typeof fetch
 
   constructor(options: LlmWikiApiClientOptions = {}) {
-    this.baseUrl = normalizeBaseUrl(options.baseUrl ?? process.env.LLM_WIKI_API_BASE_URL)
-    this.token = options.token ?? process.env.LLM_WIKI_API_TOKEN
+    this.baseUrl = normalizeBaseUrl(options.baseUrl ?? process.env['LLM_WIKI_API_BASE_URL'])
+    this.token = options.token ?? process.env['LLM_WIKI_API_TOKEN']
     this.fetchImpl = options.fetchImpl ?? fetch
   }
 
@@ -205,8 +205,8 @@ export class LlmWikiApiClient {
 
   async projects(): Promise<{ projects: ApiProject[]; currentProject: ApiProject | null }> {
     const json = await this.request('/projects')
-    const projects = Array.isArray(json.projects) ? json.projects.map(parseProject) : []
-    const currentProject = json.currentProject ? parseProject(json.currentProject) : null
+    const projects = Array.isArray(json['projects']) ? json['projects'].map(parseProject) : []
+    const currentProject = json['currentProject'] ? parseProject(json['currentProject']) : null
     return { projects, currentProject }
   }
 
@@ -220,8 +220,8 @@ export class LlmWikiApiClient {
     if (options.maxFiles !== undefined) params.set('maxFiles', String(options.maxFiles))
     const json = await this.request(`/projects/${encodeURIComponent(projectId)}/files?${params.toString()}`)
     return {
-      files: Array.isArray(json.files) ? json.files.map(parseFileNode) : [],
-      truncated: json.truncated === true,
+      files: Array.isArray(json['files']) ? json['files'].map(parseFileNode) : [],
+      truncated: json['truncated'] === true,
     }
   }
 
@@ -229,8 +229,8 @@ export class LlmWikiApiClient {
     const params = new URLSearchParams({ path })
     const json = await this.request(`/projects/${encodeURIComponent(projectId)}/files/content?${params.toString()}`)
     return {
-      path: typeof json.path === 'string' ? json.path : path,
-      content: typeof json.content === 'string' ? json.content : '',
+      path: typeof json['path'] === 'string' ? json['path'] : path,
+      content: typeof json['content'] === 'string' ? json['content'] : '',
     }
   }
 
@@ -244,11 +244,12 @@ export class LlmWikiApiClient {
     if (options.limit !== undefined) params.set('limit', String(options.limit))
     const suffix = params.toString() ? `?${params.toString()}` : ''
     const json = await this.request(`/projects/${encodeURIComponent(projectId)}/reviews${suffix}`)
-    const reviews = Array.isArray(json.reviews) ? json.reviews.map(parseReviewItem) : []
+    const reviews = Array.isArray(json['reviews']) ? json['reviews'].map(parseReviewItem) : []
+    const responseProjectId = typeof json['projectId'] === 'string' ? json['projectId'] : undefined
     return {
-      projectId: typeof json.projectId === 'string' ? json.projectId : undefined,
-      status: parseReviewStatus(json.status),
-      count: numberOrUndefined(json.count) ?? reviews.length,
+      ...(responseProjectId !== undefined ? { projectId: responseProjectId } : {}),
+      status: parseReviewStatus(json['status']),
+      count: numberOrUndefined(json['count']) ?? reviews.length,
       reviews,
     }
   }
@@ -266,11 +267,14 @@ export class LlmWikiApiClient {
         includeContent: options.includeContent,
       },
     })
+    const mode = typeof json['mode'] === 'string' ? json['mode'] : undefined
+    const tokenHits = numberOrUndefined(json['tokenHits'])
+    const vectorHits = numberOrUndefined(json['vectorHits'])
     return {
-      results: Array.isArray(json.results) ? json.results.map(parseSearchResult) : [],
-      mode: typeof json.mode === 'string' ? json.mode : undefined,
-      tokenHits: numberOrUndefined(json.tokenHits),
-      vectorHits: numberOrUndefined(json.vectorHits),
+      results: Array.isArray(json['results']) ? json['results'].map(parseSearchResult) : [],
+      ...(mode !== undefined ? { mode } : {}),
+      ...(tokenHits !== undefined ? { tokenHits } : {}),
+      ...(vectorHits !== undefined ? { vectorHits } : {}),
     }
   }
 
@@ -306,19 +310,22 @@ export class LlmWikiApiClient {
         skills: options.skills,
       },
     })
-    const msg = requireObject(json.message, 'chat message')
+    const msg = requireObject(json['message'], 'chat message')
+    const responseProjectId = typeof json['projectId'] === 'string' ? json['projectId'] : undefined
+    const responseMode = typeof json['mode'] === 'string' ? json['mode'] : undefined
+    const usage = parseChatUsage(json['usage'])
     return {
-      projectId: typeof json.projectId === 'string' ? json.projectId : undefined,
-      sessionId: typeof json.sessionId === 'string' ? json.sessionId : '',
-      mode: typeof json.mode === 'string' ? json.mode : undefined,
+      ...(responseProjectId !== undefined ? { projectId: responseProjectId } : {}),
+      sessionId: typeof json['sessionId'] === 'string' ? json['sessionId'] : '',
+      ...(responseMode !== undefined ? { mode: responseMode } : {}),
       message: {
-        role: typeof msg.role === 'string' ? msg.role : 'assistant',
-        content: typeof msg.content === 'string' ? msg.content : '',
+        role: typeof msg['role'] === 'string' ? msg['role'] : 'assistant',
+        content: typeof msg['content'] === 'string' ? msg['content'] : '',
       },
-      references: Array.isArray(json.references) ? json.references.map(parseChatReference) : [],
-      toolEvents: Array.isArray(json.toolEvents) ? json.toolEvents.map(parseChatToolEvent) : [],
-      events: Array.isArray(json.events) ? json.events.map(parseChatEvent) : [],
-      usage: parseChatUsage(json.usage),
+      references: Array.isArray(json['references']) ? json['references'].map(parseChatReference) : [],
+      toolEvents: Array.isArray(json['toolEvents']) ? json['toolEvents'].map(parseChatToolEvent) : [],
+      events: Array.isArray(json['events']) ? json['events'].map(parseChatEvent) : [],
+      ...(usage !== undefined ? { usage } : {}),
     }
   }
 
@@ -330,8 +337,8 @@ export class LlmWikiApiClient {
       },
     )
     return {
-      sessionId: typeof json.sessionId === 'string' ? json.sessionId : sessionId,
-      cancelled: json.cancelled === true,
+      sessionId: typeof json['sessionId'] === 'string' ? json['sessionId'] : sessionId,
+      cancelled: json['cancelled'] === true,
     }
   }
 
@@ -346,8 +353,8 @@ export class LlmWikiApiClient {
     const suffix = params.toString() ? `?${params.toString()}` : ''
     const json = await this.request(`/projects/${encodeURIComponent(projectId)}/graph${suffix}`)
     return {
-      nodes: Array.isArray(json.nodes) ? json.nodes.map(parseGraphNode) : [],
-      edges: Array.isArray(json.edges) ? json.edges.map(parseGraphEdge) : [],
+      nodes: Array.isArray(json['nodes']) ? json['nodes'].map(parseGraphNode) : [],
+      edges: Array.isArray(json['edges']) ? json['edges'].map(parseGraphEdge) : [],
     }
   }
 
@@ -362,14 +369,14 @@ export class LlmWikiApiClient {
       method: 'POST',
       body: { path, force },
     })
-    const result = requireObject(json.result, 'page embedding result')
+    const result = requireObject(json['result'], 'page embedding result')
     return {
-      path: requireString(result.path, 'page embedding result.path'),
-      pageId: requireString(result.pageId, 'page embedding result.pageId'),
-      revision: requireString(result.revision, 'page embedding result.revision'),
-      chunks: requireNumber(result.chunks, 'page embedding result.chunks'),
-      vectorsWritten: requireNumber(result.vectorsWritten, 'page embedding result.vectorsWritten'),
-      status: requireString(result.status, 'page embedding result.status'),
+      path: requireString(result['path'], 'page embedding result.path'),
+      pageId: requireString(result['pageId'], 'page embedding result.pageId'),
+      revision: requireString(result['revision'], 'page embedding result.revision'),
+      chunks: requireNumber(result['chunks'], 'page embedding result.chunks'),
+      vectorsWritten: requireNumber(result['vectorsWritten'], 'page embedding result.vectorsWritten'),
+      status: requireString(result['status'], 'page embedding result.status'),
     }
   }
 
@@ -380,16 +387,17 @@ export class LlmWikiApiClient {
     const url = `${this.baseUrl}${apiPath(path)}`
     const headers: Record<string, string> = { Accept: 'application/json' }
     if (options.auth !== false && this.token?.trim()) {
-      headers.Authorization = `Bearer ${this.token.trim()}`
+      headers['Authorization'] = `Bearer ${this.token.trim()}`
     }
     if (options.body !== undefined) headers['Content-Type'] = 'application/json'
 
     let response: Response
     try {
+      const body = options.body === undefined ? undefined : JSON.stringify(options.body)
       response = await this.fetchImpl(url, {
-        method: options.method ?? (options.body === undefined ? 'GET' : 'POST'),
+        method: options.method ?? (body === undefined ? 'GET' : 'POST'),
         headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        ...(body !== undefined ? { body } : {}),
       })
     } catch (err) {
       throw new Error(
@@ -411,8 +419,8 @@ export class LlmWikiApiClient {
       )
     }
 
-    if (!response.ok || json.ok === false) {
-      const message = typeof json.error === 'string' ? json.error : response.statusText
+    if (!response.ok || json['ok'] === false) {
+      const message = typeof json['error'] === 'string' ? json['error'] : response.statusText
       throw new Error(`LLM Wiki API ${response.status}: ${message}`)
     }
     return json
@@ -422,20 +430,20 @@ export class LlmWikiApiClient {
 function parseProject(value: unknown): ApiProject {
   const obj = requireObject(value, 'project')
   return {
-    id: stringOrDefault(obj.id),
-    name: stringOrDefault(obj.name),
-    path: stringOrDefault(obj.path),
-    current: obj.current === true,
+    id: stringOrDefault(obj['id']),
+    name: stringOrDefault(obj['name']),
+    path: stringOrDefault(obj['path']),
+    current: obj['current'] === true,
   }
 }
 
 function parseFileNode(value: unknown): ApiFileNode {
   const obj = requireObject(value, 'file node')
-  const children = Array.isArray(obj.children) ? obj.children.map(parseFileNode) : undefined
+  const children = Array.isArray(obj['children']) ? obj['children'].map(parseFileNode) : undefined
   return {
-    name: stringOrDefault(obj.name),
-    path: stringOrDefault(obj.path),
-    isDir: obj.isDir === true || obj.is_dir === true,
+    name: stringOrDefault(obj['name']),
+    path: stringOrDefault(obj['path']),
+    isDir: obj['isDir'] === true || obj['is_dir'] === true,
     ...(children ? { children } : {}),
   }
 }
@@ -443,38 +451,41 @@ function parseFileNode(value: unknown): ApiFileNode {
 function parseSearchResult(value: unknown): ApiSearchResult {
   const obj = requireObject(value, 'search result')
   return {
-    path: stringOrDefault(obj.path),
-    title: stringOrDefault(obj.title),
-    snippet: stringOrDefault(obj.snippet),
-    score: numberOrUndefined(obj.score) ?? 0,
-    titleMatch: obj.titleMatch === true,
-    images: Array.isArray(obj.images)
-      ? obj.images.map((image) => {
+    path: stringOrDefault(obj['path']),
+    title: stringOrDefault(obj['title']),
+    snippet: stringOrDefault(obj['snippet']),
+    score: numberOrUndefined(obj['score']) ?? 0,
+    titleMatch: obj['titleMatch'] === true,
+    images: Array.isArray(obj['images'])
+      ? obj['images'].map((image) => {
         const item = requireObject(image, 'image')
-        return { url: stringOrDefault(item.url), alt: stringOrDefault(item.alt) }
+        return { url: stringOrDefault(item['url']), alt: stringOrDefault(item['alt']) }
       })
       : [],
-    vectorScore: numberOrUndefined(obj.vectorScore) ?? null,
+    vectorScore: numberOrUndefined(obj['vectorScore']) ?? null,
   }
 }
 
 function parseChatReference(value: unknown): ApiChatReference {
   const obj = requireObject(value, 'chat reference')
+  const snippet = typeof obj['snippet'] === 'string' ? obj['snippet'] : undefined
+  const score = numberOrUndefined(obj['score'])
   return {
-    title: stringOrDefault(obj.title),
-    path: stringOrDefault(obj.path),
-    kind: stringOrDefault(obj.kind, 'wiki'),
-    snippet: typeof obj.snippet === 'string' ? obj.snippet : undefined,
-    score: numberOrUndefined(obj.score),
+    title: stringOrDefault(obj['title']),
+    path: stringOrDefault(obj['path']),
+    kind: stringOrDefault(obj['kind'], 'wiki'),
+    ...(snippet !== undefined ? { snippet } : {}),
+    ...(score !== undefined ? { score } : {}),
   }
 }
 
 function parseChatToolEvent(value: unknown): ApiChatToolEvent {
   const obj = requireObject(value, 'chat tool event')
+  const detail = typeof obj['detail'] === 'string' ? obj['detail'] : undefined
   return {
-    tool: stringOrDefault(obj.tool),
-    status: stringOrDefault(obj.status),
-    detail: typeof obj.detail === 'string' ? obj.detail : undefined,
+    tool: stringOrDefault(obj['tool']),
+    status: stringOrDefault(obj['status']),
+    ...(detail !== undefined ? { detail } : {}),
   }
 }
 
@@ -482,18 +493,22 @@ function parseChatEvent(value: unknown): ApiChatEvent {
   const obj = requireObject(value, 'chat event')
   return {
     ...obj,
-    type: stringOrDefault(obj.type),
+    type: stringOrDefault(obj['type']),
   }
 }
 
 function parseChatUsage(value: unknown): ApiChatUsage | undefined {
   if (value === undefined || value === null) return undefined
   const obj = requireObject(value, 'chat usage')
+  const promptChars = numberOrUndefined(obj['promptChars'])
+  const completionChars = numberOrUndefined(obj['completionChars'])
+  const referenceCount = numberOrUndefined(obj['referenceCount'])
+  const toolEventCount = numberOrUndefined(obj['toolEventCount'])
   return {
-    promptChars: numberOrUndefined(obj.promptChars),
-    completionChars: numberOrUndefined(obj.completionChars),
-    referenceCount: numberOrUndefined(obj.referenceCount),
-    toolEventCount: numberOrUndefined(obj.toolEventCount),
+    ...(promptChars !== undefined ? { promptChars } : {}),
+    ...(completionChars !== undefined ? { completionChars } : {}),
+    ...(referenceCount !== undefined ? { referenceCount } : {}),
+    ...(toolEventCount !== undefined ? { toolEventCount } : {}),
   }
 }
 
@@ -508,43 +523,51 @@ function stringArray(value: unknown): string[] | undefined {
 
 function parseReviewItem(value: unknown): ApiReviewItem {
   const obj = requireObject(value, 'review item')
+  const sourcePath = typeof obj['sourcePath'] === 'string' ? obj['sourcePath'] : undefined
+  const affectedPages = stringArray(obj['affectedPages'])
+  const searchQueries = stringArray(obj['searchQueries'])
+  const resolvedAction = typeof obj['resolvedAction'] === 'string' ? obj['resolvedAction'] : undefined
   return {
-    id: stringOrDefault(obj.id),
-    type: stringOrDefault(obj.type),
-    title: stringOrDefault(obj.title),
-    description: stringOrDefault(obj.description),
-    sourcePath: typeof obj.sourcePath === 'string' ? obj.sourcePath : undefined,
-    affectedPages: stringArray(obj.affectedPages),
-    searchQueries: stringArray(obj.searchQueries),
-    options: Array.isArray(obj.options)
-      ? obj.options.map((option) => {
+    id: stringOrDefault(obj['id']),
+    type: stringOrDefault(obj['type']),
+    title: stringOrDefault(obj['title']),
+    description: stringOrDefault(obj['description']),
+    ...(sourcePath !== undefined ? { sourcePath } : {}),
+    ...(affectedPages !== undefined ? { affectedPages } : {}),
+    ...(searchQueries !== undefined ? { searchQueries } : {}),
+    options: Array.isArray(obj['options'])
+      ? obj['options'].map((option) => {
         const item = requireObject(option, 'review option')
-        return { label: stringOrDefault(item.label), action: stringOrDefault(item.action) }
+        return { label: stringOrDefault(item['label']), action: stringOrDefault(item['action']) }
       })
       : [],
-    resolved: obj.resolved === true,
-    resolvedAction: typeof obj.resolvedAction === 'string' ? obj.resolvedAction : undefined,
-    createdAt: numberOrUndefined(obj.createdAt) ?? 0,
+    resolved: obj['resolved'] === true,
+    ...(resolvedAction !== undefined ? { resolvedAction } : {}),
+    createdAt: numberOrUndefined(obj['createdAt']) ?? 0,
   }
 }
 
 function parseGraphNode(value: unknown): ApiGraphNode {
   const obj = requireObject(value, 'graph node')
+  const path = typeof obj['path'] === 'string' ? obj['path'] : undefined
+  const linkCount = numberOrUndefined(obj['linkCount'])
+  const weight = numberOrUndefined(obj['weight'])
   return {
-    id: stringOrDefault(obj.id),
-    label: stringOrDefault(obj.label),
-    type: stringOrDefault(obj.nodeType ?? obj.type, 'other'),
-    path: typeof obj.path === 'string' ? obj.path : undefined,
-    linkCount: numberOrUndefined(obj.linkCount),
-    weight: numberOrUndefined(obj.weight),
+    id: stringOrDefault(obj['id']),
+    label: stringOrDefault(obj['label']),
+    type: stringOrDefault(obj['nodeType'] ?? obj['type'], 'other'),
+    ...(path !== undefined ? { path } : {}),
+    ...(linkCount !== undefined ? { linkCount } : {}),
+    ...(weight !== undefined ? { weight } : {}),
   }
 }
 
 function parseGraphEdge(value: unknown): ApiGraphEdge {
   const obj = requireObject(value, 'graph edge')
+  const weight = numberOrUndefined(obj['weight'])
   return {
-    source: stringOrDefault(obj.source),
-    target: stringOrDefault(obj.target),
-    weight: numberOrUndefined(obj.weight),
+    source: stringOrDefault(obj['source']),
+    target: stringOrDefault(obj['target']),
+    ...(weight !== undefined ? { weight } : {}),
   }
 }

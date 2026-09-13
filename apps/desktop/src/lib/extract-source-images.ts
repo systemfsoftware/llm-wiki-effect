@@ -117,7 +117,7 @@ export function findLocalMarkdownImageRefs(markdown: string): string[] {
   const seen = new Set<string>()
 
   const add = (raw: string) => {
-    const ref = cleanMarkdownImageRef(raw.split('#')[0].split('|')[0])
+    const ref = cleanMarkdownImageRef(raw.split('#')[0]?.split('|')[0] ?? '')
     if (!ref || isRemoteOrDataImageRef(ref)) return
     const ext = getFileName(ref).split('.').pop()?.toLowerCase() ?? ''
     if (!MARKDOWN_IMAGE_EXTS.has(ext)) return
@@ -186,9 +186,9 @@ export async function extractAndSaveSourceImages(
       .filter((it): it is SavedImage => {
         if (!isRecord(it)) return false
         return (
-          typeof it.index === 'number' &&
-          typeof it.relPath === 'string' &&
-          typeof it.absPath === 'string'
+          typeof it['index'] === 'number' &&
+          typeof it['relPath'] === 'string' &&
+          typeof it['absPath'] === 'string'
         )
       })
   } catch (err) {

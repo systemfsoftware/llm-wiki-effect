@@ -31,28 +31,31 @@ export function parseAzureOpenAiEndpoint(
   if (!isAzureOpenAiEndpoint(trimmed)) return null
 
   let apiVersion = fallbackApiVersion.trim() || AZURE_OPENAI_API_VERSION
-  const qMatch = trimmed.match(/[?&]api-version=([^&]+)/i)
-  if (qMatch) apiVersion = decodeURIComponent(qMatch[1])
+  const queryVersion = trimmed.match(/[?&]api-version=([^&]+)/i)?.[1]
+  if (queryVersion !== undefined) apiVersion = decodeURIComponent(queryVersion)
 
-  const withoutQuery = trimmed.split('?')[0].replace(/\/+$/, '')
+  const withoutQuery = (trimmed.split('?')[0] ?? '').replace(/\/+$/, '')
 
   const withDeployment = withoutQuery.match(
     /^(https?:\/\/[^/]+\.openai\.azure\.com)\/openai\/deployments\/([^/]+)(?:\/chat\/completions)?$/i,
   )
-  if (withDeployment) {
+  const deploymentBase = withDeployment?.[1]
+  const deploymentSlug = withDeployment?.[2]
+  if (deploymentBase !== undefined && deploymentSlug !== undefined) {
     return {
-      resourceBase: withDeployment[1],
-      deployment: decodeURIComponent(withDeployment[2]),
+      resourceBase: deploymentBase,
+      deployment: decodeURIComponent(deploymentSlug),
       apiVersion,
     }
   }
 
   const resourceOnly = withoutQuery.match(/^(https?:\/\/[^/]+\.openai\.azure\.com)(?:\/openai)?$/i)
   if (resourceOnly) {
+    const resourceBase = resourceOnly[1]
     const deployment = fallbackDeployment.trim()
-    if (!deployment) return null
+    if (resourceBase === undefined || !deployment) return null
     return {
-      resourceBase: resourceOnly[1],
+      resourceBase,
       deployment,
       apiVersion,
     }

@@ -32,8 +32,8 @@ import { captionImage } from './vision-caption'
 
 const DEFAULT_ENDPOINT = 'http://192.168.1.218:1234/v1'
 const DEFAULT_MODEL = 'qwen3.5-4b'
-const ENDPOINT = process.env.VISION_ENDPOINT ?? DEFAULT_ENDPOINT
-const MODEL = process.env.VISION_MODEL ?? DEFAULT_MODEL
+const ENDPOINT = process.env['VISION_ENDPOINT'] ?? DEFAULT_ENDPOINT
+const MODEL = process.env['VISION_MODEL'] ?? DEFAULT_MODEL
 const REACHABILITY_TIMEOUT_MS = 2000
 const TEST_TIMEOUT_MS = 180_000
 

@@ -194,7 +194,8 @@ export function LlmProviderSection() {
       draft,
       state.customLlmPresets,
     )
-    const next = { ...draft, profile: draft.enabled ? projectLlmProfile(resolved) : undefined }
+    const profile = draft.enabled ? projectLlmProfile(resolved) : undefined
+    const next = { ...draft, ...(profile !== undefined ? { profile } : {}) }
     setProjectLlmOverride(next)
     setLlmConfig(resolved)
     await saveProjectLlmOverride(project.id, next)
@@ -301,7 +302,7 @@ export function LlmProviderSection() {
             preset={preset}
             override={providerConfigs[preset.id]}
             isActive={activePresetId === preset.id}
-            isExpanded={expanded[preset.id]}
+            isExpanded={expanded[preset.id] ?? false}
             savedHere={savedId === preset.id}
             onToggleActive={() => toggleActive(preset.id)}
             onToggleExpand={() => toggleExpand(preset.id)}
@@ -642,11 +643,8 @@ function PresetRow({
                   value={codexCliTimeoutMinutes}
                   onChange={(e) => {
                     const n = Number(e.target.value)
-                    onChange({
-                      codexCliTimeoutMinutes: Number.isFinite(n)
-                        ? Math.max(1, Math.min(240, Math.floor(n)))
-                        : undefined,
-                    })
+                    if (!Number.isFinite(n)) return
+                    onChange({ codexCliTimeoutMinutes: Math.max(1, Math.min(240, Math.floor(n))) })
                   }}
                 />
                 <span className='text-xs text-muted-foreground'>
@@ -905,15 +903,18 @@ function ReasoningControls({
             onChange={(e) => {
               const raw = e.target.value.trim()
               const n = Number(raw)
-              onChange({
-                ...value,
-                budgetTokens: raw === '' || !Number.isFinite(n)
-                  ? undefined
-                  : Math.max(
-                    capabilities.customBudgetRange.min,
-                    Math.min(capabilities.customBudgetRange.max, Math.floor(n)),
-                  ),
-              })
+              const { budgetTokens: _cleared, ...withoutBudget } = value
+              onChange(
+                raw === '' || !Number.isFinite(n)
+                  ? withoutBudget
+                  : {
+                    ...withoutBudget,
+                    budgetTokens: Math.max(
+                      capabilities.customBudgetRange.min,
+                      Math.min(capabilities.customBudgetRange.max, Math.floor(n)),
+                    ),
+                  },
+              )
             }}
             placeholder='1024'
           />

@@ -84,8 +84,8 @@ describe('agent file activity', () => {
       '/project/wiki/a.md',
       '/project/wiki/b.md',
     ])
-    expect(groups[0].edits.map((edit) => edit.id)).toEqual(['1', '3'])
-    expect(groups[0].additions).toBe(first.additions + third.additions)
-    expect(groups[0].deletions).toBe(first.deletions + third.deletions)
+    expect(groups[0]?.edits.map((edit) => edit.id)).toEqual(['1', '3'])
+    expect(groups[0]?.additions).toBe(first.additions + third.additions)
+    expect(groups[0]?.deletions).toBe(first.deletions + third.deletions)
   })
 })

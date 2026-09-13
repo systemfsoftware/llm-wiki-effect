@@ -475,7 +475,10 @@ export function ChatInput({
       if (chipDeleteTarget) {
         e.preventDefault()
         e.stopPropagation()
-        removeSelectedSkill(chipDeleteTarget === 'last' ? selectedSkills[selectedSkills.length - 1] : selectedSkills[0])
+        const skillToRemove = chipDeleteTarget === 'last'
+          ? selectedSkills[selectedSkills.length - 1]
+          : selectedSkills[0]
+        if (skillToRemove !== undefined) removeSelectedSkill(skillToRemove)
         return
       }
       if (showContextFiles) {

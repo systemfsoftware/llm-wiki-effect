@@ -247,7 +247,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case 'llm_wiki_set_project': {
         await assertMcpEnabled()
-        const requested = stringArg(args.project_id, 'project_id')
+        const requested = stringArg(args['project_id'], 'project_id')
         const projects = await client.projects()
         let pinned: ApiProject
         try {
@@ -260,10 +260,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'llm_wiki_files': {
         await assertMcpEnabled()
         const scope = await resolveProjectScope(args)
+        const maxFiles = numberArg(args['max_files'])
         const response = await client.files(scope.id, {
-          root: enumArg(args.root, ['wiki', 'sources', 'all'] as const, 'wiki'),
-          recursive: boolArg(args.recursive, true),
-          maxFiles: numberArg(args.max_files),
+          root: enumArg(args['root'], ['wiki', 'sources', 'all'] as const, 'wiki'),
+          recursive: boolArg(args['recursive'], true),
+          ...(maxFiles !== undefined ? { maxFiles } : {}),
         })
         return textResult(
           withActiveProject(formatFileTree(response.files, response.truncated), scope.project, scope.id),
@@ -271,7 +272,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case 'llm_wiki_read_file': {
         await assertMcpEnabled()
-        const relPath = stringArg(args.path, 'path')
+        const relPath = stringArg(args['path'], 'path')
         const scope = await resolveProjectScope(args)
         const { path, content } = await client.fileContent(scope.id, relPath)
         return textResult(
@@ -281,47 +282,56 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'llm_wiki_reviews': {
         await assertMcpEnabled()
         const scope = await resolveProjectScope(args)
+        const reviewType = optionalStringArg(args['type'])
+        const reviewLimit = numberArg(args['limit'])
         const reviews = await client.reviews(scope.id, {
-          status: enumArg(args.status, ['unresolved', 'resolved', 'all'] as const, 'unresolved'),
-          type: optionalStringArg(args.type),
-          limit: numberArg(args.limit),
+          status: enumArg(args['status'], ['unresolved', 'resolved', 'all'] as const, 'unresolved'),
+          ...(reviewType !== undefined ? { type: reviewType } : {}),
+          ...(reviewLimit !== undefined ? { limit: reviewLimit } : {}),
         })
         return textResult(withActiveProject(formatReviews(reviews), scope.project, scope.id))
       }
       case 'llm_wiki_search': {
         await assertMcpEnabled()
-        const query = stringArg(args.query, 'query')
+        const query = stringArg(args['query'], 'query')
         const scope = await resolveProjectScope(args)
+        const topK = numberArg(args['top_k'])
         const search = await client.search(scope.id, query, {
-          topK: numberArg(args.top_k),
-          includeContent: boolArg(args.include_content, false),
+          ...(topK !== undefined ? { topK } : {}),
+          includeContent: boolArg(args['include_content'], false),
         })
         return textResult(withActiveProject(formatSearchResults(query, search), scope.project, scope.id))
       }
       case 'llm_wiki_chat': {
         await assertMcpEnabled()
-        const message = stringArg(args.message, 'message')
+        const message = stringArg(args['message'], 'message')
         const scope = await resolveProjectScope(args)
+        const sessionId = optionalStringArg(args['session_id'])
+        const topK = numberArg(args['top_k'])
+        const skills = stringArrayArg(args['skills'])
         const chat = await client.chat(scope.id, message, {
-          sessionId: optionalStringArg(args.session_id),
-          mode: enumArg(args.mode, ['fast', 'standard', 'deep', 'local_first'] as const, 'standard'),
-          topK: numberArg(args.top_k),
-          includeContent: boolArg(args.include_content, false),
-          wiki: boolArg(args.wiki, true),
-          web: boolArg(args.web, false),
-          anytxt: boolArg(args.anytxt, false),
-          skills: stringArrayArg(args.skills),
-          persistSession: optionalStringArg(args.session_id) !== undefined,
+          ...(sessionId !== undefined ? { sessionId } : {}),
+          mode: enumArg(args['mode'], ['fast', 'standard', 'deep', 'local_first'] as const, 'standard'),
+          ...(topK !== undefined ? { topK } : {}),
+          includeContent: boolArg(args['include_content'], false),
+          wiki: boolArg(args['wiki'], true),
+          web: boolArg(args['web'], false),
+          anytxt: boolArg(args['anytxt'], false),
+          ...(skills !== undefined ? { skills } : {}),
+          persistSession: sessionId !== undefined,
         })
         return textResult(withActiveProject(formatChatResponse(chat), scope.project, scope.id))
       }
       case 'llm_wiki_graph': {
         await assertMcpEnabled()
         const scope = await resolveProjectScope(args)
+        const q = optionalStringArg(args['q'])
+        const nodeType = optionalStringArg(args['node_type'])
+        const limit = numberArg(args['limit'])
         const graph = await client.graph(scope.id, {
-          q: optionalStringArg(args.q),
-          nodeType: optionalStringArg(args.node_type),
-          limit: numberArg(args.limit),
+          ...(q !== undefined ? { q } : {}),
+          ...(nodeType !== undefined ? { nodeType } : {}),
+          ...(limit !== undefined ? { limit } : {}),
         })
         return textResult(withActiveProject(formatGraph(graph.nodes, graph.edges), scope.project, scope.id))
       }
@@ -334,9 +344,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case 'llm_wiki_embed_page': {
         await assertMcpEnabled()
-        const path = stringArg(args.path, 'path')
+        const path = stringArg(args['path'], 'path')
         const scope = await resolveProjectScope(args)
-        const result = await client.embedPage(path, scope.id, boolArg(args.force, false))
+        const result = await client.embedPage(path, scope.id, boolArg(args['force'], false))
         return textResult(withActiveProject(JSON.stringify(result, null, 2), scope.project, scope.id))
       }
       default:
@@ -372,7 +382,7 @@ function textResult(text: string) {
 async function resolveProjectScope(args: Record<string, unknown>): Promise<{ id: string; project: ApiProject | null }> {
   let id: string
   try {
-    id = projectBinding.resolve(optionalStringArg(args.project_id) ?? undefined)
+    id = projectBinding.resolve(optionalStringArg(args['project_id']) ?? undefined)
   } catch (error) {
     throw new McpError(ErrorCode.InvalidParams, scopedErrorMessage(error))
   }
@@ -584,7 +594,7 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport()
   await server.connect(transport)
   console.error(
-    `LLM Wiki MCP server v${VERSION} connected to ${process.env.LLM_WIKI_API_BASE_URL ?? 'http://127.0.0.1:19828'}`,
+    `LLM Wiki MCP server v${VERSION} connected to ${process.env['LLM_WIKI_API_BASE_URL'] ?? 'http://127.0.0.1:19828'}`,
   )
 }
 

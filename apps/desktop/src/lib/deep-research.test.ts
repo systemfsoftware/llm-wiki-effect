@@ -246,7 +246,7 @@ describe('review-linked research', () => {
       'research-1',
       'wiki/queries/research-topic.md',
     )).toBe(false)
-    expect(useReviewStore.getState().items[0].resolved).toBe(false)
+    expect(useReviewStore.getState().items[0]?.resolved).toBe(false)
   })
 
   it('rejects callbacks before the linked task reaches the matching saved state', () => {
@@ -271,7 +271,7 @@ describe('review-linked research', () => {
       'research-1',
       'wiki/queries/research-topic.md',
     )).toBe(false)
-    expect(useReviewStore.getState().items[0].resolved).toBe(false)
+    expect(useReviewStore.getState().items[0]?.resolved).toBe(false)
   })
 
   it('does not resolve a saved task with incomplete synthesis', () => {
@@ -296,7 +296,7 @@ describe('review-linked research', () => {
       'research-1',
       'wiki/queries/research-topic.md',
     )).toBe(false)
-    expect(useReviewStore.getState().items[0].resolved).toBe(false)
+    expect(useReviewStore.getState().items[0]?.resolved).toBe(false)
   })
 })
 
@@ -335,7 +335,7 @@ describe('collectResearchSources', () => {
 
     expect(webSearch).not.toHaveBeenCalled()
     expect(anyTxtSearch).toHaveBeenCalledTimes(1)
-    expect(anyTxtSearch.mock.calls[0][0]).toEqual(['alpha'])
+    expect(anyTxtSearch.mock.calls[0]?.[0]).toEqual(['alpha'])
     expect(out.results).toEqual([localResult])
   })
 

@@ -6,6 +6,7 @@ import { checkForUpdates, toLatestReleaseUrl } from '@/lib/update-check'
 import { useAppDialog } from '@/stores/app-dialog-store'
 import { hasAvailableUpdate, useUpdateStore } from '@/stores/update-store'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import type { TFunction } from 'i18next'
 import { CheckCircle2, Download, RefreshCw, Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,13 +20,13 @@ interface ApiHealth {
 function readApiHealth(payload: unknown): ApiHealth | null {
   if (payload === null || typeof payload !== 'object') return null
   return {
-    enabled: 'enabled' in payload && typeof payload.enabled === 'boolean' ? payload.enabled : undefined,
-    authConfigured: 'authConfigured' in payload && typeof payload.authConfigured === 'boolean'
-      ? payload.authConfigured
-      : undefined,
-    allowUnauthenticated: 'allowUnauthenticated' in payload && typeof payload.allowUnauthenticated === 'boolean'
-      ? payload.allowUnauthenticated
-      : undefined,
+    ...('enabled' in payload && typeof payload.enabled === 'boolean' ? { enabled: payload.enabled } : {}),
+    ...('authConfigured' in payload && typeof payload.authConfigured === 'boolean'
+      ? { authConfigured: payload.authConfigured }
+      : {}),
+    ...('allowUnauthenticated' in payload && typeof payload.allowUnauthenticated === 'boolean'
+      ? { allowUnauthenticated: payload.allowUnauthenticated }
+      : {}),
   }
 }
 
@@ -336,7 +337,7 @@ function UpdateAvailableBanner({
 
 /** Translated relative-time formatter. Signature accepts a `t` passed
  *  in from the caller so the function stays pure and unit-testable. */
-function formatRelative(timestamp: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
+function formatRelative(timestamp: number, t: TFunction): string {
   const delta = Date.now() - timestamp
   if (delta < 0) return t('time.justNow', { defaultValue: 'just now' })
   const mins = Math.floor(delta / 60_000)

@@ -506,9 +506,16 @@ export async function movePendingTask(
   const position = pending.findIndex((task) => task.id === taskId)
   const swapPosition = direction === 'up' ? position - 1 : position + 1
   if (position < 0 || swapPosition < 0 || swapPosition >= pending.length) return false
-  const firstIndex = queue.findIndex((task) => task.id === pending[position].id)
-  const secondIndex = queue.findIndex((task) => task.id === pending[swapPosition].id)
-  ;[queue[firstIndex], queue[secondIndex]] = [queue[secondIndex], queue[firstIndex]]
+  const firstTask = pending[position]
+  const secondTask = pending[swapPosition]
+  if (firstTask === undefined || secondTask === undefined) return false
+  const firstIndex = queue.findIndex((task) => task.id === firstTask.id)
+  const secondIndex = queue.findIndex((task) => task.id === secondTask.id)
+  const firstQueued = queue[firstIndex]
+  const secondQueued = queue[secondIndex]
+  if (firstQueued === undefined || secondQueued === undefined) return false
+  queue[firstIndex] = secondQueued
+  queue[secondIndex] = firstQueued
   await saveQueue(currentProjectPath)
   return true
 }

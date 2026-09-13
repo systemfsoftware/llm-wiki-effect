@@ -65,10 +65,11 @@ describe('captionImage', () => {
     expect(out).toBe('a red square')
 
     expect(mockStreamChat).toHaveBeenCalledTimes(1)
-    const messages = mockStreamChat.mock.calls[0][1]
+    const messages = mockStreamChat.mock.calls[0]?.[1]
+    if (messages === undefined) throw new Error('expected streamed messages')
     expect(messages).toHaveLength(1)
-    expect(messages[0].role).toBe('user')
-    const blocks = messages[0].content
+    expect(messages[0]?.role).toBe('user')
+    const blocks = messages[0]?.content
     if (!Array.isArray(blocks)) throw new Error('expected multimodal content blocks')
     expect(blocks).toHaveLength(2)
     expect(blocks[0]).toEqual({ type: 'text', text: CAPTION_PROMPT })
@@ -112,7 +113,7 @@ describe('captionImage', () => {
       maxTokens: 256,
     })
 
-    const overrides = mockStreamChat.mock.calls[0][4]
+    const overrides = mockStreamChat.mock.calls[0]?.[4]
     expect(overrides).toEqual({
       temperature: 0.3,
       max_tokens: 256,
@@ -127,7 +128,7 @@ describe('captionImage', () => {
 
     await captionImage(TINY_B64, 'image/png', cfg)
 
-    const overrides = mockStreamChat.mock.calls[0][4]
+    const overrides = mockStreamChat.mock.calls[0]?.[4]
     expect(overrides).toEqual({
       temperature: 0,
       max_tokens: 4096,
@@ -147,7 +148,7 @@ describe('captionImage', () => {
     }
     await captionImage(TINY_B64, 'image/png', reasoningCfg)
 
-    expect(mockStreamChat.mock.calls[0][4]).toMatchObject({
+    expect(mockStreamChat.mock.calls[0]?.[4]).toMatchObject({
       reasoning: { mode: 'off' },
     })
   })
@@ -170,7 +171,7 @@ describe('captionImage', () => {
     const ctl = new AbortController()
     await captionImage(TINY_B64, 'image/png', cfg, ctl.signal)
 
-    const passedSignal = mockStreamChat.mock.calls[0][3]
+    const passedSignal = mockStreamChat.mock.calls[0]?.[3]
     expect(passedSignal).toBe(ctl.signal)
   })
 
@@ -230,7 +231,7 @@ describe('captionImage', () => {
       contextBefore: '  \n  ',
       contextAfter: '',
     })
-    expect(textPromptOf(mockStreamChat.mock.calls[0][1])).toBe(CAPTION_PROMPT)
+    expect(textPromptOf(mockStreamChat.mock.calls[0]?.[1])).toBe(CAPTION_PROMPT)
   })
 
   it('switches to the context-aware prompt when EITHER side has content', async () => {
@@ -242,7 +243,7 @@ describe('captionImage', () => {
       contextBefore: 'Figure 3: Q2 revenue chart',
       contextAfter: '',
     })
-    const promptText = textPromptOf(mockStreamChat.mock.calls[0][1])
+    const promptText = textPromptOf(mockStreamChat.mock.calls[0]?.[1])
     // Pinned framing sentences from the context-aware prompt:
     expect(promptText).toMatch(/Text before image/)
     expect(promptText).toMatch(/Text after image/)

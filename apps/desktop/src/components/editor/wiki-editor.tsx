@@ -405,9 +405,8 @@ export function WikiEditor({ content, onSave, filePath }: WikiEditorProps) {
               {frontmatter && <StableFrontmatterPanel data={frontmatter} />}
               <StableWikiReader
                 body={body}
-                sourceBody={bodySourceOffset >= 0 ? body : undefined}
-                sourceOffset={bodySourceOffset >= 0 ? bodySourceOffset : undefined}
-                filePath={filePath}
+                {...(bodySourceOffset >= 0 ? { sourceBody: body, sourceOffset: bodySourceOffset } : {})}
+                {...(filePath !== undefined ? { filePath } : {})}
               />
             </div>
           )

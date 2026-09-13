@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { normalizeAnyTxtConfig } from '@/lib/anytxt-search'
+import { DEFAULT_ANYTXT_LIMIT, normalizeAnyTxtConfig } from '@/lib/anytxt-search'
 import {
   DEFAULT_FIRECRAWL_URL,
   resolveSearchConfig,
@@ -260,7 +260,7 @@ export function WebSearchSection() {
               value={anyTxtConfig.limit}
               onChange={(e) => {
                 const value = e.target.value.trim()
-                updateAnyTxt({ limit: value ? Number(value) : undefined })
+                updateAnyTxt({ limit: value ? Number(value) : DEFAULT_ANYTXT_LIMIT })
               }}
               placeholder='20'
             />
@@ -296,6 +296,7 @@ export function WebSearchSection() {
         <Label>{t('settings.sections.webSearch.webProviders')}</Label>
         {SEARCH_PROVIDERS.map((provider) => {
           const override = resolvedConfig.providerConfigs?.[provider.id]
+          const providerStatus = testStatus[provider.id]
           const isActive = resolvedConfig.provider === provider.id
           const hasConfig = provider.configKind === 'none'
             ? true
@@ -460,19 +461,19 @@ export function WebSearchSection() {
                         ? t('settings.sections.webSearch.testRunning')
                         : t('settings.sections.webSearch.testProvider')}
                     </button>
-                    {testStatus[provider.id] && (
+                    {providerStatus && (
                       <p
                         className={`text-xs ${
-                          testStatus[provider.id].state === 'ok'
+                          providerStatus.state === 'ok'
                             ? 'text-emerald-600'
-                            : testStatus[provider.id].state === 'warning'
+                            : providerStatus.state === 'warning'
                             ? 'text-amber-600'
-                            : testStatus[provider.id].state === 'error'
+                            : providerStatus.state === 'error'
                             ? 'text-destructive'
                             : 'text-muted-foreground'
                         }`}
                       >
-                        {testStatus[provider.id].message}
+                        {providerStatus.message}
                       </p>
                     )}
                   </div>

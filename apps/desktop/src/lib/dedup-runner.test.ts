@@ -47,7 +47,7 @@ vi.mock('@/lib/dedup_embedding', () => ({
   candidatePairs: mockCandidatePairs,
   clusterByPairs: mockClusterByPairs,
   DuplicatePrefilterCancelledError: class DuplicatePrefilterCancelledError extends Error {
-    name = 'AbortError'
+    override name = 'AbortError'
   },
 }))
 
@@ -161,7 +161,7 @@ describe('buildDedupLlmCall', () => {
     const out = await call('system prompt', 'user message', undefined)
     expect(out).toBe('{"groups": []}')
 
-    const overrides = mockStreamChat.mock.calls[0][4]
+    const overrides = mockStreamChat.mock.calls[0]?.[4]
     expect(overrides).toMatchObject({
       temperature: 0.1,
       reasoning: { mode: 'off' },
@@ -173,7 +173,7 @@ describe('buildDedupLlmCall', () => {
     mockStreamChat.mockImplementation(async (_c, _m, cb) => cb.onDone())
 
     await buildDedupLlmCall(cfg, 32768)('s', 'u', undefined)
-    expect(mockStreamChat.mock.calls[0][4]).toMatchObject({ max_tokens: 32768 })
+    expect(mockStreamChat.mock.calls[0]?.[4]).toMatchObject({ max_tokens: 32768 })
   })
 
   it('forces reasoning off even when the config requests a thinking mode', async () => {
@@ -182,7 +182,7 @@ describe('buildDedupLlmCall', () => {
     const reasoningCfg: LlmConfig = { ...cfg, reasoning: { mode: 'high' } }
     await buildDedupLlmCall(reasoningCfg, 8192)('s', 'u', undefined)
 
-    expect(mockStreamChat.mock.calls[0][4]).toMatchObject({
+    expect(mockStreamChat.mock.calls[0]?.[4]).toMatchObject({
       reasoning: { mode: 'off' },
     })
   })
@@ -193,7 +193,7 @@ describe('buildDedupLlmCall', () => {
 
     await buildDedupLlmCall(cfg, 8192)('s', 'u', controller.signal)
 
-    expect(mockStreamChat.mock.calls[0][3]).toBe(controller.signal)
+    expect(mockStreamChat.mock.calls[0]?.[3]).toBe(controller.signal)
   })
 
   it('rethrows when streamChat reports an error (no silent empty result)', async () => {
@@ -222,7 +222,7 @@ describe('runDuplicateDetection embedding prefilter', () => {
       { slugs: ['foo', 'bar'], reason: 'same topic', confidence: 'high' },
     ])
     expect(mockCandidatePairs).toHaveBeenCalledOnce()
-    const detectorUserMessage = mockStreamChat.mock.calls[0][1][1].content
+    const detectorUserMessage = mockStreamChat.mock.calls[0]?.[1]?.[1]?.content
     expect(detectorUserMessage).toContain('slug=foo')
     expect(detectorUserMessage).toContain('slug=bar')
     expect(detectorUserMessage).not.toContain('slug=baz')
@@ -237,7 +237,7 @@ describe('runDuplicateDetection embedding prefilter', () => {
 
     await runDuplicateDetection('/project', cfg)
 
-    const detectorUserMessage = mockStreamChat.mock.calls[0][1][1].content
+    const detectorUserMessage = mockStreamChat.mock.calls[0]?.[1]?.[1]?.content
     expect(detectorUserMessage).toContain('slug=foo')
     expect(detectorUserMessage).toContain('slug=bar')
     expect(detectorUserMessage).toContain('slug=baz')
@@ -256,7 +256,7 @@ describe('runDuplicateDetection embedding prefilter', () => {
     await runDuplicateDetection('/project', cfg)
 
     expect(mockCandidatePairs).not.toHaveBeenCalled()
-    const detectorUserMessage = mockStreamChat.mock.calls[0][1][1].content
+    const detectorUserMessage = mockStreamChat.mock.calls[0]?.[1]?.[1]?.content
     expect(detectorUserMessage).toContain('slug=baz')
   })
 
@@ -272,7 +272,7 @@ describe('runDuplicateDetection embedding prefilter', () => {
     expect(result).toEqual([
       { slugs: ['foo', 'bar'], reason: 'same topic', confidence: 'high' },
     ])
-    const detectorUserMessage = mockStreamChat.mock.calls[0][1][1].content
+    const detectorUserMessage = mockStreamChat.mock.calls[0]?.[1]?.[1]?.content
     expect(detectorUserMessage).toContain('slug=foo')
     expect(detectorUserMessage).toContain('slug=bar')
     expect(detectorUserMessage).toContain('slug=baz')
@@ -317,7 +317,9 @@ describe('runDuplicateDetection embedding prefilter', () => {
 
     expect(mockStreamChat.mock.calls.length).toBeGreaterThan(1)
     for (const call of mockStreamChat.mock.calls) {
-      const { content } = call[1][1]
+      const scanMessage = call[1]?.[1]
+      if (scanMessage === undefined) throw new Error('expected a scan prompt message')
+      const { content } = scanMessage
       if (typeof content !== 'string') throw new Error('expected a string scan prompt')
       const prompt = content
       const count = Number(prompt.match(/Wiki pages to scan \((\d+) entries\)/)?.[1])

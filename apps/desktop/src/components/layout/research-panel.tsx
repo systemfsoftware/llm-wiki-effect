@@ -69,8 +69,8 @@ export function ResearchPanel() {
       normalizePath(project.path),
       [{
         topic: task.topic,
-        searchQueries: task.searchQueries,
-        sourceReviewId: task.sourceReviewId,
+        ...(task.searchQueries !== undefined ? { searchQueries: task.searchQueries } : {}),
+        ...(task.sourceReviewId !== undefined ? { sourceReviewId: task.sourceReviewId } : {}),
         rerunOfTaskId: task.id,
       }],
       llmConfig,
@@ -172,10 +172,10 @@ function separateThinking(text: string): { thinking: string; answer: string } {
   // Match <think>...</think> or <thinking>...</thinking>
   const thinkRegex = /^<think(?:ing)?>([\s\S]*?)(?:<\/think(?:ing)?>|$)/i
   const match = text.match(thinkRegex)
-  if (match) {
-    const thinking = match[1].trim()
+  const thinking = match?.[1]
+  if (match && thinking !== undefined) {
     const rest = text.slice(match[0].length).trim()
-    return { thinking, answer: rest }
+    return { thinking: thinking.trim(), answer: rest }
   }
   return { thinking: '', answer: text }
 }

@@ -19,13 +19,16 @@ describe('filterSourceTreeByQuery', () => {
   it('keeps parent folders while removing non-matching siblings', () => {
     const result = filterSourceTreeByQuery(TREE, 'booka')
     expect(result).toHaveLength(1)
-    expect(result[0].name).toBe('Books')
-    expect(result[0].children?.map((node) => node.name)).toEqual(['BookA.md'])
+    const [first] = result
+    if (!first) throw new Error('expected a matching node')
+    expect(first.name).toBe('Books')
+    expect(first.children?.map((node) => node.name)).toEqual(['BookA.md'])
   })
 
   it('matches Unicode names and normalized path segments', () => {
-    expect(filterSourceTreeByQuery(TREE, '治疗模型')[0].children?.[0].name)
-      .toBe('三阶段治疗模型.pdf')
+    const [match] = filterSourceTreeByQuery(TREE, '治疗模型')
+    if (!match) throw new Error('expected a matching node')
+    expect(match.children?.[0]?.name).toBe('三阶段治疗模型.pdf')
     expect(filterSourceTreeByQuery(TREE, 'BOOKS')).toEqual([TREE[0]])
   })
 

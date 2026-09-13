@@ -65,7 +65,8 @@ describe('enrichWithWikilinks — language directive is built at call time', () 
 
     await enrichWithWikilinks('/project', '/project/wiki/note.md', fakeLlmConfig())
 
-    const systemMsg = mockStreamChat.mock.calls[0][1][0]
+    const systemMsg = mockStreamChat.mock.calls[0]?.[1]?.[0]
+    if (systemMsg === undefined) throw new Error('expected a system message')
     expect(systemMsg.role).toBe('system')
     expect(systemMsg.content).toContain('MANDATORY OUTPUT LANGUAGE: Chinese')
   })
@@ -80,8 +81,8 @@ describe('enrichWithWikilinks — language directive is built at call time', () 
     useWikiStore.getState().setOutputLanguage('Korean')
     await enrichWithWikilinks('/p', '/p/wiki/b.md', fakeLlmConfig())
 
-    const first = mockStreamChat.mock.calls[0][1][0].content
-    const second = mockStreamChat.mock.calls[1][1][0].content
+    const first = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
+    const second = mockStreamChat.mock.calls[1]?.[1]?.[0]?.content
     expect(first).toContain('MANDATORY OUTPUT LANGUAGE: Japanese')
     expect(second).toContain('MANDATORY OUTPUT LANGUAGE: Korean')
   })
@@ -93,7 +94,7 @@ describe('enrichWithWikilinks — language directive is built at call time', () 
 
     await enrichWithWikilinks('/p', '/p/wiki/attention.md', fakeLlmConfig())
 
-    const content = mockStreamChat.mock.calls[0][1][0].content
+    const content = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
     expect(content).toContain('MANDATORY OUTPUT LANGUAGE: Chinese')
   })
 
@@ -104,7 +105,7 @@ describe('enrichWithWikilinks — language directive is built at call time', () 
 
     await enrichWithWikilinks('/p', '/p/wiki/x.md', fakeLlmConfig())
 
-    const content = mockStreamChat.mock.calls[0][1][0].content
+    const content = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
     expect(content).toContain('MANDATORY OUTPUT LANGUAGE: English')
     expect(content).not.toContain('MANDATORY OUTPUT LANGUAGE: Chinese')
   })
@@ -188,7 +189,7 @@ describe('enrichWithWikilinks — JSON-based substitution', () => {
 
     await enrichWithWikilinks('/p', '/p/f.md', fakeLlmConfig())
     expect(mockWriteFile).toHaveBeenCalledOnce()
-    const written = vi.mocked(mockWriteFile).mock.calls[0][1]
+    const written = vi.mocked(mockWriteFile).mock.calls[0]?.[1]
     expect(written).toContain('[[Transformer]]')
     expect(written).toContain('[[Attention]]')
   })

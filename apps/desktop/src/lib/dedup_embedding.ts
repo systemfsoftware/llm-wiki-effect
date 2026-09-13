@@ -38,7 +38,7 @@ export interface CandidateOptions {
 export type CandidatePair = readonly [string, string]
 
 export class DuplicatePrefilterCancelledError extends Error {
-  name = 'AbortError'
+  override name = 'AbortError'
 }
 
 function throwIfAborted(signal?: AbortSignal) {
@@ -55,9 +55,12 @@ export function cosineSimilarity(a: number[] | null | undefined, b: number[] | n
   let na = 0
   let nb = 0
   for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i]
-    na += a[i] * a[i]
-    nb += b[i] * b[i]
+    const av = a[i]
+    const bv = b[i]
+    if (av === undefined || bv === undefined) continue
+    dot += av * bv
+    na += av * av
+    nb += bv * bv
   }
   const denom = Math.sqrt(na) * Math.sqrt(nb)
   return denom === 0 ? 0 : dot / denom
@@ -126,8 +129,8 @@ export async function candidatePairs(
   }
 
   const embeddings = await embedPages(subset, cfg, {
-    signal: opts.signal,
-    textBudgetChars: opts.textBudgetChars,
+    ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
+    ...(opts.textBudgetChars !== undefined ? { textBudgetChars: opts.textBudgetChars } : {}),
   })
 
   const embeddedCount = [...embeddings.values()].filter((v) => v && v.length > 0).length
@@ -144,20 +147,28 @@ export async function candidatePairs(
   const pairs: CandidatePair[] = []
 
   for (let i = 0; i < subset.length; i++) {
-    const vi = embeddings.get(subset[i].id)
+    const source = subset[i]
+    if (source === undefined) continue
+    const vi = embeddings.get(source.id)
     if (!vi) continue
     const scored: Array<{ j: number; sim: number }> = []
     for (let j = 0; j < subset.length; j++) {
       if (i === j) continue
-      const vj = embeddings.get(subset[j].id)
+      const candidate = subset[j]
+      if (candidate === undefined) continue
+      const vj = embeddings.get(candidate.id)
       const sim = cosineSimilarity(vi, vj)
       if (sim >= threshold) scored.push({ j, sim })
     }
     scored.sort((a, b) => b.sim - a.sim)
 
     for (let k = 0; k < Math.min(topK, scored.length); k++) {
-      const a = subset[i].id
-      const b = subset[scored[k].j].id
+      const entry = scored[k]
+      if (entry === undefined) continue
+      const peer = subset[entry.j]
+      if (peer === undefined) continue
+      const a = source.id
+      const b = peer.id
       const key = a < b ? `${a}\t${b}` : `${b}\t${a}`
       if (!pairSet.has(key)) {
         pairSet.add(key)

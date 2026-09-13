@@ -105,7 +105,7 @@ function openAiSseToken(content: string): string {
   return `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}`
 }
 
-function requestBody(call: [url: string, opts?: RequestInit] | undefined): string {
+function requestBody(call: [url: string, opts?: RequestInit | undefined] | undefined): string {
   const body = call?.[1]?.body
   if (typeof body !== 'string') throw new Error('expected a string request body')
   return body
@@ -137,7 +137,7 @@ describe('streamChat — buffered streaming responses', () => {
     )
 
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(onError.mock.calls[0][0].message).toBe(
+    expect(onError.mock.calls[0]?.[0]?.message).toBe(
       'LLM endpoint error 400: request exceeds available context',
     )
     expect(onToken).not.toHaveBeenCalled()
@@ -217,7 +217,7 @@ describe('streamChat — buffered streaming responses', () => {
     )
 
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(onError.mock.calls[0][0].message).toBe('LLM endpoint error: stream failed')
+    expect(onError.mock.calls[0]?.[0]?.message).toBe('LLM endpoint error: stream failed')
     expect(bodyCancelled).toBe(true)
     expect(onToken).not.toHaveBeenCalled()
     expect(onDone).not.toHaveBeenCalled()
@@ -352,7 +352,7 @@ describe('streamChat — non-streaming HTTP responses', () => {
       { onToken: vi.fn<StreamCallbacks['onToken']>(), onDone: vi.fn<StreamCallbacks['onDone']>(), onError },
     )
 
-    expect(onError.mock.calls[0][0].message).toContain('empty non-streaming response')
+    expect(onError.mock.calls[0]?.[0]?.message).toContain('empty non-streaming response')
   })
 })
 
@@ -415,7 +415,7 @@ describe('streamChat — mid-stream abort mapping', () => {
     await promise
 
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(onError.mock.calls[0][0].message).toMatch(/timed out after 30 min/)
+    expect(onError.mock.calls[0]?.[0]?.message).toMatch(/timed out after 30 min/)
     expect(onDone).not.toHaveBeenCalled()
   })
 
@@ -432,7 +432,7 @@ describe('streamChat — mid-stream abort mapping', () => {
     await vi.advanceTimersByTimeAsync(90 * 60 * 1000)
     getReject()('Request cancelled')
     await promise
-    expect(onError.mock.calls[0][0].message).toMatch(/timed out after 90 min/)
+    expect(onError.mock.calls[0]?.[0]?.message).toMatch(/timed out after 90 min/)
   })
 
   it('treats a bare-string abort as a silent cancel when the backstop did NOT fire', async () => {

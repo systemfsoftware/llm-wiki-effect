@@ -88,17 +88,17 @@ function flattenMdFiles(nodes: FileNode[]): FileNode[] {
 }
 
 function extractTitle(content: string, fileName: string): string {
-  const title = parseFrontmatter(content).frontmatter?.title
+  const title = parseFrontmatter(content).frontmatter?.['title']
   if (typeof title === 'string' && title.trim()) return title.trim()
 
-  const headingMatch = content.match(/^#\s+(.+)$/m)
-  if (headingMatch) return headingMatch[1].trim()
+  const heading = content.match(/^#\s+(.+)$/m)?.[1]
+  if (heading !== undefined) return heading.trim()
 
   return fileName.replace(/\.md$/, '').replace(/-/g, ' ')
 }
 
 function extractType(content: string): string {
-  const type = parseFrontmatter(content).frontmatter?.type
+  const type = parseFrontmatter(content).frontmatter?.['type']
   if (typeof type === 'string' && type.trim()) return type.trim().toLowerCase()
   return 'other'
 }
@@ -108,7 +108,8 @@ function extractWikilinks(content: string): string[] {
   const regex = new RegExp(WIKILINK_REGEX.source, 'g')
   let match: RegExpExecArray | null
   while ((match = regex.exec(content)) !== null) {
-    links.push(match[1].trim())
+    const target = match[1]
+    if (target !== undefined) links.push(target.trim())
   }
   return links
 }
@@ -150,7 +151,9 @@ async function mapWithConcurrency<T, R>(
       while (cursor < values.length) {
         const index = cursor
         cursor += 1
-        results[index] = await mapper(values[index])
+        const value = values[index]
+        if (value === undefined) continue
+        results[index] = await mapper(value)
       }
     },
   )

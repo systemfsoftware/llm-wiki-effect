@@ -145,7 +145,9 @@ function meaningfulCharacterCount(content: string): number {
 export function citedResearchSourceIndexes(content: string, sourceCount: number): number[] {
   const cited = new Set<number>()
   for (const match of content.matchAll(/\[([\d,\-\s]+)\]/g)) {
-    for (const part of match[1].split(',')) {
+    const matched = match[1]
+    if (matched === undefined) continue
+    for (const part of matched.split(',')) {
       const range = part.trim().match(/^(\d+)\s*-\s*(\d+)$/)
       if (range) {
         const start = Number(range[1])
@@ -510,9 +512,11 @@ async function executeResearch(
     // broad candidates; listing every candidate makes unused, off-topic hits
     // appear to support the final research.
     const references = validation.citedSourceIndexes
-      .map((sourceIndex) => {
+      .flatMap((sourceIndex) => {
         const result = webResults[sourceIndex - 1]
-        return `${sourceIndex}. [${result.title}](${result.url}) — ${result.source}`
+        return result
+          ? [`${sourceIndex}. [${result.title}](${result.url}) — ${result.source}`]
+          : []
       })
       .join('\n')
 

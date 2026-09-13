@@ -400,18 +400,18 @@ function isOpenAiStrictCompletionModel(config: LlmConfig): boolean {
 function adaptOpenAiStrictCompletionBody(config: LlmConfig, body: Record<string, unknown>): void {
   if (!isOpenAiStrictCompletionModel(config)) return
 
-  if (typeof body.max_tokens === 'number') {
-    body.max_completion_tokens = body.max_tokens
-    delete body.max_tokens
+  if (typeof body['max_tokens'] === 'number') {
+    body['max_completion_tokens'] = body['max_tokens']
+    delete body['max_tokens']
   }
 
   // GPT-5 / o-series Chat Completions deployments reject non-default
   // sampling knobs. Structured ingest passes temperature=0.1, so strip
   // these only on the strict OpenAI path; custom/OpenRouter-compatible
   // routes keep their existing behavior.
-  delete body.temperature
-  delete body.top_p
-  delete body.top_k
+  delete body['temperature']
+  delete body['top_p']
+  delete body['top_k']
 }
 
 function adaptKimiBody(config: LlmConfig, body: Record<string, unknown>): void {
@@ -421,7 +421,7 @@ function adaptKimiBody(config: LlmConfig, body: Record<string, unknown>): void {
   // temperature values for several current models ("only 1 is allowed").
   // Structured ingest/dedup pass temperature=0.1 for determinism, so
   // omit it and let the endpoint use its required default.
-  delete body.temperature
+  delete body['temperature']
 }
 
 function adaptXiaomiMimoBody(
@@ -434,22 +434,22 @@ function adaptXiaomiMimoBody(
   // Xiaomi MiMo's OpenAI-compatible examples use
   // `max_completion_tokens`. Accept callers' provider-agnostic
   // `max_tokens` override but send the documented field on the wire.
-  if (typeof body.max_tokens === 'number') {
-    body.max_completion_tokens = body.max_tokens
-    delete body.max_tokens
+  if (typeof body['max_tokens'] === 'number') {
+    body['max_completion_tokens'] = body['max_tokens']
+    delete body['max_tokens']
   }
 
   // Official thinking-mode control documents `thinking.type=disabled`.
   // Do not invent an enabled/budget shape here; omitting the field lets
   // the server apply the model default.
   if (reasoning.mode === 'off') {
-    body.thinking = { type: 'disabled' }
+    body['thinking'] = { type: 'disabled' }
   } else {
     // MiMo v2.5 thinking mode forces temperature=1.0 and rejects
     // custom temperature. Structured ingest passes temperature=0.1,
     // but it also passes reasoning off above, so keep deterministic
     // non-thinking requests intact while protecting thinking requests.
-    delete body.temperature
+    delete body['temperature']
   }
 }
 
@@ -472,9 +472,9 @@ function buildOpenAiCompatibleBody(
 
   if (config.provider === 'custom' && isOpenRouterEndpoint(config.customEndpoint)) {
     if (reasoning.mode === 'custom' && reasoning.budgetTokens !== undefined) {
-      body.reasoning = { max_tokens: reasoning.budgetTokens }
+      body['reasoning'] = { max_tokens: reasoning.budgetTokens }
     } else if (reasoning.mode !== 'auto') {
-      body.reasoning = { effort: reasoning.mode === 'off' ? 'none' : reasoning.mode }
+      body['reasoning'] = { effort: reasoning.mode === 'off' ? 'none' : reasoning.mode }
     }
     return body
   }
@@ -486,11 +486,11 @@ function buildOpenAiCompatibleBody(
     // final `content`.
     if (supportsDeepSeekThinkingParam(config)) {
       if (reasoning.mode === 'off') {
-        body.thinking = { type: 'disabled' }
+        body['thinking'] = { type: 'disabled' }
       } else if (reasoning.mode !== 'auto') {
-        body.thinking = { type: 'enabled' }
+        body['thinking'] = { type: 'enabled' }
         if (reasoning.mode === 'high' || reasoning.mode === 'max') {
-          body.reasoning_effort = reasoning.mode
+          body['reasoning_effort'] = reasoning.mode
         }
       }
     }
@@ -512,22 +512,22 @@ function buildOpenAiCompatibleBody(
     // so it maps to the strongest supported level, "high".
     // See docs.ollama.com/api/openai-compatibility.
     if (reasoning.mode === 'off') {
-      body.reasoning_effort = 'none'
+      body['reasoning_effort'] = 'none'
     } else if (
       reasoning.mode === 'low' ||
       reasoning.mode === 'medium' ||
       reasoning.mode === 'high'
     ) {
-      body.reasoning_effort = reasoning.mode
+      body['reasoning_effort'] = reasoning.mode
     } else if (reasoning.mode === 'max') {
-      body.reasoning_effort = 'high'
+      body['reasoning_effort'] = 'high'
     }
     return body
   }
 
   if (config.provider === 'openai' && reasoning.mode !== 'auto' && reasoning.mode !== 'off') {
     if (reasoning.mode === 'low' || reasoning.mode === 'medium' || reasoning.mode === 'high') {
-      body.reasoning_effort = reasoning.mode
+      body['reasoning_effort'] = reasoning.mode
     }
   }
 
@@ -633,16 +633,16 @@ function buildAnthropicBodyWithReasoning(
   if (reasoning.mode === 'auto' || reasoning.mode === 'off') return body
 
   if (isAdaptiveAnthropicModel(config)) {
-    body.thinking = { type: 'adaptive' }
+    body['thinking'] = { type: 'adaptive' }
     const effort = reasoning.mode === 'custom'
       ? 'high'
       : reasoning.mode === 'max'
       ? 'max'
       : reasoning.mode
-    body.output_config = { effort }
-    delete body.temperature
-    delete body.top_p
-    delete body.top_k
+    body['output_config'] = { effort }
+    delete body['temperature']
+    delete body['top_p']
+    delete body['top_k']
     return body
   }
 
@@ -654,14 +654,14 @@ function buildAnthropicBodyWithReasoning(
     ? 4096
     : 8192
   const budgetTokens = Math.max(1024, budget)
-  const maxTokens = body.max_tokens
+  const maxTokens = body['max_tokens']
   if (typeof maxTokens === 'number' && maxTokens <= budgetTokens) {
-    body.max_tokens = budgetTokens + 1
+    body['max_tokens'] = budgetTokens + 1
   }
-  body.thinking = { type: 'enabled', budget_tokens: budgetTokens }
-  delete body.temperature
-  delete body.top_p
-  delete body.top_k
+  body['thinking'] = { type: 'enabled', budget_tokens: budgetTokens }
+  delete body['temperature']
+  delete body['top_p']
+  delete body['top_k']
   return body
 }
 
@@ -799,7 +799,7 @@ function buildAnthropicHeaders(config: LlmConfig, url: string): Record<string, s
     'anthropic-version': '2023-06-01',
   }
   if (requiresBearerAuth(url)) {
-    base.Authorization = `Bearer ${apiKey}`
+    base['Authorization'] = `Bearer ${apiKey}`
   } else {
     base['x-api-key'] = apiKey
     base['anthropic-dangerous-direct-browser-access'] = 'true'
@@ -865,22 +865,22 @@ function buildGoogleBody(
   // Build it only when the caller actually passed something, so an
   // unmodified request stays minimal and lets server defaults apply.
   const generationConfig: Record<string, unknown> = {}
-  if (overrides?.temperature !== undefined) generationConfig.temperature = overrides.temperature
-  if (overrides?.top_p !== undefined) generationConfig.topP = overrides.top_p
-  if (overrides?.top_k !== undefined) generationConfig.topK = overrides.top_k
-  if (overrides?.max_tokens !== undefined) generationConfig.maxOutputTokens = overrides.max_tokens
+  if (overrides?.temperature !== undefined) generationConfig['temperature'] = overrides.temperature
+  if (overrides?.top_p !== undefined) generationConfig['topP'] = overrides.top_p
+  if (overrides?.top_k !== undefined) generationConfig['topK'] = overrides.top_k
+  if (overrides?.max_tokens !== undefined) generationConfig['maxOutputTokens'] = overrides.max_tokens
   if (overrides?.stop !== undefined) {
-    generationConfig.stopSequences = Array.isArray(overrides.stop) ? overrides.stop : [overrides.stop]
+    generationConfig['stopSequences'] = Array.isArray(overrides.stop) ? overrides.stop : [overrides.stop]
   }
   const reasoning = effectiveReasoning(config, overrides)
   if (reasoning.mode === 'off') {
-    generationConfig.thinkingConfig = { thinkingBudget: 0 }
+    generationConfig['thinkingConfig'] = { thinkingBudget: 0 }
   } else if (reasoning.mode !== 'auto') {
     if (isGeminiThinkingLevelModel(config)) {
       const thinkingLevel = reasoning.mode === 'low' || reasoning.mode === 'medium'
         ? reasoning.mode
         : 'high'
-      generationConfig.thinkingConfig = { thinkingLevel }
+      generationConfig['thinkingConfig'] = { thinkingLevel }
     } else {
       const budget = reasoning.mode === 'custom' && reasoning.budgetTokens !== undefined
         ? reasoning.budgetTokens
@@ -889,7 +889,7 @@ function buildGoogleBody(
         : reasoning.mode === 'medium'
         ? 4096
         : 8192
-      generationConfig.thinkingConfig = { thinkingBudget: budget }
+      generationConfig['thinkingConfig'] = { thinkingBudget: budget }
     }
   }
 
@@ -1131,7 +1131,7 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
         }),
         buildBody: (messages, overrides) => {
           const body = buildOpenAiCompatibleBody(config, messages, overrides, streaming)
-          if (!azure) body.model = model
+          if (!azure) body['model'] = model
           return body
         },
         parseStream: parseOpenAiLine,

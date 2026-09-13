@@ -216,10 +216,13 @@ function findImageReferences(markdown: string): ImageRef[] {
   const re = new RegExp(MD_IMAGE_RE.source, MD_IMAGE_RE.flags)
   let m: RegExpExecArray | null
   while ((m = re.exec(markdown)) !== null) {
+    const alt = m[2]
+    const url = m[4]
+    if (alt === undefined || url === undefined) continue
     out.push({
       full: m[0],
-      alt: m[2],
-      url: m[4],
+      alt,
+      url,
       index: m.index,
       length: m[0].length,
     })
@@ -440,18 +443,19 @@ export async function captionMarkdownImages(
         {
           contextBefore: before,
           contextAfter: after,
-          outputLanguage: options?.outputLanguage,
+          ...(options?.outputLanguage !== undefined ? { outputLanguage: options.outputLanguage } : {}),
         },
       )
+      const outputLanguage = normalizeCaptionLanguage(options?.outputLanguage)
+        ? options?.outputLanguage?.trim()
+        : undefined
       cache[cacheKey] = {
         caption,
         mimeType: bytes.mimeType,
         model: llmConfig.model,
         capturedAt: new Date().toISOString(),
         imageHash: hash,
-        ...(normalizeCaptionLanguage(options?.outputLanguage)
-          ? { outputLanguage: options?.outputLanguage?.trim() }
-          : {}),
+        ...(outputLanguage !== undefined ? { outputLanguage } : {}),
       }
       captionByUrl.set(ref.url, caption)
       freshCaptions++
@@ -472,7 +476,9 @@ export async function captionMarkdownImages(
       if (options?.signal?.aborted) return
       const i = nextIdx++
       if (i >= uniqueRefs.length) return
-      await processOne(uniqueRefs[i])
+      const ref = uniqueRefs[i]
+      if (ref === undefined) return
+      await processOne(ref)
       completed++
       options?.onProgress?.(completed, total)
     }

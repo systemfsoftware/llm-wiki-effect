@@ -207,15 +207,15 @@ function ChatMessageImpl({
         {isAssistant && (
           <CitedReferencesPanel
             content={message.content}
-            savedReferences={message.references}
-            onOpenReferencePreview={onOpenReferencePreview}
-            onOpenContextDetails={onOpenContextDetails}
+            {...(message.references !== undefined ? { savedReferences: message.references } : {})}
+            {...(onOpenReferencePreview !== undefined ? { onOpenReferencePreview } : {})}
+            {...(onOpenContextDetails !== undefined ? { onOpenContextDetails } : {})}
           />
         )}
         {isAssistant && message.userInputRequest && (
           <UserInputRequestPanel
             request={message.userInputRequest}
-            onSubmit={onSubmitUserInput}
+            {...(onSubmitUserInput !== undefined ? { onSubmit: onSubmitUserInput } : {})}
           />
         )}
         {isAssistant && hovered && (
@@ -266,8 +266,8 @@ function AgentTurnActivity({
       </div>
       <SavedAgentActivity
         steps={steps}
-        canApproveShellCommand={canApproveShellCommand}
-        onApproveShellCommand={onApproveShellCommand}
+        {...(canApproveShellCommand !== undefined ? { canApproveShellCommand } : {})}
+        {...(onApproveShellCommand !== undefined ? { onApproveShellCommand } : {})}
         embedded
       />
       {changes.length > 0 && <AgentFileActivity changes={changes} embedded />}
@@ -290,7 +290,7 @@ function SavedAgentActivity({
   const events = useMemo<ChatAgentEvent[]>(() =>
     steps
       .filter((step) => step.type !== 'final')
-      .map((step) => ({
+      .map<ChatAgentEvent>((step) => ({
         stage: step.type === 'understanding'
           ? 'understanding'
           : step.type === 'routing'
@@ -298,12 +298,12 @@ function SavedAgentActivity({
           : step.type === 'tool_call'
           ? 'tool_call'
           : 'tool_result',
-        tool: step.tool,
-        query: step.query,
-        message: step.message,
-        count: step.count,
-        status: step.status,
-        timestamp: step.timestamp,
+        ...(step.tool !== undefined ? { tool: step.tool } : {}),
+        ...(step.query !== undefined ? { query: step.query } : {}),
+        ...(step.message !== undefined ? { message: step.message } : {}),
+        ...(step.count !== undefined ? { count: step.count } : {}),
+        ...(step.status !== undefined ? { status: step.status } : {}),
+        ...(step.timestamp !== undefined ? { timestamp: step.timestamp } : {}),
       })), [steps])
   const shellCommand = useMemo(() => extractShellApprovalCommand(steps), [steps])
   if (events.length === 0 && !shellCommand) return null
@@ -677,7 +677,14 @@ function SaveToWikiButton({ content, visible }: { content: string; visible: bool
 
 type CitedPage = MessageReference
 
-const REF_TYPE_CONFIG: Record<string, { icon: typeof FileText; color: string }> = {
+interface RefTypeConfigEntry {
+  icon: typeof FileText
+  color: string
+}
+
+type RefTypeConfig = Record<string, RefTypeConfigEntry> & { source: RefTypeConfigEntry }
+
+const REF_TYPE_CONFIG: RefTypeConfig = {
   entity: { icon: Users, color: 'text-blue-500' },
   concept: { icon: Lightbulb, color: 'text-purple-500' },
   source: { icon: BookOpen, color: 'text-orange-500' },
@@ -855,7 +862,7 @@ function CitedReferencesPanel({
               const matches = [...text.matchAll(re)]
               const info: CitedImageInfo = {
                 count: matches.length,
-                firstUrl: matches.length > 0 ? matches[0][1] : null,
+                firstUrl: matches[0]?.[1] ?? null,
               }
               return [page.path, info] as const
             } catch {
@@ -938,14 +945,14 @@ function CitedReferencesPanel({
       if (!project) return
       const pp = normalizePath(project.path)
       const workspacePath = projectAbsolutePath(pp, page.path)
-      const relatedOutputPreviews = generatedOutputs.map((output) => {
+      const relatedOutputPreviews = generatedOutputs.map<ChatReferencePreview>((output) => {
         const outputPath = projectAbsolutePath(pp, output.path)
         return {
           title: output.title,
           path: outputPath,
           source: output.source ?? 'Workspace',
           content: output.path === page.path ? page.snippet ?? '' : '',
-          snippet: output.snippet,
+          ...(output.snippet !== undefined ? { snippet: output.snippet } : {}),
         }
       })
       try {
@@ -958,7 +965,7 @@ function CitedReferencesPanel({
             path: workspacePath,
             source: page.source ?? 'Workspace',
             content: workspaceContent,
-            snippet: page.snippet,
+            ...(page.snippet !== undefined ? { snippet: page.snippet } : {}),
           }, relatedOutputPreviews)
         } else {
           openFileInPreview(workspacePath, workspaceContent)
@@ -971,7 +978,7 @@ function CitedReferencesPanel({
             path: workspacePath,
             source: page.source ?? 'Workspace',
             content: `Unable to load generated file: ${page.path}`,
-            snippet: page.snippet,
+            ...(page.snippet !== undefined ? { snippet: page.snippet } : {}),
           }, relatedOutputPreviews)
         }
       }
@@ -1093,7 +1100,7 @@ function CitedReferencesPanel({
           <div className='px-2 pb-1.5'>
             {visibleOutputs.map((page, i) => {
               const refType = getRefType(page.path, page)
-              const config = REF_TYPE_CONFIG[refType] ?? REF_TYPE_CONFIG.source
+              const config = REF_TYPE_CONFIG[refType] ?? REF_TYPE_CONFIG['source']
               const Icon = config.icon
               const absoluteOutputPath = project ? projectAbsolutePath(project.path, page.path) : page.path
               const isImageOutput = isGeneratedOutputImage(absoluteOutputPath)
@@ -1182,10 +1189,11 @@ function CitedReferencesPanel({
             <ReferenceKnowledgeGraph references={citedPages} onOpenReference={openCitedPage} />
             {visiblePages.map((page, i) => {
               const refType = getRefType(page.path, page)
-              const config = REF_TYPE_CONFIG[refType] ?? REF_TYPE_CONFIG.source
+              const config = REF_TYPE_CONFIG[refType] ?? REF_TYPE_CONFIG['source']
               const Icon = config.icon
               const info = imageInfos[page.path]
-              const hasImages = (info?.count ?? 0) > 0
+              const imageCount = info?.count ?? 0
+              const hasImages = imageCount > 0
               const firstImageUrl = info?.firstUrl ?? null
               return (
                 // Outer is a div, NOT a button — we have two click
@@ -1221,12 +1229,12 @@ function CitedReferencesPanel({
                       type='button'
                       onClick={() => handleJumpToImageSource(firstImageUrl, page.path)}
                       className='flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-blue-600 hover:bg-blue-100/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors'
-                      title={`Open original document at first image (${info.count} image${
-                        info.count === 1 ? '' : 's'
+                      title={`Open original document at first image (${imageCount} image${
+                        imageCount === 1 ? '' : 's'
                       } on this page)`}
                     >
                       <ImageIcon className='h-3 w-3' />
-                      {info.count}
+                      {imageCount}
                     </button>
                   )}
                   <button
@@ -1279,13 +1287,17 @@ function CitedReferencesPanel({
  */
 function extractCitedPages(text: string): CitedPage[] {
   const citedMatch = text.match(/<!--\s*cited:\s*(.+?)\s*-->/)
-  if (citedMatch && lastQueryPages.length > 0) {
-    const numbers = citedMatch[1]
+  const citedNumbers = citedMatch?.[1]
+  if (citedNumbers !== undefined && lastQueryPages.length > 0) {
+    const numbers = citedNumbers
       .split(',')
       .map((s) => parseInt(s.trim(), 10))
       .filter((n) => !isNaN(n) && n >= 1 && n <= lastQueryPages.length)
 
-    const pages = numbers.map((n) => lastQueryPages[n - 1])
+    const pages = numbers.flatMap((n) => {
+      const page = lastQueryPages[n - 1]
+      return page === undefined ? [] : [page]
+    })
     if (pages.length > 0) return pages
   }
 
@@ -1296,7 +1308,10 @@ function extractCitedPages(text: string): CitedPage[] {
       const numbers = [...new Set(numberRefs.map((r) => parseInt(r.slice(1, -1), 10)))]
         .filter((n) => n >= 1 && n <= lastQueryPages.length)
       if (numbers.length > 0) {
-        return numbers.map((n) => lastQueryPages[n - 1])
+        return numbers.flatMap((n) => {
+          const page = lastQueryPages[n - 1]
+          return page === undefined ? [] : [page]
+        })
       }
     }
   }
@@ -1312,7 +1327,8 @@ function extractCitedPages(text: string): CitedPage[] {
     for (const link of wikilinks) {
       const nameMatch = link.match(/\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/)
       if (nameMatch) {
-        const id = nameMatch[1].trim()
+        const id = nameMatch[1]?.trim()
+        if (id === undefined) continue
         const display = nameMatch[2]?.trim() || id
 
         // Skip if id contains path separators (already a path like queries/xxx)
@@ -1559,14 +1575,16 @@ function separateThinking(text: string): { thinking: string | null; answer: stri
 
   let match: RegExpExecArray | null
   while ((match = thinkRegex.exec(text)) !== null) {
-    thinkParts.push(match[1].trim())
+    const captured = match[1]
+    if (captured !== undefined) thinkParts.push(captured.trim())
   }
   answer = answer.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').trim()
 
   // Handle unclosed <think> or <thinking> tag (streaming in progress)
   const unclosedMatch = answer.match(/<think(?:ing)?>([\s\S]*)$/i)
-  if (unclosedMatch) {
-    thinkParts.push(unclosedMatch[1].trim())
+  const unclosedThinking = unclosedMatch?.[1]
+  if (unclosedThinking !== undefined) {
+    thinkParts.push(unclosedThinking.trim())
     answer = answer.replace(/<think(?:ing)?>[\s\S]*$/i, '').trim()
   }
 

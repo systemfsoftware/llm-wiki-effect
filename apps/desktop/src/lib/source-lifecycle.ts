@@ -569,7 +569,7 @@ export async function deleteSourceFolder(
   const files = collectAllFilesIncludingDot(folder).map((file) => file.path)
   if (files.length > 0) {
     const result = await deleteSourceFiles(projectPath, files, {
-      fileAlreadyDeleted: options.folderAlreadyDeleted,
+      ...(options.folderAlreadyDeleted !== undefined ? { fileAlreadyDeleted: options.folderAlreadyDeleted } : {}),
       logReason: options.folderAlreadyDeleted ? 'external folder delete' : 'folder delete',
     })
     deletedWikiPaths.push(...result.deletedWikiPaths)

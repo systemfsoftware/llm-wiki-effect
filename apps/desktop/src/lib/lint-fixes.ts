@@ -16,7 +16,10 @@ function normalizedLintLinkTarget(target: string): string {
 function hasWikilinkToTarget(content: string, target: string): boolean {
   const normalized = normalizedLintLinkTarget(target)
   return Array.from(content.matchAll(/\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]/g))
-    .some((match) => normalizedLintLinkTarget(match[1]) === normalized)
+    .some((match) => {
+      const matchedTarget = match[1]
+      return matchedTarget !== undefined && normalizedLintLinkTarget(matchedTarget) === normalized
+    })
 }
 
 export function appendWikilink(content: string, target: string): string {

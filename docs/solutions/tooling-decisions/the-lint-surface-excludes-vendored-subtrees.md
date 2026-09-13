@@ -19,27 +19,29 @@ tags: [oxlint, dprint, subtree, vendored, scoping]
 
 This repo vendors upstream trees as git subtrees under `repos/`, declared by the
 `[[repos]]` entries in `subtrees.toml` and imported by the `git-subtree-vendor`
-scripts. The root linters predate them and walk the whole tree: `pnpm lint` runs
-`oxlint .` and `pnpm format:check` runs `dprint check`, neither of which named a
-file set.
+scripts. The linters predate them: `dprint` walks the whole tree from
+`dprint.json`, and at the time of writing every package ran `oxlint .` over its
+own package root — no config named a file set.
 
-`pnpm check:ci` runs five gates. On the branch that added the subtrees three
-passed outright — `pnpm build`, `pnpm test:mocks` (132 files, 1876 tests), and
-`pnpm mcp:test` (23 tests) — and `pnpm lint` failed with 155 errors and 12
-warnings, every one of them under `repos/**`. The fifth, `pnpm format:check`,
-passed for the wrong reason: `dprint` had already rewritten 14 vendored files in
-the worktree, so `git status` showed them as modified and the green run was
-grading the formatter's own uncommitted output. The rule set was identical to
-the one that had cleared this repo's own source one commit earlier.
+`pnpm check:ci` runs three phases (`format:check`, `gate:tasks`, `gate:dist`).
+On the branch that added the subtrees, `gate:tasks` passed except for `pnpm
+lint`, which failed with 155 errors and 12 warnings, every one of them under
+`repos/**` — while `pnpm test:mocks` (132 files, 1876 tests), `pnpm mcp:test`
+(23 tests), and `pnpm build` passed outright. `pnpm format:check` passed for the
+wrong reason: `dprint` had already rewritten 14 vendored files in the worktree,
+so `git status` showed them as modified and the green run was grading the
+formatter's own uncommitted output. The rule set was identical to the one that
+had cleared this repo's own source one commit earlier.
 
 ## Guidance
 
-**Exclude `repos/**` at the whole-tree scope.** `repos/**` is a member of
-`oxlint`'s `ignorePatterns` in `oxlint.config.ts` and of `dprint`'s `excludes`
-in `dprint.json`. Nothing else changes: same plugins, same rules, same
-severities for every file this repo owns. Gate: `pnpm lint` reports
-`0 warnings and 0 errors` over the remaining files, and `pnpm format:check`
-exits clean from a clean worktree.
+**Exclude `repos/**` in the shared lint base, and `repos/**` in `dprint.json`.**
+`packages/oxlint-config/src/oxlint-config.base.ts` carries `**/repos/**` in its
+`ignorePatterns`, and every package's `oxlint.config.ts` spreads that base, so
+no package has to restate it. `dprint.json` carries the same exclusion in
+`excludes`. Nothing else changes: same plugins, same rules, same severities for
+every file this repo owns. Gate: `pnpm lint` reports `0 warnings and 0 errors`
+in every package, and `pnpm format:check` exits clean from a clean worktree.
 
 **Do not fix the findings in the vendored code.** Any one of three reasons is
 sufficient:
@@ -133,7 +135,8 @@ the worktree revert ship together rather than as two changes.
 The whole change, and the gate that proves each line:
 
 ```text
-oxlint.config.ts   ignorePatterns += 'repos/**'     <- pnpm lint, pnpm check:ci
+packages/oxlint-config/src/oxlint-config.base.ts
+                    ignorePatterns += 'repos/**'     <- pnpm lint, pnpm check:ci
 dprint.json        excludes       += 'repos/**'     <- pnpm format:check
 git diff --name-only -- repos | xargs git checkout-index -f --
                                                     <- git status --porcelain

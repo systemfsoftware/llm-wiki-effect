@@ -77,9 +77,10 @@ function locateFrontmatterBlock(
   content: string,
 ): { yamlPayload: string; rawBlock: string; body: string } | null {
   const strict = content.match(FM_BLOCK_STRICT_RE)
-  if (strict) {
+  const strictPayload = strict?.[1]
+  if (strict && strictPayload !== undefined) {
     return {
-      yamlPayload: strict[1],
+      yamlPayload: strictPayload,
       rawBlock: strict[0],
       body: content.slice(strict[0].length),
     }
@@ -93,7 +94,8 @@ function locateFrontmatterBlock(
   // the body without limiting how long the frontmatter itself
   // can be.
   const fallback = content.match(FM_BLOCK_ANYWHERE_RE)
-  if (!fallback || fallback.index === undefined) return null
+  const fallbackPayload = fallback?.[1]
+  if (!fallback || fallback.index === undefined || fallbackPayload === undefined) return null
 
   const openIdx = fallback.index + 1 // skip the leading `\n`
   if (lineNumberAt(content, openIdx) > MAX_PREFIX_LINES_BEFORE_FRONTMATTER) {
@@ -116,14 +118,14 @@ function locateFrontmatterBlock(
   if (prefixIsYamlFence) {
     const stripped = bodyAfterFm.replace(/^\s*```\s*(?:\r?\n|$)/, '')
     return {
-      yamlPayload: fallback[1],
+      yamlPayload: fallbackPayload,
       rawBlock,
       body: stripped,
     }
   }
 
   return {
-    yamlPayload: fallback[1],
+    yamlPayload: fallbackPayload,
     rawBlock,
     body: bodyAfterFm,
   }
@@ -158,9 +160,10 @@ function repairWikilinkLists(payload: string): string {
     .split('\n')
     .map((line) => {
       const m = line.match(/^(\s*[A-Za-z_][\w-]*\s*:\s*)(\[\[[^\]]+\]\](?:\s*,\s*\[\[[^\]]+\]\])+)\s*$/)
-      if (!m) return line
-      const prefix = m[1]
-      const items = m[2]
+      const prefix = m?.[1]
+      const rawItems = m?.[2]
+      if (prefix === undefined || rawItems === undefined) return line
+      const items = rawItems
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean)

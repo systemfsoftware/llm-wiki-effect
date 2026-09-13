@@ -115,16 +115,16 @@ export function extractEntitySummary(
 ): EntitySummary | null {
   const { frontmatter, body } = parseFrontmatter(content)
   if (!frontmatter) return null
-  const type = stringField(frontmatter.type) ?? 'unknown'
-  const title = stringField(frontmatter.title) ?? slugFromPath(pathRelativeToProject)
-  const description = stringField(frontmatter.description) ?? firstBodyParagraph(body)
-  const tags = arrayField(frontmatter.tags)
+  const type = stringField(frontmatter['type']) ?? 'unknown'
+  const title = stringField(frontmatter['title']) ?? slugFromPath(pathRelativeToProject)
+  const description = stringField(frontmatter['description']) ?? firstBodyParagraph(body)
+  const tags = arrayField(frontmatter['tags'])
   return {
     slug: slugFromPath(pathRelativeToProject),
     path: pathRelativeToProject,
     type,
     title,
-    description: description ? truncate(description, 200) : undefined,
+    ...(description ? { description: truncate(description, 200) } : {}),
     tags,
   }
 }
@@ -431,7 +431,7 @@ function buildMergerUserMessage(
   return [
     `These ${group.length} wiki pages have been confirmed by the user to describe the same topic.`,
     `Merge them into a single coherent page (the canonical slug will be "${
-      group[0].slug
+      group[0]?.slug ?? ''
     }" or whichever the caller chose).`,
     '',
     sections.join('\n---\n\n'),
@@ -501,7 +501,10 @@ function setFrontmatterScalar(
 ): string {
   const m = content.match(/^(---\n)([\s\S]*?)(\n---)/)
   if (!m) return content
-  const [, open, body, close] = m
+  const open = m[1]
+  const body = m[2]
+  const close = m[3]
+  if (open === undefined || body === undefined || close === undefined) return content
   const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const newLine = `${field}: ${value}`
   const lineRe = new RegExp(`^${escaped}:\\s*(?!\\[)([^\\n]*)`, 'm')

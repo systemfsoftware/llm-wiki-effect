@@ -194,14 +194,15 @@ function splitIntoSections(body: string, bodyOffset: number): Section[] {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
+    if (line === undefined) continue
     const lineLen = line.length + (i < lines.length - 1 ? 1 : 0) // +1 for the \n we split on
 
     // Track fenced code state first — inside a fence, nothing else matters.
-    const fenceMatch = line.match(/^(`{3,}|~{3,})/)
-    if (fenceMatch) {
+    const fence = line.match(/^(`{3,}|~{3,})/)?.[1]
+    if (fence) {
       if (!inFence) {
         inFence = true
-        fenceMarker = fenceMatch[1][0].repeat(fenceMatch[1].length)
+        fenceMarker = fence
       } else if (line.startsWith(fenceMarker) && line.trim() === fenceMarker) {
         inFence = false
       }
@@ -211,12 +212,13 @@ function splitIntoSections(body: string, bodyOffset: number): Section[] {
     }
 
     // Heading detection only outside fences.
-    const hMatch = !inFence ? line.match(/^(#{1,6})\s+(.+?)\s*$/) : null
-    if (hMatch) {
+    const heading = !inFence ? line.match(/^(#{1,6})\s+(.+?)\s*$/) : null
+    const marker = heading?.[1]
+    const title = heading?.[2]
+    if (marker !== undefined && title !== undefined) {
       flush()
-      const level = hMatch[1].length
-      const title = hMatch[2].trim()
-      headings[level] = title
+      const level = marker.length
+      headings[level] = title.trim()
       // Clear deeper levels (a level-2 heading resets level-3, level-4, …)
       for (let lvl = level + 1; lvl <= 6; lvl++) delete headings[lvl]
 
@@ -301,19 +303,21 @@ function tokenizeAtoms(text: string): Atom[] {
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
+    if (line === undefined) break
 
     // Fenced code block.
-    const fenceMatch = line.match(/^(`{3,}|~{3,})/)
-    if (fenceMatch) {
-      const marker = fenceMatch[1]
+    const fence = line.match(/^(`{3,}|~{3,})/)?.[1]
+    if (fence) {
       const start = cursor
       const bodyLines: string[] = [line]
       let j = i + 1
       cursor += line.length + 1
       while (j < lines.length) {
-        bodyLines.push(lines[j])
-        cursor += lines[j].length + 1
-        if (lines[j].startsWith(marker) && lines[j].trim() === marker) {
+        const bodyLine = lines[j]
+        if (bodyLine === undefined) break
+        bodyLines.push(bodyLine)
+        cursor += bodyLine.length + 1
+        if (bodyLine.startsWith(fence) && bodyLine.trim() === fence) {
           j++
           break
         }
@@ -329,7 +333,7 @@ function tokenizeAtoms(text: string): Atom[] {
     // such lines (one header row + one separator / data row) to count.
     if (line.startsWith('|')) {
       let j = i
-      while (j < lines.length && lines[j].startsWith('|')) j++
+      while (j < lines.length && lines[j]?.startsWith('|')) j++
       if (j - i >= 2) {
         const start = cursor
         const bodyLines = lines.slice(i, j)
@@ -357,13 +361,11 @@ function tokenizeAtoms(text: string): Atom[] {
     // text; otherwise `i` never advances and the outer loop spins forever.
     const start = cursor
     const bodyLines: string[] = []
-    while (
-      i < lines.length &&
-      lines[i].trim() !== '' &&
-      !/^(`{3,}|~{3,})/.test(lines[i])
-    ) {
-      bodyLines.push(lines[i])
-      cursor += lines[i].length + 1
+    while (i < lines.length) {
+      const bodyLine = lines[i]
+      if (bodyLine === undefined || bodyLine.trim() === '' || /^(`{3,}|~{3,})/.test(bodyLine)) break
+      bodyLines.push(bodyLine)
+      cursor += bodyLine.length + 1
       i++
     }
     const content = bodyLines.join('\n')
@@ -464,7 +466,8 @@ function recursiveSplit(text: string, baseOffset: number, targetChars: number): 
     }
     // If the recursion found no separator small enough, fall through to
     // hard char slicing.
-    if (out.length === 0 || out[out.length - 1].offset + out[out.length - 1].text.length <= cursor) {
+    const lastOut = out[out.length - 1]
+    if (lastOut === undefined || lastOut.offset + lastOut.text.length <= cursor) {
       let sliceCursor = cursor
       for (let i = 0; i < chunk.length; i += targetChars) {
         const piece = chunk.slice(i, i + targetChars)
@@ -570,10 +573,13 @@ function mergeSmall(pieces: Piece[], opts: ChunkingOptions): Piece[] {
  */
 function applyOverlap(pieces: Piece[], opts: ChunkingOptions): Piece[] {
   if (opts.overlapChars <= 0 || pieces.length < 2) return pieces
-  const out: Piece[] = [pieces[0]]
+  const first = pieces[0]
+  if (first === undefined) return pieces
+  const out: Piece[] = [first]
   for (let i = 1; i < pieces.length; i++) {
     const prev = pieces[i - 1]
     const curr = pieces[i]
+    if (prev === undefined || curr === undefined) continue
     const tailSrc = prev.text.slice(Math.max(0, prev.text.length - opts.overlapChars))
     // Snap the overlap to the nearest sentence/word boundary so we don't
     // start a chunk mid-word. Search for the first separator AFTER we've

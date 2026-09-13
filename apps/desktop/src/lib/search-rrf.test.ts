@@ -53,7 +53,7 @@ describe('searchWiki backend wrapper', () => {
       queryEmbedding: null,
       embeddingConfig: expect.objectContaining({ enabled: true, model: 'test-embed' }),
     })
-    expect(out[0].path).toBe('/tmp/project/wiki/concepts/attention.md')
+    expect(out[0]?.path).toBe('/tmp/project/wiki/concepts/attention.md')
   })
 
   it('passes disabled embedding config through for backend keyword-only search', async () => {

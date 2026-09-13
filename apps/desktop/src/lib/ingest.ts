@@ -316,12 +316,12 @@ function resolveCaptionConfig(
     model: mm.model,
     ollamaUrl: mm.ollamaUrl,
     customEndpoint: mm.customEndpoint,
-    azureApiVersion: mm.azureApiVersion,
-    azureModelFamily: mm.azureModelFamily,
-    apiMode: mm.apiMode,
+    ...(mm.azureApiVersion !== undefined ? { azureApiVersion: mm.azureApiVersion } : {}),
+    ...(mm.azureModelFamily !== undefined ? { azureModelFamily: mm.azureModelFamily } : {}),
+    ...(mm.apiMode !== undefined ? { apiMode: mm.apiMode } : {}),
     // The dedicated caption provider has no separate reasoning control. Reuse
     // the ingest preference and let its own provider capabilities normalize it.
-    ingestReasoning: mainLlm.ingestReasoning,
+    ...(mainLlm.ingestReasoning !== undefined ? { ingestReasoning: mainLlm.ingestReasoning } : {}),
     // The caption helper hits `streamChat` directly, which doesn't
     // care about `maxContextSize` (that field is for the analysis
     // / generation prompt-truncation logic). Keep it set so the
@@ -469,12 +469,13 @@ export function parseFileBlocks(text: string): ParseFileBlocksResult {
 
   let i = 0
   while (i < lines.length) {
-    const openerMatch = OPENER_LINE.exec(lines[i])
+    const openerLine = lines[i]
+    const openerMatch = openerLine === undefined ? null : OPENER_LINE.exec(openerLine)
     if (!openerMatch) {
       i++
       continue
     }
-    const path = openerMatch[1].trim()
+    const path = openerMatch[1]?.trim() ?? ''
     i++ // consume opener
 
     const contentLines: string[] = []
@@ -484,17 +485,17 @@ export function parseFileBlocks(text: string): ParseFileBlocksResult {
 
     while (i < lines.length) {
       const line = lines[i]
+      if (line === undefined) break
 
       // H5 fix: update fence state before checking closer. Only close
       // the fence when we see the same character repeated at least as
       // many times — CommonMark rule. This lets docs-about-our-format
       // quote `---END FILE---` inside code fences without truncating
       // the outer block.
-      const fenceMatch = FENCE_LINE.exec(line)
-      if (fenceMatch) {
-        const run = fenceMatch[1]
-        const char = run[0] // '`' or '~'
-        const len = run.length
+      const fenceRun = FENCE_LINE.exec(line)?.[1]
+      if (fenceRun) {
+        const char = fenceRun.charAt(0) // '`' or '~'
+        const len = fenceRun.length
         if (fenceMarker === null) {
           fenceMarker = char
           fenceLen = len
@@ -827,7 +828,7 @@ async function autoIngestImpl(
                   `${pp}\0image-caption-cache`,
                   () =>
                     captionMarkdownImages(pp, appendSavedImageRefsForCaption(sourceContent, savedImages), captionLlm, {
-                      signal,
+                      ...(signal ? { signal } : {}),
                       shouldCaption: (url) => isSavedImagePromptUrl(pp, sourceSummarySlug, url),
                       urlToAbsPath: (url) => promptImageUrlToAbs(pp, url),
                       concurrency: mmCfg.concurrency,
@@ -980,7 +981,7 @@ async function autoIngestImpl(
         `${pp}\0image-caption-cache`,
         () =>
           captionMarkdownImages(pp, enrichedSourceContent, captionLlm, {
-            signal,
+            ...(signal ? { signal } : {}),
             // Strict filter: only caption images we know we just
             // extracted into this source's media directory. Skips any
             // pre-existing markdown image refs the user may have typed
@@ -1309,7 +1310,7 @@ async function autoIngestImpl(
           for (const path of recoveredPaths) {
             const warningPrefix = `FILE block "${path}" was not closed before end of stream`
             for (let i = writeWarnings.length - 1; i >= 0; i--) {
-              if (writeWarnings[i].startsWith(warningPrefix)) writeWarnings.splice(i, 1)
+              if (writeWarnings[i]?.startsWith(warningPrefix)) writeWarnings.splice(i, 1)
             }
           }
           writeWarnings.push(...repairResult.warnings)
@@ -1364,7 +1365,7 @@ async function autoIngestImpl(
     if (writeWarnings.length > 0) {
       await appendIngestWarningLog(pp, sourceIdentity, writeWarnings)
       warningSummary = writeWarnings.length === 1
-        ? writeWarnings[0]
+        ? (writeWarnings[0] ?? '')
         : `${writeWarnings.length} ingest warnings: ${writeWarnings.slice(0, 2).join(' · ')}${
           writeWarnings.length > 2 ? ` … (+${writeWarnings.length - 2} more in .llm-wiki/ingest-warnings.log)` : ''
         }`
@@ -1483,7 +1484,7 @@ async function autoIngestImpl(
           if (!pageId || ['index', 'log', 'overview'].includes(pageId)) continue
           try {
             const content = await readFile(`${pp}/${wpath}`)
-            const fmTitle = parseFrontmatter(content).frontmatter?.title
+            const fmTitle = parseFrontmatter(content).frontmatter?.['title']
             const title = typeof fmTitle === 'string' && fmTitle.trim() ? fmTitle.trim() : pageId
             await embedPage(pp, pageId, title, content, embCfg)
           } catch {
@@ -1571,7 +1572,7 @@ function containsCjk(text: string): boolean {
 }
 
 function extractGeneratedPageTitle(content: string): string | null {
-  const title = parseFrontmatter(content).frontmatter?.title
+  const title = parseFrontmatter(content).frontmatter?.['title']
   if (typeof title === 'string' && title.trim()) return title.trim()
   const heading = content.match(/^#\s+(.+)$/m)?.[1]?.trim()
   return heading || null
@@ -1628,7 +1629,7 @@ async function updateWikiIndexDeterministically(
   const index = await readFile(indexPath).catch(() => '# Wiki Index\n')
   const knownTargets = new Set(
     Array.from(index.matchAll(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g))
-      .map((match) => normalizeIndexTarget(match[1])),
+      .map((match) => normalizeIndexTarget(match[1] ?? '')),
   )
   const additions: string[] = []
   for (const path of candidates) {
@@ -1636,8 +1637,8 @@ async function updateWikiIndexDeterministically(
     if (knownTargets.has(normalizeIndexTarget(target))) continue
     const content = await readFile(`${projectPath}/${path}`).catch(() => '')
     const parsed = parseFrontmatter(content)
-    const title = typeof parsed.frontmatter?.title === 'string'
-      ? parsed.frontmatter.title.trim()
+    const title = typeof parsed.frontmatter?.['title'] === 'string'
+      ? parsed.frontmatter['title'].trim()
       : getFileName(path).replace(/\.md$/i, '')
     additions.push(`- [[${target}]] — ${title}`)
   }
@@ -1735,9 +1736,11 @@ async function migrateLegacySourceSummaryIfSafe(
 
   const matchingIdentities = await matchingRawSourceIdentitiesForBasename(pp, basename)
   const normalizedIdentityKey = normalizedIdentity.toLowerCase()
+  const [matchingIdentity] = matchingIdentities
   if (
     matchingIdentities.length !== 1 ||
-    normalizePath(matchingIdentities[0]).toLowerCase() !== normalizedIdentityKey
+    matchingIdentity === undefined ||
+    normalizePath(matchingIdentity).toLowerCase() !== normalizedIdentityKey
   ) {
     return
   }
@@ -1900,7 +1903,7 @@ export function stampGeneratedFrontmatterDates(content: string, date: string): s
   const match = content.match(fmRe)
   if (!match) return content
 
-  let payload = match[2]
+  let payload = match[2] ?? ''
   payload = setOrAppendFrontmatterDate(payload, 'created', date)
   payload = setOrAppendFrontmatterDate(payload, 'updated', date)
   return `${match[1]}${payload}${match[3]}${content.slice(match[0].length)}`
@@ -2086,7 +2089,7 @@ async function writeFileBlocks(
           {
             sourceFileName,
             pagePath: relativePath,
-            signal,
+            ...(signal ? { signal } : {}),
             backup: (oldContent) => backupExistingPage(projectPath, relativePath, oldContent),
             replaceExistingBody,
           },
@@ -2148,16 +2151,16 @@ function parseReviewBlocks(
   const matches = text.matchAll(REVIEW_BLOCK_REGEX)
 
   for (const match of matches) {
-    const rawType = match[1].trim().toLowerCase()
-    const title = match[2].trim()
-    const body = match[3].trim()
+    const rawType = match[1]?.trim().toLowerCase() ?? ''
+    const title = match[2]?.trim() ?? ''
+    const body = match[3]?.trim() ?? ''
 
     const type: ReviewItem['type'] = isReviewBlockType(rawType) ? rawType : 'confirm'
 
     // Parse OPTIONS line
     const optionsMatch = body.match(/^OPTIONS:\s*(.+)$/m)
     const options = optionsMatch
-      ? optionsMatch[1].split('|').map((o) => {
+      ? (optionsMatch[1] ?? '').split('|').map((o) => {
         const label = o.trim()
         return { label, action: label }
       })
@@ -2169,13 +2172,13 @@ function parseReviewBlocks(
     // Parse PAGES line
     const pagesMatch = body.match(/^PAGES:\s*(.+)$/m)
     const affectedPages = pagesMatch
-      ? pagesMatch[1].split(',').map((p) => p.trim())
+      ? (pagesMatch[1] ?? '').split(',').map((p) => p.trim())
       : undefined
 
     // Parse SEARCH line (optimized search queries for Deep Research)
     const searchMatch = body.match(/^SEARCH:\s*(.+)$/m)
     const searchQueries = searchMatch
-      ? searchMatch[1].split('|').map((q) => q.trim()).filter((q) => q.length > 0)
+      ? (searchMatch[1] ?? '').split('|').map((q) => q.trim()).filter((q) => q.length > 0)
       : undefined
 
     // Description is the body minus OPTIONS, PAGES, and SEARCH lines
@@ -2190,8 +2193,8 @@ function parseReviewBlocks(
       title,
       description,
       sourcePath,
-      affectedPages,
-      searchQueries,
+      ...(affectedPages !== undefined ? { affectedPages } : {}),
+      ...(searchQueries !== undefined ? { searchQueries } : {}),
       options,
     })
   }
@@ -2688,11 +2691,13 @@ function semanticBlocks(content: string, targetChars: number): Array<{ text: str
 
   for (const line of content.replace(/\r\n/g, '\n').split('\n')) {
     const heading = /^(#{1,6})\s+(.+?)\s*$/.exec(line)
-    if (heading) {
+    const headingMarker = heading?.[1]
+    const headingText = heading?.[2]
+    if (headingMarker !== undefined && headingText !== undefined) {
       flushParagraph()
-      const depth = heading[1].length
+      const depth = headingMarker.length
       headingStack.length = depth - 1
-      headingStack[depth - 1] = heading[2].trim()
+      headingStack[depth - 1] = headingText.trim()
       blocks.push({ text: line.trim(), headingPath: currentHeadingPath() })
       paragraphHeading = currentHeadingPath()
       continue
@@ -2759,14 +2764,17 @@ export function splitSourceIntoSemanticChunks(
   }
   flush()
 
-  return rawChunks.map((chunk, idx) => ({
-    id: `chunk-${idx + 1}`,
-    index: idx + 1,
-    total: rawChunks.length,
-    headingPath: chunk.headingPath,
-    overlapBefore: idx > 0 ? overlapSuffix(rawChunks[idx - 1].main, overlapChars) : '',
-    main: chunk.main,
-  }))
+  return rawChunks.map((chunk, idx) => {
+    const previous = rawChunks[idx - 1]
+    return {
+      id: `chunk-${idx + 1}`,
+      index: idx + 1,
+      total: rawChunks.length,
+      headingPath: chunk.headingPath,
+      overlapBefore: previous ? overlapSuffix(previous.main, overlapChars) : '',
+      main: chunk.main,
+    }
+  })
 }
 
 function trimLongText(text: string, maxChars: number): string {
@@ -3278,7 +3286,7 @@ async function reembedSourceSummary(
   const sourceSummaryFullPath = `${pp}/wiki/sources/${sourceSummarySlug}.md`
   try {
     const content = await readFile(sourceSummaryFullPath)
-    const fmTitle = parseFrontmatter(content).frontmatter?.title
+    const fmTitle = parseFrontmatter(content).frontmatter?.['title']
     const title = typeof fmTitle === 'string' && fmTitle.trim() ? fmTitle.trim() : sourceIdentity
     const { embedPage } = await import('@/lib/embedding')
     await embedPage(pp, sourceSummarySlug, title, content, embCfg)
@@ -3496,8 +3504,11 @@ async function executeIngestWritesImpl(
   const matches = accumulated.matchAll(FILE_BLOCK_REGEX)
 
   for (const match of matches) {
-    let relativePath = match[1].trim()
-    let content = match[2]
+    const matchPath = match[1]
+    const matchContent = match[2]
+    if (matchPath === undefined || matchContent === undefined) continue
+    let relativePath = matchPath.trim()
+    let content = matchContent
 
     if (!relativePath) continue
     if (

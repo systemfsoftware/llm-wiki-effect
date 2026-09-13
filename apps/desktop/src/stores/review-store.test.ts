@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { normalizeReviewItems, reviewIdFor, type ReviewItem, useReviewStore } from './review-store'
 
+function at<T>(items: readonly T[], index: number): T {
+  const item = items[index]
+  if (item === undefined) throw new Error(`expected an element at index ${index}`)
+  return item
+}
+
 // Minimal builder so each test only specifies what it cares about.
 function makeInput(overrides: Partial<Omit<ReviewItem, 'id' | 'resolved' | 'createdAt'>> = {}) {
   return {
@@ -56,9 +62,9 @@ describe('review-store addItem', () => {
     useReviewStore.getState().addItem(makeInput())
     const items = useReviewStore.getState().items
     expect(items).toHaveLength(1)
-    expect(items[0].id).toBe(reviewIdFor(makeInput()))
-    expect(items[0].resolved).toBe(false)
-    expect(items[0].createdAt).toBeTypeOf('number')
+    expect(at(items, 0).id).toBe(reviewIdFor(makeInput()))
+    expect(at(items, 0).resolved).toBe(false)
+    expect(at(items, 0).createdAt).toBeTypeOf('number')
   })
 
   it('dedupes same-content items (stable id identity), keeps distinct ones', () => {
@@ -73,13 +79,13 @@ describe('review-store addItem', () => {
   it('does not revive a resolved item when the same content is added again', () => {
     const store = useReviewStore.getState()
     store.addItem(makeInput({ title: 'Attention' }))
-    const id = useReviewStore.getState().items[0].id
+    const id = at(useReviewStore.getState().items, 0).id
     store.resolveItem(id, 'user-resolved')
     store.addItem(makeInput({ title: 'Attention' }))
     const items = useReviewStore.getState().items
     expect(items).toHaveLength(1)
-    expect(items[0].resolved).toBe(true)
-    expect(items[0].resolvedAction).toBe('user-resolved')
+    expect(at(items, 0).resolved).toBe(true)
+    expect(at(items, 0).resolvedAction).toBe('user-resolved')
   })
 })
 
@@ -91,7 +97,7 @@ describe('review-store addItems dedupe', () => {
     ])
     const items = useReviewStore.getState().items
     expect(items).toHaveLength(1)
-    expect(items[0].affectedPages).toEqual(expect.arrayContaining(['a.md', 'b.md']))
+    expect(at(items, 0).affectedPages).toEqual(expect.arrayContaining(['a.md', 'b.md']))
   })
 
   it('merges against existing pending items', () => {
@@ -103,7 +109,7 @@ describe('review-store addItems dedupe', () => {
     ])
     const items = useReviewStore.getState().items
     expect(items).toHaveLength(1)
-    expect(items[0].affectedPages).toEqual(expect.arrayContaining(['x.md', 'y.md']))
+    expect(at(items, 0).affectedPages).toEqual(expect.arrayContaining(['x.md', 'y.md']))
   })
 
   it('does NOT merge across different types', () => {
@@ -120,15 +126,15 @@ describe('review-store addItems dedupe', () => {
     // resolved one (same id), keeping resolved + merging new pages.
     const store = useReviewStore.getState()
     store.addItems([makeInput({ title: 'Attention' })])
-    const oldId = useReviewStore.getState().items[0].id
+    const oldId = at(useReviewStore.getState().items, 0).id
     store.resolveItem(oldId, 'user-resolved')
     store.addItems([makeInput({ title: 'Attention', affectedPages: ['new.md'] })])
     const items = useReviewStore.getState().items
     expect(items).toHaveLength(1)
-    expect(items[0].id).toBe(oldId)
-    expect(items[0].resolved).toBe(true)
-    expect(items[0].resolvedAction).toBe('user-resolved')
-    expect(items[0].affectedPages).toEqual(['new.md'])
+    expect(at(items, 0).id).toBe(oldId)
+    expect(at(items, 0).resolved).toBe(true)
+    expect(at(items, 0).resolvedAction).toBe('user-resolved')
+    expect(at(items, 0).affectedPages).toEqual(['new.md'])
   })
 
   it('covers contradiction type', () => {
@@ -138,7 +144,7 @@ describe('review-store addItems dedupe', () => {
     ])
     const items = useReviewStore.getState().items
     expect(items).toHaveLength(1)
-    expect(items[0].affectedPages).toEqual(expect.arrayContaining(['a.md', 'b.md']))
+    expect(at(items, 0).affectedPages).toEqual(expect.arrayContaining(['a.md', 'b.md']))
   })
 
   it('covers confirm type', () => {
@@ -152,30 +158,30 @@ describe('review-store addItems dedupe', () => {
   it('prefers the newer non-empty description on merge', () => {
     useReviewStore.getState().addItems([makeInput({ title: 'A', description: 'old desc' })])
     useReviewStore.getState().addItems([makeInput({ title: 'A', description: 'new desc' })])
-    expect(useReviewStore.getState().items[0].description).toBe('new desc')
+    expect(at(useReviewStore.getState().items, 0).description).toBe('new desc')
   })
 
   it('keeps old description if incoming is empty', () => {
     useReviewStore.getState().addItems([makeInput({ title: 'A', description: 'keep me' })])
     useReviewStore.getState().addItems([makeInput({ title: 'A', description: '' })])
-    expect(useReviewStore.getState().items[0].description).toBe('keep me')
+    expect(at(useReviewStore.getState().items, 0).description).toBe('keep me')
   })
 
   it('deduplicates affectedPages within the merge', () => {
     useReviewStore.getState().addItems([makeInput({ title: 'A', affectedPages: ['x.md', 'y.md'] })])
     useReviewStore.getState().addItems([makeInput({ title: 'A', affectedPages: ['y.md', 'z.md'] })])
-    expect(useReviewStore.getState().items[0].affectedPages).toEqual(['x.md', 'y.md', 'z.md'])
+    expect(at(useReviewStore.getState().items, 0).affectedPages).toEqual(['x.md', 'y.md', 'z.md'])
   })
 
   it('merges searchQueries without duplicates', () => {
     useReviewStore.getState().addItems([makeInput({ title: 'A', searchQueries: ['q1'] })])
     useReviewStore.getState().addItems([makeInput({ title: 'A', searchQueries: ['q1', 'q2'] })])
-    expect(useReviewStore.getState().items[0].searchQueries).toEqual(['q1', 'q2'])
+    expect(at(useReviewStore.getState().items, 0).searchQueries).toEqual(['q1', 'q2'])
   })
 
   it('sets affectedPages to undefined when the merged result is empty', () => {
     useReviewStore.getState().addItems([makeInput({ title: 'A' }), makeInput({ title: 'A' })])
-    expect(useReviewStore.getState().items[0].affectedPages).toBeUndefined()
+    expect(at(useReviewStore.getState().items, 0).affectedPages).toBeUndefined()
   })
 
   it('handles many incoming items at once, merging same-key pairs', () => {
@@ -211,7 +217,7 @@ describe('review-store setItems — migrate-on-load', () => {
     useReviewStore.getState().setItems([
       { ...makeInput({ title: 'Attention' }), id: 'review-6', resolved: false, createdAt: 1 },
     ])
-    const item = useReviewStore.getState().items[0]
+    const item = at(useReviewStore.getState().items, 0)
     expect(item.id).toBe(reviewIdFor({ type: 'missing-page', title: 'Attention' }))
   })
 
@@ -235,10 +241,10 @@ describe('review-store setItems — migrate-on-load', () => {
     ])
     const items = useReviewStore.getState().items
     expect(items).toHaveLength(1)
-    expect(items[0].resolved).toBe(true)
-    expect(items[0].resolvedAction).toBe('user-resolved')
-    expect(items[0].affectedPages).toEqual(expect.arrayContaining(['a.md', 'b.md']))
-    expect(items[0].createdAt).toBe(2) // earliest
+    expect(at(items, 0).resolved).toBe(true)
+    expect(at(items, 0).resolvedAction).toBe('user-resolved')
+    expect(at(items, 0).affectedPages).toEqual(expect.arrayContaining(['a.md', 'b.md']))
+    expect(at(items, 0).createdAt).toBe(2) // earliest
   })
 
   it('preserves a later duplicate resolvedAction when the first resolved item lacks one', () => {
@@ -259,8 +265,8 @@ describe('review-store setItems — migrate-on-load', () => {
     ])
 
     expect(normalized).toHaveLength(1)
-    expect(normalized[0].resolved).toBe(true)
-    expect(normalized[0].resolvedAction).toBe('user-resolved')
+    expect(at(normalized, 0).resolved).toBe(true)
+    expect(at(normalized, 0).resolvedAction).toBe('user-resolved')
   })
 
   it('merges options when duplicate legacy items collapse', () => {
@@ -286,7 +292,7 @@ describe('review-store setItems — migrate-on-load', () => {
     ])
 
     expect(normalized).toHaveLength(1)
-    expect(normalized[0].options).toEqual([
+    expect(at(normalized, 0).options).toEqual([
       { label: 'Create', action: 'create' },
       { label: 'Skip', action: 'skip' },
     ])
@@ -301,19 +307,19 @@ describe('review-store setItems — migrate-on-load', () => {
     useReviewStore.getState().setItems(first)
     const second = useReviewStore.getState().items
     expect(second).toHaveLength(1)
-    expect(second[0].id).toBe(stable)
-    expect(second[0].resolved).toBe(true)
+    expect(at(second, 0).id).toBe(stable)
+    expect(at(second, 0).resolved).toBe(true)
   })
 
   it('resolve survives a re-ingest of the same source (same id, stays resolved)', () => {
     // End-to-end of the user's scenario: resolve, then ingest re-surfaces
     // the same review via addItems → it keeps its id and resolution.
     useReviewStore.getState().addItems([makeInput({ title: 'Attention' })])
-    const id = useReviewStore.getState().items[0].id
+    const id = at(useReviewStore.getState().items, 0).id
     useReviewStore.getState().resolveItem(id, 'user-resolved')
     // simulate queue-shrink rebuild re-emitting the same review
     useReviewStore.getState().addItems([makeInput({ title: 'Attention', affectedPages: ['regen.md'] })])
-    const item = useReviewStore.getState().items[0]
+    const item = at(useReviewStore.getState().items, 0)
     expect(useReviewStore.getState().items).toHaveLength(1)
     expect(item.id).toBe(id)
     expect(item.resolved).toBe(true)
@@ -323,7 +329,7 @@ describe('review-store setItems — migrate-on-load', () => {
 describe('review-store resolveItem / dismissItem / clearResolved', () => {
   it('resolveItem flips the flag and stores action', () => {
     useReviewStore.getState().addItem(makeInput())
-    const id = useReviewStore.getState().items[0].id
+    const id = at(useReviewStore.getState().items, 0).id
     useReviewStore.getState().resolveItem(id, 'auto-resolved')
     const resolved = useReviewStore.getState().items.find((i) => i.id === id)
     expect(resolved?.resolved).toBe(true)
@@ -333,12 +339,12 @@ describe('review-store resolveItem / dismissItem / clearResolved', () => {
   it("resolveItem on missing id is a no-op (doesn't throw)", () => {
     useReviewStore.getState().addItem(makeInput())
     expect(() => useReviewStore.getState().resolveItem('nonexistent', 'x')).not.toThrow()
-    expect(useReviewStore.getState().items[0].resolved).toBe(false)
+    expect(at(useReviewStore.getState().items, 0).resolved).toBe(false)
   })
 
   it('dismissItem removes the item entirely', () => {
     useReviewStore.getState().addItem(makeInput())
-    const id = useReviewStore.getState().items[0].id
+    const id = at(useReviewStore.getState().items, 0).id
     useReviewStore.getState().dismissItem(id)
     expect(useReviewStore.getState().items).toHaveLength(0)
   })
@@ -350,11 +356,11 @@ describe('review-store resolveItem / dismissItem / clearResolved', () => {
       makeInput({ title: 'C' }),
     ])
     const items = useReviewStore.getState().items
-    useReviewStore.getState().resolveItem(items[0].id, 'user-resolved')
-    useReviewStore.getState().resolveItem(items[2].id, 'user-resolved')
+    useReviewStore.getState().resolveItem(at(items, 0).id, 'user-resolved')
+    useReviewStore.getState().resolveItem(at(items, 2).id, 'user-resolved')
     useReviewStore.getState().clearResolved()
     const remaining = useReviewStore.getState().items
     expect(remaining).toHaveLength(1)
-    expect(remaining[0].title).toBe('B')
+    expect(at(remaining, 0).title).toBe('B')
   })
 })

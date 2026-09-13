@@ -21,8 +21,6 @@ export const DEFAULT_GRAPH_FILTERS: GraphFilterState = {
   hiddenNodeIds: new Set(),
   hideStructural: true,
   hideIsolated: false,
-  minLinks: undefined,
-  maxLinks: undefined,
 }
 
 const STRUCTURAL_IDS = new Set(['index', 'overview', 'log', 'schema', 'purpose'])

@@ -144,7 +144,9 @@ function commonDirectory(paths: string[]): string | null {
     .map(parentDirectory)
     .filter((dir) => dir.trim().length > 0)
   if (directories.length === 0) return null
-  const firstParts = directories[0].split('/')
+  const [firstDirectory] = directories
+  if (firstDirectory === undefined) return null
+  const firstParts = firstDirectory.split('/')
   let commonLength = firstParts.length
   for (const dir of directories.slice(1)) {
     const parts = dir.split('/')
@@ -310,14 +312,15 @@ function backendReferenceToMessageReference(ref: BackendAgentReference): Message
     : ref.kind === 'graph'
     ? 'Graph'
     : undefined
+  const relatedTo = ref.knowledgeContext?.relatedTo
   return {
     title: ref.title,
     path: ref.path,
     kind: isWiki ? 'wiki' : isWorkspace ? 'workspace' : 'external',
-    source,
-    url: isWeb ? ref.path : undefined,
-    snippet: ref.snippet,
-    graphRelations: ref.knowledgeContext?.relatedTo,
+    ...(source !== undefined ? { source } : {}),
+    ...(isWeb ? { url: ref.path } : {}),
+    ...(ref.snippet !== undefined ? { snippet: ref.snippet } : {}),
+    ...(relatedTo !== undefined ? { graphRelations: relatedTo } : {}),
   }
 }
 
@@ -338,14 +341,14 @@ function isGeneratedOutputImage(filePath: string): boolean {
   return category === 'image' || (getFileExtension(filePath) === 'svg' && isAgentWorkspacePath(filePath))
 }
 
-function backendToolToAgentStep(event: BackendAgentToolEvent, index: number) {
+function backendToolToAgentStep(event: BackendAgentToolEvent, index: number): ChatAgentStep {
   if (event.tool === 'agent.plan_tools') {
     return {
       id: `backend-${index}-${event.tool}-${event.status}`,
       type: 'routing' as const,
       message: event.detail ?? event.tool,
       status: event.status === 'failed' ? 'error' as const : 'success' as const,
-      timestamp: event.timestamp,
+      ...(event.timestamp !== undefined ? { timestamp: event.timestamp } : {}),
     }
   }
   if (event.tool === 'llm.generate') {
@@ -358,7 +361,7 @@ function backendToolToAgentStep(event: BackendAgentToolEvent, index: number) {
         : event.status === 'started'
         ? 'running' as const
         : 'success' as const,
-      timestamp: event.timestamp,
+      ...(event.timestamp !== undefined ? { timestamp: event.timestamp } : {}),
     }
   }
   const tool = normalizeBackendToolName(event.tool)
@@ -374,7 +377,7 @@ function backendToolToAgentStep(event: BackendAgentToolEvent, index: number) {
       : event.status === 'started'
       ? 'running' as const
       : 'success' as const,
-    timestamp: event.timestamp,
+    ...(event.timestamp !== undefined ? { timestamp: event.timestamp } : {}),
   }
 }
 
@@ -403,7 +406,7 @@ function backendToolToAgentEvent(event: BackendAgentToolEvent): ChatAgentEvent {
       stage: 'routing',
       message: event.detail ?? event.tool,
       status: event.status === 'failed' ? 'error' : 'success',
-      timestamp: event.timestamp,
+      ...(event.timestamp !== undefined ? { timestamp: event.timestamp } : {}),
     }
   }
   if (event.tool === 'llm.generate') {
@@ -415,7 +418,7 @@ function backendToolToAgentEvent(event: BackendAgentToolEvent): ChatAgentEvent {
         : event.status === 'started'
         ? 'running'
         : 'success',
-      timestamp: event.timestamp,
+      ...(event.timestamp !== undefined ? { timestamp: event.timestamp } : {}),
     }
   }
   const tool = normalizeBackendToolName(event.tool)
@@ -443,7 +446,7 @@ function backendToolToAgentEvent(event: BackendAgentToolEvent): ChatAgentEvent {
       : event.status === 'available'
       ? 'skipped'
       : 'success',
-    timestamp: event.timestamp,
+    ...(event.timestamp !== undefined ? { timestamp: event.timestamp } : {}),
   }
 }
 
@@ -611,7 +614,7 @@ export function ChatPanel() {
           path: outputPath,
           source: ref.source ?? 'Workspace',
           content,
-          snippet: ref.snippet,
+          ...(ref.snippet !== undefined ? { snippet: ref.snippet } : {}),
         }
       } catch (err) {
         console.warn('[chat] failed to auto-open generated output:', err)
@@ -620,7 +623,7 @@ export function ChatPanel() {
           path: outputPath,
           source: ref.source ?? 'Workspace',
           content: `Unable to load generated file: ${ref.path}`,
-          snippet: ref.snippet,
+          ...(ref.snippet !== undefined ? { snippet: ref.snippet } : {}),
         }
       }
     },
@@ -630,20 +633,21 @@ export function ChatPanel() {
     if (useChatStore.getState().activeConversationId !== conversationId) return
     const outputs = (references ?? []).filter((ref) => ref.kind === 'workspace')
     if (outputs.length === 0 || !project) return
-    const previews = outputs.map((ref) => {
+    const previews = outputs.map<ChatReferencePreview>((ref) => {
       const outputPath = projectAbsolutePath(project.path, ref.path)
       return {
         title: ref.title || getFileName(outputPath),
         path: outputPath,
         source: ref.source ?? 'Workspace',
         content: '',
-        snippet: ref.snippet,
+        ...(ref.snippet !== undefined ? { snippet: ref.snippet } : {}),
       }
     })
     setReferencePreview(null)
     setGeneratedOutputPreviews(previews)
-    if (outputs.length === 1) {
-      void buildGeneratedOutputPreview(outputs[0]).then((preview) => {
+    const [singleOutput] = outputs
+    if (outputs.length === 1 && singleOutput) {
+      void buildGeneratedOutputPreview(singleOutput).then((preview) => {
         if (preview) {
           setGeneratedOutputPreviews([preview])
           setGeneratedOutputPreview(preview)
@@ -690,14 +694,14 @@ export function ChatPanel() {
     if (!project || activeStreaming || !latestGeneratedOutputMessage) return
     const outputs = (latestGeneratedOutputMessage.references ?? []).filter((ref) => ref.kind === 'workspace')
     if (outputs.length === 0) return
-    const previews = outputs.map((ref) => {
+    const previews = outputs.map<ChatReferencePreview>((ref) => {
       const outputPath = projectAbsolutePath(project.path, ref.path)
       return {
         title: ref.title || getFileName(outputPath),
         path: outputPath,
         source: ref.source ?? 'Workspace',
         content: '',
-        snippet: ref.snippet,
+        ...(ref.snippet !== undefined ? { snippet: ref.snippet } : {}),
       }
     })
     const currentKey = generatedOutputPreviews.map((preview) => preview.path).join('\n')
@@ -961,7 +965,7 @@ export function ChatPanel() {
                   path: outputPath,
                   source: ref.source ?? 'Workspace',
                   content: '',
-                  snippet: ref.snippet,
+                  ...(ref.snippet !== undefined ? { snippet: ref.snippet } : {}),
                 }
                 setDismissedGeneratedOutputsKey(null)
                 setReferencePreview(null)
@@ -992,8 +996,8 @@ export function ChatPanel() {
                     change.additions = 0
                     change.deletions = 0
                     change.diff = t('chat.agentChanges.shellSnapshotUnavailable')
-                    change.beforeContent = undefined
-                    change.afterContent = undefined
+                    delete change.beforeContent
+                    delete change.afterContent
                     fileChanges.set(outputPath, change)
                     fileEditChanges.push(change)
                   })()
@@ -1030,8 +1034,8 @@ export function ChatPanel() {
                   change.additions = 0
                   change.deletions = 0
                   change.diff = t('chat.agentChanges.diffUnavailable')
-                  change.beforeContent = undefined
-                  change.afterContent = undefined
+                  delete change.beforeContent
+                  delete change.afterContent
                 }
                 fileChanges.set(filePath, change)
                 fileEditChanges.push(change)
@@ -1056,7 +1060,7 @@ export function ChatPanel() {
               const toolEvent: BackendAgentToolEvent = {
                 tool: agentEvent.tool,
                 status: 'started',
-                detail: agentEvent.input,
+                ...(agentEvent.input !== undefined ? { detail: agentEvent.input } : {}),
                 timestamp: Date.now(),
               }
               backendEvents.push(toolEvent)
@@ -1070,7 +1074,7 @@ export function ChatPanel() {
               const toolEvent: BackendAgentToolEvent = {
                 tool: agentEvent.tool,
                 status: failed ? 'failed' : skipped ? 'available' : 'completed',
-                detail: agentEvent.output,
+                ...(agentEvent.output !== undefined ? { detail: agentEvent.output } : {}),
                 timestamp: Date.now(),
               }
               backendEvents.push(toolEvent)
@@ -1458,6 +1462,7 @@ export function ChatPanel() {
       return
     }
     const assistantMessage = active[assistantIndex]
+    if (assistantMessage === undefined) return
     const resumeHistory = [
       ...compactChatHistoryForResume(active.slice(0, assistantIndex), maxHistoryMessages),
       {
@@ -1577,13 +1582,13 @@ export function ChatPanel() {
                         key={`${msg.conversationId}:${msg.id}:${msg.timestamp}:${idx}`}
                         message={msg}
                         isLastAssistant={isLastAssistant && !activeStreaming}
-                        onRegenerate={isLastAssistant ? handleRegenerate : undefined}
+                        {...(isLastAssistant ? { onRegenerate: handleRegenerate } : {})}
                         onOpenReferencePreview={handleOpenReferencePreview}
                         onOpenContextDetails={handleOpenContextDetails}
-                        onApproveShellCommand={isLastAssistant && approvingShellMessageId !== msg.id
-                          ? handleApproveShellCommand
-                          : undefined}
-                        onSubmitUserInput={isLastAssistant ? handleSubmitUserInput : undefined}
+                        {...(isLastAssistant && approvingShellMessageId !== msg.id
+                          ? { onApproveShellCommand: handleApproveShellCommand }
+                          : {})}
+                        {...(isLastAssistant ? { onSubmitUserInput: handleSubmitUserInput } : {})}
                       />
                     )
                   })}
@@ -1655,7 +1660,7 @@ export function ChatPanel() {
         <GeneratedOutputsPanel
           outputs={generatedOutputPreviews}
           onOpen={openGeneratedOutputModal}
-          onOpenDirectory={project ? openGeneratedOutputDirectory : undefined}
+          {...(project ? { onOpenDirectory: openGeneratedOutputDirectory } : {})}
           onClose={closeGeneratedOutputsPanel}
         />
       )}

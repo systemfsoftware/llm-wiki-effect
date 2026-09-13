@@ -38,7 +38,7 @@ export function applyTheme(theme: AppTheme): void {
 
   root.classList.remove('light', 'dark')
   root.classList.add(resolved)
-  root.dataset.theme = theme
+  root.dataset['theme'] = theme
   syncNativeWindowTheme(resolved)
 }
 

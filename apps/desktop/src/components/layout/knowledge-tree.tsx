@@ -374,28 +374,27 @@ function parsePageInfo(path: string, fileName: string, content: string): WikiPag
   let origin: string | undefined
 
   // Parse YAML frontmatter
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
-  if (fmMatch) {
-    const fm = fmMatch[1]
-    const typeMatch = fm.match(/^type:\s*(.+)$/m)
-    if (typeMatch) type = typeMatch[1].trim().toLowerCase()
+  const fm = content.match(/^---\n([\s\S]*?)\n---/)?.[1]
+  if (fm !== undefined) {
+    const typeMatch = fm.match(/^type:\s*(.+)$/m)?.[1]
+    if (typeMatch !== undefined) type = typeMatch.trim().toLowerCase()
 
-    const titleMatch = fm.match(/^title:\s*["']?(.+?)["']?\s*$/m)
-    if (titleMatch) title = titleMatch[1].trim()
+    const titleMatch = fm.match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1]
+    if (titleMatch !== undefined) title = titleMatch.trim()
 
-    const tagsMatch = fm.match(/^tags:\s*\[(.+?)\]/m)
-    if (tagsMatch) {
-      tags.push(...tagsMatch[1].split(',').map((t) => t.trim().replace(/["']/g, '')))
+    const tagsMatch = fm.match(/^tags:\s*\[(.+?)\]/m)?.[1]
+    if (tagsMatch !== undefined) {
+      tags.push(...tagsMatch.split(',').map((t) => t.trim().replace(/["']/g, '')))
     }
 
-    const originMatch = fm.match(/^origin:\s*(.+)$/m)
-    if (originMatch) origin = originMatch[1].trim()
+    const originMatch = fm.match(/^origin:\s*(.+)$/m)?.[1]
+    if (originMatch !== undefined) origin = originMatch.trim()
   }
 
   // Fallback: try first heading if no frontmatter title
   if (title === fileName.replace('.md', '').replace(/-/g, ' ')) {
-    const headingMatch = content.match(/^#\s+(.+)$/m)
-    if (headingMatch) title = headingMatch[1].trim()
+    const headingMatch = content.match(/^#\s+(.+)$/m)?.[1]
+    if (headingMatch !== undefined) title = headingMatch.trim()
   }
 
   // Fallback: infer type from path
@@ -403,7 +402,7 @@ function parsePageInfo(path: string, fileName: string, content: string): WikiPag
     type = inferWikiTypeFromPath(path, fileName) ?? 'other'
   }
 
-  return { path, title, type, tags, origin, sources: parseSources(content) }
+  return { path, title, type, tags, ...(origin !== undefined ? { origin } : {}), sources: parseSources(content) }
 }
 
 /**

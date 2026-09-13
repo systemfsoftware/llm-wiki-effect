@@ -18,7 +18,6 @@ export default defineConfig({
 
   overrides: [
     { files: ['**/*.test.ts', '**/*.test.tsx', '**/test-helpers/**/*.ts'], env: { vitest: true } },
-    { files: ['extension/**/*.js'], env: { browser: true, webextensions: true } },
   ],
 
   ignorePatterns: [

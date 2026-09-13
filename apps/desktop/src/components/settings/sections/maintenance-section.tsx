@@ -287,11 +287,10 @@ export function MaintenanceSection() {
     try {
       const detected = await runDuplicateDetection(project.path, llmConfig)
       setGroups(
-        detected.map((g) => ({
-          group: g,
-          canonicalSlug: g.slugs[0],
-          skipped: false,
-        })),
+        detected.flatMap((g) => {
+          const canonicalSlug = g.slugs[0]
+          return canonicalSlug === undefined ? [] : [{ group: g, canonicalSlug, skipped: false }]
+        }),
       )
       setScanCompleted(true)
     } catch (err) {

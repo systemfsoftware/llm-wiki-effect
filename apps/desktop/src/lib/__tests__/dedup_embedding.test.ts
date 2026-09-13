@@ -219,13 +219,13 @@ describe('clusterByPairs', () => {
   it('groups transitive duplicates', () => {
     const groups = clusterByPairs(['a', 'b', 'c'], [['a', 'b'], ['b', 'c']])
     expect(groups).toHaveLength(1)
-    expect(groups[0].sort()).toEqual(['a', 'b', 'c'])
+    expect(groups[0]?.sort()).toEqual(['a', 'b', 'c'])
   })
 
   it('keeps isolated pages separate', () => {
     const groups = clusterByPairs(['a', 'b', 'c'], [['a', 'b']])
     expect(groups).toHaveLength(1)
-    expect(groups[0].sort()).toEqual(['a', 'b'])
+    expect(groups[0]?.sort()).toEqual(['a', 'b'])
   })
 
   it('handles 10k page IDs without stack overflow (R1 review Major)', () => {

@@ -146,9 +146,13 @@ export function EmbeddingSection({ draft, setDraft }: Props) {
     endpoint: draft.embeddingEndpoint,
     apiKey: draft.embeddingApiKey,
     model: draft.embeddingModel,
-    outputDimensionality: draft.embeddingOutputDimensionality,
-    maxChunkChars: draft.embeddingMaxChunkChars,
-    overlapChunkChars: draft.embeddingOverlapChunkChars,
+    ...(draft.embeddingOutputDimensionality !== undefined
+      ? { outputDimensionality: draft.embeddingOutputDimensionality }
+      : {}),
+    ...(draft.embeddingMaxChunkChars !== undefined ? { maxChunkChars: draft.embeddingMaxChunkChars } : {}),
+    ...(draft.embeddingOverlapChunkChars !== undefined
+      ? { overlapChunkChars: draft.embeddingOverlapChunkChars }
+      : {}),
     concurrency: draft.embeddingConcurrency,
     batchSize: draft.embeddingBatchSize,
     extraHeaders: draft.embeddingExtraHeaders,

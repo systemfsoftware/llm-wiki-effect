@@ -63,7 +63,7 @@ afterEach(async () => {
 
 describe('review persistence — round-trip', () => {
   it('save then load returns normalized review items', async () => {
-    const items: ReviewItem[] = [
+    const items: [ReviewItem, ReviewItem] = [
       makeReview({ id: 'r-1', title: 'Alpha' }),
       makeReview({ id: 'r-2', title: 'Beta', type: 'duplicate' }),
     ]
@@ -102,7 +102,7 @@ describe('review persistence — round-trip', () => {
     const loaded = await loadReviewItems(tmp.path)
     expect(loaded.map((item) => item.title)).toEqual(items.map((item) => item.title))
     expect(loaded.map((item) => item.id)).toEqual(items.map((item) => reviewIdFor(item)))
-    expect(loaded[0].title).toBe('注意力机制')
+    expect(loaded[0]?.title).toBe('注意力机制')
   })
 
   it('migrates old counter review ids and collapses duplicate content on load', async () => {
@@ -122,10 +122,12 @@ describe('review persistence — round-trip', () => {
 
     const loaded = await loadReviewItems(tmp.path)
     expect(loaded).toHaveLength(1)
-    expect(loaded[0].id).toBe(reviewIdFor(loaded[0]))
-    expect(loaded[0].resolved).toBe(true)
-    expect(loaded[0].resolvedAction).toBe('user-resolved')
-    expect(loaded[0].affectedPages).toEqual(expect.arrayContaining(['a.md', 'b.md']))
+    const first = loaded[0]
+    if (first === undefined) throw new Error('expected one loaded review item')
+    expect(first.id).toBe(reviewIdFor(first))
+    expect(first.resolved).toBe(true)
+    expect(first.resolvedAction).toBe('user-resolved')
+    expect(first.affectedPages).toEqual(expect.arrayContaining(['a.md', 'b.md']))
   })
 
   it('overwrites existing file on subsequent saves', async () => {
@@ -133,7 +135,7 @@ describe('review persistence — round-trip', () => {
     await saveReviewItems(tmp.path, [makeReview({ id: 'r-2', title: 'New' })])
     const loaded = await loadReviewItems(tmp.path)
     expect(loaded).toHaveLength(1)
-    expect(loaded[0].title).toBe('New')
+    expect(loaded[0]?.title).toBe('New')
   })
 
   it('normalizes Windows-style paths (backslashes) in projectPath', async () => {
@@ -190,7 +192,7 @@ describe('lint persistence — round-trip', () => {
     await saveLintItems(tmp.path, items)
     const loaded = await loadLintItems(tmp.path)
     expect(loaded).toEqual(items)
-    expect(loaded[0].affectedPages).toEqual(['a.md', 'b.md'])
+    expect(loaded[0]?.affectedPages).toEqual(['a.md', 'b.md'])
   })
 
   it('overwrites existing file on subsequent saves', async () => {
@@ -198,7 +200,7 @@ describe('lint persistence — round-trip', () => {
     await saveLintItems(tmp.path, [makeLint({ id: 'lint-new', page: 'new.md' })])
     const loaded = await loadLintItems(tmp.path)
     expect(loaded).toHaveLength(1)
-    expect(loaded[0].page).toBe('new.md')
+    expect(loaded[0]?.page).toBe('new.md')
   })
 
   it('normalizes Windows-style paths in projectPath', async () => {
@@ -257,7 +259,7 @@ describe('chat persistence — round-trip (new format)', () => {
 
     await saveChatHistory(tmp.path, convs, [msg])
     expect(msg.images).toHaveLength(1)
-    expect(msg.images?.[0].dataBase64).toBe('A'.repeat(1024))
+    expect(msg.images?.[0]?.dataBase64).toBe('A'.repeat(1024))
 
     const raw = await readFileRaw(`${tmp.path}/.llm-wiki/chats/c1.json`)
     expect(raw).not.toContain('dataBase64')
@@ -268,7 +270,7 @@ describe('chat persistence — round-trip (new format)', () => {
       id: 'm1',
       content: 'what is this?',
     })
-    expect(loaded.messages[0].images).toBeUndefined()
+    expect(loaded.messages[0]?.images).toBeUndefined()
   })
 
   it('does not persist Agent rollback snapshots', async () => {
@@ -305,7 +307,7 @@ describe('chat persistence — round-trip (new format)', () => {
 
     await saveChatHistory(tmp.path, convs, [msg])
     const loaded = await loadChatHistory(tmp.path)
-    expect(loaded.messages[0].contextFiles).toEqual([
+    expect(loaded.messages[0]?.contextFiles).toEqual([
       `${tmp.path}/wiki/overview.md`,
     ])
   })
@@ -317,8 +319,8 @@ describe('chat persistence — round-trip (new format)', () => {
     const loaded = await loadChatHistory(tmp.path)
     expect(loaded.messages).toHaveLength(100)
     // Should have kept the LAST 100 (m50 .. m149)
-    expect(loaded.messages[0].id).toBe('m50')
-    expect(loaded.messages[99].id).toBe('m149')
+    expect(loaded.messages[0]?.id).toBe('m50')
+    expect(loaded.messages[99]?.id).toBe('m149')
   })
 
   it('returns empty data when no persistence file exists', async () => {
@@ -421,7 +423,7 @@ describe('chat persistence — round-trip (new format)', () => {
     const loaded = await loadChatHistory(tmp.path)
 
     expect(loaded.conversations).toHaveLength(1)
-    expect(loaded.conversations[0].id).toBe('c1')
+    expect(loaded.conversations[0]?.id).toBe('c1')
     expect(loaded.messages).toHaveLength(1)
   })
 
@@ -433,8 +435,8 @@ describe('chat persistence — round-trip (new format)', () => {
     ]
     await saveChatHistory(tmp.path, convs, msgs)
     const loaded = await loadChatHistory(tmp.path)
-    expect(loaded.conversations[0].title).toBe('中文对话 🎌')
-    expect(loaded.messages[0].content).toBe('你好，世界 🌍')
+    expect(loaded.conversations[0]?.title).toBe('中文对话 🎌')
+    expect(loaded.messages[0]?.content).toBe('你好，世界 🌍')
   })
 })
 
@@ -459,9 +461,9 @@ describe('chat persistence — legacy format fallback', () => {
 
     const loaded = await loadChatHistory(tmp.path)
     expect(loaded.conversations).toHaveLength(1)
-    expect(loaded.conversations[0].id).toBe('default')
+    expect(loaded.conversations[0]?.id).toBe('default')
     expect(loaded.messages).toHaveLength(2)
-    expect(loaded.messages[0].conversationId).toBe('default')
+    expect(loaded.messages[0]?.conversationId).toBe('default')
   })
 
   it('falls back to chat-history.json combined-object format', async () => {
@@ -491,7 +493,7 @@ describe('chat persistence — legacy format fallback', () => {
     await writeFileRaw(`${tmp.path}/.llm-wiki/chats/new.json`, '[]')
 
     const loaded = await loadChatHistory(tmp.path)
-    expect(loaded.conversations[0].id).toBe('new')
+    expect(loaded.conversations[0]?.id).toBe('new')
   })
 })
 

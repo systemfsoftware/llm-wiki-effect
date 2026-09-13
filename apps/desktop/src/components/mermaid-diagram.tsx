@@ -30,8 +30,9 @@ function MermaidDiagramRenderer({ code }: MermaidDiagramProps) {
     if (!el) return undefined
 
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
+      (entries) => {
+        const entry = entries[0]
+        if (entry?.isIntersecting) {
           setVisible(true)
           observer.disconnect()
         }

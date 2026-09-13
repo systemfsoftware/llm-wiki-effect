@@ -35,6 +35,7 @@ export function parseWikiSchemaRouting(markdown: string): WikiSchemaRouting {
     if (cells.length < 2) continue
 
     const [type, dir] = cells
+    if (type === undefined || dir === undefined) continue
     if (!/^[a-z][a-z0-9_-]*$/i.test(type)) continue
     if (dir !== 'wiki' && !dir.startsWith('wiki/')) continue
 
@@ -47,17 +48,17 @@ export function parseWikiSchemaRouting(markdown: string): WikiSchemaRouting {
 function pageTypesSectionLines(markdown: string): string[] {
   const lines = markdown.split('\n')
   const start = lines.findIndex((line) => {
-    const match = line.trim().match(/^(#{1,6})\s+(.+?)\s*#*$/)
-    return !!match && /^page\s+types$/i.test(match[2].trim())
+    const section = line.trim().match(/^(#{1,6})\s+(.+?)\s*#*$/)?.[2]
+    return section !== undefined && /^page\s+types$/i.test(section.trim())
   })
 
   if (start < 0) return []
 
-  const headingLevel = lines[start].trim().match(/^(#{1,6})/)?.[1].length ?? 6
+  const headingLevel = (lines[start] ?? '').trim().match(/^(#{1,6})/)?.[1]?.length ?? 6
   const out: string[] = []
   for (const line of lines.slice(start + 1)) {
-    const heading = line.trim().match(/^(#{1,6})\s+/)
-    if (heading && heading[1].length <= headingLevel) break
+    const heading = line.trim().match(/^(#{1,6})\s+/)?.[1]
+    if (heading !== undefined && heading.length <= headingLevel) break
     out.push(line)
   }
   return out
@@ -69,7 +70,7 @@ export function validateWikiPageRouting(
   routing: WikiSchemaRouting,
 ): WikiSchemaRoutingIssue | null {
   const parsed = parseFrontmatter(content)
-  const type = parsed.frontmatter?.type
+  const type = parsed.frontmatter?.['type']
   if (typeof type !== 'string' || !type.trim()) return null
 
   const normalizedPath = normalizeRelativePath(relativePath)

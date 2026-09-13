@@ -130,14 +130,18 @@ function addMissingOpeningFrontmatterFence(content: string): string {
   const firstContentIdx = lines.findIndex((line) => line.trim().length > 0)
   if (firstContentIdx < 0) return content
 
-  const first = lines[firstContentIdx].trim()
+  const firstLine = lines[firstContentIdx]
+  if (firstLine === undefined) return content
+  const first = firstLine.trim()
   if (!/^(type|title|created|updated|tags|related|sources)\s*:/i.test(first)) {
     return content
   }
 
   const searchEnd = Math.min(lines.length, firstContentIdx + 30)
   for (let i = firstContentIdx + 1; i < searchEnd; i += 1) {
-    const trimmed = lines[i].trim()
+    const currentLine = lines[i]
+    if (currentLine === undefined) break
+    const trimmed = currentLine.trim()
     if (trimmed === '---') {
       return `---\n${lines.slice(firstContentIdx).join('\n')}`
     }
@@ -157,20 +161,25 @@ function repairWikilinkListsInFrontmatter(content: string): string {
   const m = content.match(fmRe)
   if (!m) return content
 
-  const repairedPayload = m[3]
+  const payload = m[3]
+  if (payload === undefined) return content
+
+  const repairedPayload = payload
     .split(/\r?\n/)
     .map((line) => {
       const lm = line.match(
         /^(\s*[A-Za-z_][\w-]*\s*:\s*)(\[\[[^\]]+\]\](?:\s*,\s*\[\[[^\]]+\]\])+)\s*$/,
       )
-      if (!lm) return line
-      const items = lm[2]
+      const prefix = lm?.[1]
+      const rawItems = lm?.[2]
+      if (prefix === undefined || rawItems === undefined) return line
+      const items = rawItems
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean)
         .map((s) => `"${s}"`)
         .join(', ')
-      return `${lm[1]}[${items}]`
+      return `${prefix}[${items}]`
     })
     .join(m[2])
 

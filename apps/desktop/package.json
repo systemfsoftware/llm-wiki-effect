@@ -11,7 +11,8 @@
     "test": "pnpm test:mocks && pnpm test:llm",
     "test:mocks": "vitest run",
     "test:llm": "vitest run --config vitest.llm.config.ts --reporter=verbose",
-    "typecheck": "tsc --build --pretty",
+    "lint": "oxlint . --type-aware --type-check",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -58,12 +59,16 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@systemfsoftware/tsconfig": "catalog:",
     "@tauri-apps/cli": "^2.11.1",
     "@types/node": "^25.5.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.1",
     "fast-check": "^4.7.0",
+    "llm-wiki-oxlint-config": "workspace:*",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "typescript": "catalog:",
     "vite": "^8.0.0",
     "vitest": "^4.1.4"

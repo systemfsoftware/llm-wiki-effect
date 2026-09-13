@@ -199,8 +199,11 @@ function safeRelativePath(path: string): string {
 
   const safePath = safeParts.join('/')
   if (safePath !== parts.join('/')) {
-    const last = safeParts[safeParts.length - 1]
-    safeParts[safeParts.length - 1] = appendSuffixToFileName(last, stableSuffix(normalized))
+    const lastIndex = safeParts.length - 1
+    const last = safeParts[lastIndex]
+    if (last !== undefined) {
+      safeParts[lastIndex] = appendSuffixToFileName(last, stableSuffix(normalized))
+    }
   }
   return safeParts.join('/')
 }
@@ -324,7 +327,10 @@ async function cleanupRemovedScheduledImports(
     } catch (err) {
       // Preserve the old record so a later scan retries cleanup rather than
       // silently forgetting a stale mirror or its generated wiki pages.
-      nextDb.files[destination.key] = db.files[destination.key]
+      const previousEntry = db.files[destination.key]
+      if (previousEntry !== undefined) {
+        nextDb.files[destination.key] = previousEntry
+      }
       console.warn(
         `[scheduled-import] failed to clean removed source ${destination.path}:`,
         err,

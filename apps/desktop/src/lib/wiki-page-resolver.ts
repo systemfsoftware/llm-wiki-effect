@@ -56,9 +56,11 @@ export function buildProjectPathIndexFromTree(tree: FileNode[]): ProjectPathInde
 export function unwrapWikilink(s: string): { slug: string; label: string } {
   const m = s.match(/^\[\[([^\]|]+)(?:\|([^\]]*))?\]\]$/)
   if (!m) return { slug: s, label: s }
-  const target = m[1].trim()
+  const target = m[1]
+  if (target === undefined) return { slug: s, label: s }
+  const slug = target.trim()
   const alias = m[2]?.trim()
-  return { slug: target, label: alias && alias.length > 0 ? alias : target }
+  return { slug, label: alias && alias.length > 0 ? alias : slug }
 }
 
 export type SourceReferenceResolution =

@@ -46,7 +46,9 @@ import { useTranslation } from 'react-i18next'
 import type { NodeHoverDrawingFunction } from 'sigma/rendering'
 import type { SigmaNodeEventPayload } from 'sigma/types'
 
-const NODE_TYPE_COLORS: Record<string, string> = {
+type NodeTypeColorTable = Record<string, string> & { other: string }
+
+const NODE_TYPE_COLORS: NodeTypeColorTable = {
   entity: '#60a5fa', // blue-400
   concept: '#c084fc', // purple-400
   source: '#fb923c', // orange-400
@@ -85,6 +87,10 @@ const COMMUNITY_COLORS = [
   '#34d399', // emerald-400
   '#fbbf24', // amber-400
 ]
+
+function communityColorAt(index: number): string {
+  return COMMUNITY_COLORS[index % COMMUNITY_COLORS.length] ?? NODE_TYPE_COLORS['other']
+}
 
 type GraphThemePalette = {
   defaultEdge: string
@@ -226,7 +232,7 @@ function nodeColor(type: string): string {
   if (NODE_TYPE_COLORS[type]) return NODE_TYPE_COLORS[type]
   let hash = 0
   for (const char of type) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
-  return CUSTOM_NODE_COLORS[hash % CUSTOM_NODE_COLORS.length] ?? NODE_TYPE_COLORS.other
+  return CUSTOM_NODE_COLORS[hash % CUSTOM_NODE_COLORS.length] ?? NODE_TYPE_COLORS['other']
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -353,7 +359,7 @@ function GraphLoader({
     for (const node of nodes) {
       const cached = positionCache.get(node.id)
       const color = colorMode === 'community'
-        ? COMMUNITY_COLORS[node.community % COMMUNITY_COLORS.length]
+        ? communityColorAt(node.community)
         : nodeColor(node.type)
       graph.addNode(node.id, {
         type: 'circle',
@@ -409,7 +415,7 @@ function GraphLoader({
 
       // Cache computed positions
       graph.forEachNode((nodeId, attrs) => {
-        positionCache.set(nodeId, { x: attrs.x, y: attrs.y })
+        positionCache.set(nodeId, { x: attrs['x'], y: attrs['y'] })
       })
     }
 
@@ -510,42 +516,42 @@ function GraphRenderSettings({
         const isHighlighted = highlightedNodes.has(node)
 
         if (isHighlighted) {
-          result.size = (attrs.size ?? BASE_NODE_SIZE) * 1.5
-          result.zIndex = 10
-          result.forceLabel = true
+          result['size'] = (attrs['size'] ?? BASE_NODE_SIZE) * 1.5
+          result['zIndex'] = 10
+          result['forceLabel'] = true
         }
         if (isHoverNode) {
-          result.size = (attrs.size ?? BASE_NODE_SIZE) * 1.4
-          result.zIndex = 10
-          result.forceLabel = true
+          result['size'] = (attrs['size'] ?? BASE_NODE_SIZE) * 1.4
+          result['zIndex'] = 10
+          result['forceLabel'] = true
         }
         if ((hasHover && !isHoverNode && !isHoverNeighbor) || (hasHighlight && !isHighlighted)) {
-          result.color = mixColor(attrs.color ?? '#94a3b8', palette.mutedNodeMixTarget, 0.75)
-          result.label = ''
-          result.size = (attrs.size ?? BASE_NODE_SIZE) * 0.6
+          result['color'] = mixColor(attrs['color'] ?? '#94a3b8', palette.mutedNodeMixTarget, 0.75)
+          result['label'] = ''
+          result['size'] = (attrs['size'] ?? BASE_NODE_SIZE) * 0.6
         }
         return result
       },
       edgeReducer: (_edge, attrs) => {
         const result = { ...attrs }
-        const source = String(attrs.sourceNode ?? '')
-        const target = String(attrs.targetNode ?? '')
+        const source = String(attrs['sourceNode'] ?? '')
+        const target = String(attrs['targetNode'] ?? '')
         const hasHover = !!hoverState
         const hasHighlight = highlightedNodes.size > 0
         const hoverEdge = hasHover && (source === hoverState?.node || target === hoverState?.node)
         const highlightedEdge = hasHighlight && highlightedNodes.has(source) && highlightedNodes.has(target)
 
-        if (attrs.lowPriority && !hoverEdge && !highlightedEdge) {
-          result.hidden = true
+        if (attrs['lowPriority'] && !hoverEdge && !highlightedEdge) {
+          result['hidden'] = true
           return result
         }
         if ((hasHover && !hoverEdge) || (hasHighlight && !highlightedEdge)) {
-          result.color = palette.dimmedEdge
-          result.size = 0.3
+          result['color'] = palette.dimmedEdge
+          result['size'] = 0.3
         }
         if (hoverEdge || highlightedEdge) {
-          result.color = palette.activeEdge
-          result.size = Math.max(2, (attrs.size ?? 1) * 1.5)
+          result['color'] = palette.activeEdge
+          result['size'] = Math.max(2, (attrs['size'] ?? 1) * 1.5)
         }
         return result
       },
@@ -840,7 +846,12 @@ export function GraphView() {
       researchDialogTokenRef.current = token
 
       // Show loading state
-      setResearchDialog({ loading: true, topic: '', queries: [], dismissKey })
+      setResearchDialog({
+        loading: true,
+        topic: '',
+        queries: [],
+        ...(dismissKey !== undefined ? { dismissKey } : {}),
+      })
 
       try {
         // Read overview and purpose for context
@@ -862,11 +873,21 @@ export function GraphView() {
           purpose,
         )
         if (researchDialogTokenRef.current !== token) return
-        setResearchDialog({ loading: false, topic: result.topic, queries: result.searchQueries, dismissKey })
+        setResearchDialog({
+          loading: false,
+          topic: result.topic,
+          queries: result.searchQueries,
+          ...(dismissKey !== undefined ? { dismissKey } : {}),
+        })
       } catch {
         if (researchDialogTokenRef.current !== token) return
         // Fallback: use raw title
-        setResearchDialog({ loading: false, topic: gapTitle, queries: [gapTitle], dismissKey })
+        setResearchDialog({
+          loading: false,
+          topic: gapTitle,
+          queries: [gapTitle],
+          ...(dismissKey !== undefined ? { dismissKey } : {}),
+        })
       }
     },
     [],
@@ -914,7 +935,7 @@ export function GraphView() {
   // 2. Detect panel drag resize via data-panel-resizing attribute on body
   useEffect(() => {
     const observer = new MutationObserver(() => {
-      const dragging = document.body.dataset.panelResizing === 'true'
+      const dragging = document.body.dataset['panelResizing'] === 'true'
       if (dragging && !isResizing) {
         setIsResizing(true)
       }
@@ -1260,10 +1281,12 @@ export function GraphView() {
                       onChange={(e) => {
                         const raw = e.target.value.trim()
                         const value = Number(raw)
-                        setFilters((prev) => ({
-                          ...prev,
-                          minLinks: raw === '' || !Number.isFinite(value) ? undefined : Math.max(0, value),
-                        }))
+                        setFilters((prev) => {
+                          const { minLinks: _cleared, ...rest } = prev
+                          return raw === '' || !Number.isFinite(value)
+                            ? rest
+                            : { ...rest, minLinks: Math.max(0, value) }
+                        })
                       }}
                       placeholder={t('graph.any')}
                     />
@@ -1282,10 +1305,12 @@ export function GraphView() {
                       onChange={(e) => {
                         const raw = e.target.value.trim()
                         const value = Number(raw)
-                        setFilters((prev) => ({
-                          ...prev,
-                          maxLinks: raw === '' || !Number.isFinite(value) ? undefined : Math.max(0, value),
-                        }))
+                        setFilters((prev) => {
+                          const { maxLinks: _cleared, ...rest } = prev
+                          return raw === '' || !Number.isFinite(value)
+                            ? rest
+                            : { ...rest, maxLinks: Math.max(0, value) }
+                        })
                       }}
                       placeholder={t('graph.any')}
                     />
@@ -1531,8 +1556,8 @@ export function GraphView() {
                           <span
                             className='inline-block h-3 w-3 rounded-full shrink-0 shadow-sm'
                             style={{
-                              backgroundColor: COMMUNITY_COLORS[c.id % COMMUNITY_COLORS.length],
-                              boxShadow: `0 0 4px ${hexToRgba(COMMUNITY_COLORS[c.id % COMMUNITY_COLORS.length], 0.4)}`,
+                              backgroundColor: communityColorAt(c.id),
+                              boxShadow: `0 0 4px ${hexToRgba(communityColorAt(c.id), 0.4)}`,
                             }}
                           />
                           <span className='text-muted-foreground truncate' title={c.topNodes.join(', ')}>

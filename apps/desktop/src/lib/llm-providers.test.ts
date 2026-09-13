@@ -228,7 +228,7 @@ describe('MiniMax Anthropic-compatible endpoint', () => {
     }))
 
     expect(provider.url).toBe('https://api.minimaxi.com/anthropic/v1/messages')
-    expect(provider.headers.Authorization).toBe('Bearer sk-minimax')
+    expect(provider.headers['Authorization']).toBe('Bearer sk-minimax')
     expect(provider.headers['x-api-key']).toBeUndefined()
   })
 
@@ -451,7 +451,7 @@ describe('Azure OpenAI provider', () => {
       'https://example-resource.openai.azure.com/openai/deployments/my-gpt-4o-deployment/chat/completions?api-version=2024-10-21',
     )
     expect(cfg.headers['api-key']).toBe('azure-key')
-    expect(cfg.headers.Authorization).toBeUndefined()
+    expect(cfg.headers['Authorization']).toBeUndefined()
   })
 
   it('omits model from the request body because the deployment is in the URL', () => {
@@ -695,7 +695,7 @@ describe('reasoning controls', () => {
     const provider = getProviderConfig(cfg)
 
     expect(provider.url).toBe('https://token-plan-cn.xiaomimimo.com/anthropic/v1/messages')
-    expect(provider.headers.Authorization).toBe('Bearer sk-mimo')
+    expect(provider.headers['Authorization']).toBe('Bearer sk-mimo')
     expect(provider.headers['x-api-key']).toBeUndefined()
     expect(provider.headers['anthropic-version']).toBe('2023-06-01')
   })
@@ -711,7 +711,7 @@ describe('reasoning controls', () => {
     const provider = getProviderConfig(cfg)
 
     expect(provider.url).toBe('https://api.kimi.com/coding/v1/messages')
-    expect(provider.headers.Authorization).toBe('Bearer sk-kimi-test')
+    expect(provider.headers['Authorization']).toBe('Bearer sk-kimi-test')
     expect(provider.headers['x-api-key']).toBeUndefined()
     expect(provider.headers['anthropic-version']).toBe('2023-06-01')
   })
@@ -727,7 +727,7 @@ describe('reasoning controls', () => {
     const provider = getProviderConfig(cfg)
 
     expect(provider.url).toBe('https://api.moonshot.ai/anthropic/v1/messages')
-    expect(provider.headers.Authorization).toBe('Bearer sk-moonshot')
+    expect(provider.headers['Authorization']).toBe('Bearer sk-moonshot')
     expect(provider.headers['x-api-key']).toBeUndefined()
     expect(provider.headers['anthropic-version']).toBe('2023-06-01')
   })

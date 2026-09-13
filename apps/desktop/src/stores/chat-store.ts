@@ -317,8 +317,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content,
         timestamp: Date.now(),
         conversationId,
-        references,
-        agentSteps,
+        ...(references ? { references } : {}),
+        ...(agentSteps ? { agentSteps } : {}),
         ...(agentFileChanges && agentFileChanges.length > 0 ? { agentFileChanges } : {}),
         ...(userInputRequest ? { userInputRequest } : {}),
       }
@@ -391,6 +391,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const lastAssistantIdx = [...activeMessages].reverse().findIndex((m) => m.role === 'assistant')
       if (lastAssistantIdx === -1) return state
       const msgToRemove = activeMessages[activeMessages.length - 1 - lastAssistantIdx]
+      if (msgToRemove === undefined) return state
       return {
         messages: state.messages.filter((m) => m.conversationId !== activeId || m.id !== msgToRemove.id),
       }

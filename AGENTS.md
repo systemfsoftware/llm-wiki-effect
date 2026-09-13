@@ -1,18 +1,18 @@
 # llm-wiki
 
 Tauri desktop app: Rust shell + React UI, plus a workspace MCP server and a
-Chrome clipper. pnpm workspace: the two apps live under `apps/`, the root is a
-pure orchestrator.
+Chrome clipper. pnpm workspace: the apps live under `apps/`, shared tooling
+packages under `packages/`, and the root is a pure orchestrator.
 
 ## Boundaries
 
-| Surface        | Paths                                                                                                                   | Rule                                            |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Evaluator      | `oxlint.config.ts`, `dprint.json`, `commitlint.config.ts`, `.lintstagedrc.js`, `tsconfig*.json`, `.github/workflows/**` | Read-only. Never edit to make your change pass. |
-| Doctrine       | `AGENTS.md`                                                                                                             | Edit only on explicit direction.                |
-| Vendored       | `extension/Readability.js`, `extension/Turndown.js`, `apps/desktop/src-tauri/pdfium/**`, `llm-wiki.md`                  | Third-party. Never hand-edit.                   |
-| Human approval | Releases, tags, signing keys, npm publishing                                                                            | Ask first.                                      |
-| Editable       | `apps/desktop/src/**`, `apps/desktop/src-tauri/src/**`, `apps/mcp-server/**`, `docs/solutions/**`                       | Edit freely.                                    |
+| Surface        | Paths                                                                                                                                                                     | Rule                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Evaluator      | `apps/*/oxlint.config.ts`, `packages/oxlint-config/**`, `tsconfig*.json`, `turbo.json`, `dprint.json`, `commitlint.config.ts`, `.lintstagedrc.js`, `.github/workflows/**` | Read-only. Never edit to make your change pass. |
+| Doctrine       | `AGENTS.md`                                                                                                                                                               | Edit only on explicit direction.                |
+| Vendored       | `extension/Readability.js`, `extension/Turndown.js`, `apps/desktop/src-tauri/pdfium/**`, `llm-wiki.md`                                                                    | Third-party. Never hand-edit.                   |
+| Human approval | Releases, tags, signing keys, npm publishing                                                                                                                              | Ask first.                                      |
+| Editable       | `apps/desktop/src/**`, `apps/desktop/src-tauri/src/**`, `apps/mcp-server/**`, `packages/oxlint-config/src/**`, `docs/solutions/**`                                        | Edit freely.                                    |
 
 ## Definition of Done
 
@@ -35,6 +35,8 @@ CI and local gates use `pnpm test:mocks`.
   `src/stores/`), `src-tauri/` is the Rust shell and the local HTTP API on
   `127.0.0.1:19828`.
 - `apps/mcp-server/` — workspace package, bundled into the app as a resource.
+- `packages/oxlint-config/` — the shared lint base every package's
+  `oxlint.config.ts` spreads; `pnpm lint` runs `oxlint .` once per package.
 - `extension/` — Chrome clipper.
 - `docs/solutions/<category>/<slug>.md` — one durable doc per solved problem.
 - `.changeset/` — pending change intents. `pnpm release:version` is

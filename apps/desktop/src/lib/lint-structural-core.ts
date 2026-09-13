@@ -56,11 +56,15 @@ function levenshtein(a: string, b: string): number {
     current[0] = i
     for (let j = 1; j <= b.length; j += 1) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + cost)
+      current[j] = Math.min(
+        requireDefined(current, j - 1) + 1,
+        requireDefined(previous, j) + 1,
+        requireDefined(previous, j - 1) + cost,
+      )
     }
-    for (let j = 0; j <= b.length; j += 1) previous[j] = current[j]
+    for (let j = 0; j <= b.length; j += 1) previous[j] = requireDefined(current, j)
   }
-  return previous[b.length]
+  return requireDefined(previous, b.length)
 }
 
 function stringSimilarity(a: string, b: string): number {
@@ -89,6 +93,12 @@ function addToIndex(index: Map<string, number[]>, key: string, pageIndex: number
   const values = index.get(key)
   if (values) values.push(pageIndex)
   else index.set(key, [pageIndex])
+}
+
+function requireDefined<T>(values: { readonly [index: number]: T }, index: number): T {
+  const value = values[index]
+  if (value === undefined) throw new RangeError(`index ${index} is out of range`)
+  return value
 }
 
 function topCandidates(scores: Map<number, number>, excluded: number): number[] {
@@ -130,6 +140,7 @@ export function computeStructuralLint(
 
   function relatedCandidate(pageIndex: number, direction: 'source' | 'target'): IndexedPage | undefined {
     const page = pages[pageIndex]
+    if (page === undefined) return undefined
     const scores = new Map<number, number>()
     for (const token of page.tokenSet) {
       const matches = tokenIndex.get(token) ?? []
@@ -143,6 +154,7 @@ export function computeStructuralLint(
     let best: { page: IndexedPage; score: number } | undefined
     for (const candidateIndex of topCandidates(scores, pageIndex)) {
       const candidate = pages[candidateIndex]
+      if (candidate === undefined) continue
       if (direction === 'target') {
         const keys = [candidate.slug, candidate.shortName, fileName(candidate.shortName).replace(/\.md$/i, '')]
           .map(normalizeTarget)
@@ -169,6 +181,7 @@ export function computeStructuralLint(
     let best: { page: IndexedPage; score: number } | undefined
     for (const candidateIndex of topCandidates(scores, -1)) {
       const candidate = pages[candidateIndex]
+      if (candidate === undefined) continue
       const score = Math.max(
         stringSimilarity(target, candidate.slug),
         stringSimilarity(target, candidate.shortName),
@@ -188,33 +201,36 @@ export function computeStructuralLint(
       .map(normalizeTarget)
     const ignored = pageKeys.some((key) => ignoredPages.has(key))
     if (!ignored && !config.ignoreOrphan && !inboundCounts.has(pageIndex)) {
+      const suggestedSource = relatedCandidate(pageIndex, 'source')?.shortName
       results.push({
         type: 'orphan',
         severity: 'info',
         page: page.shortName,
         detail: 'No other pages link to this page.',
-        suggestedSource: relatedCandidate(pageIndex, 'source')?.shortName,
+        ...(suggestedSource !== undefined ? { suggestedSource } : {}),
       })
     }
     if (!ignored && !config.ignoreNoOutlinks && page.outlinks.length === 0) {
+      const suggestedTarget = relatedCandidate(pageIndex, 'target')?.shortName
       results.push({
         type: 'no-outlinks',
         severity: 'info',
         page: page.shortName,
         detail: 'This page has no [[wikilink]] references to other pages.',
-        suggestedTarget: relatedCandidate(pageIndex, 'target')?.shortName,
+        ...(suggestedTarget !== undefined ? { suggestedTarget } : {}),
       })
     }
     for (const link of ignored ? [] : page.outlinks) {
       const basename = fileName(link).replace(/\.md$/i, '')
       if (slugMap.has(normalizeTarget(link)) || slugMap.has(normalizeTarget(basename))) continue
+      const suggestedTarget = brokenCandidate(link)?.shortName
       results.push({
         type: 'broken-link',
         severity: 'warning',
         page: page.shortName,
         detail: `Broken link: [[${link}]] — target page not found.`,
         brokenTarget: link,
-        suggestedTarget: brokenCandidate(link)?.shortName,
+        ...(suggestedTarget !== undefined ? { suggestedTarget } : {}),
       })
     }
     if (pageIndex % 25 === 0 || pageIndex === pages.length - 1) {

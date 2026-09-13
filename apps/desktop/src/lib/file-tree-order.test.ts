@@ -7,7 +7,12 @@ function file(path: string): FileNode {
 }
 
 function dir(path: string, children?: FileNode[]): FileNode {
-  return { name: path.split('/').pop() ?? path, path, is_dir: true, children }
+  return {
+    name: path.split('/').pop() ?? path,
+    path,
+    is_dir: true,
+    ...(children !== undefined ? { children } : {}),
+  }
 }
 
 describe('flattenFilesNaturally', () => {

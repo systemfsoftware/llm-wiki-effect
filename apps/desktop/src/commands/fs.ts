@@ -58,7 +58,7 @@ const pendingListDirectory = new Map<string, PendingListDirectory>()
 function cloneFileNodes(nodes: FileNode[]): FileNode[] {
   return nodes.map((node) => ({
     ...node,
-    children: node.children ? cloneFileNodes(node.children) : node.children,
+    ...(node.children ? { children: cloneFileNodes(node.children) } : {}),
   }))
 }
 

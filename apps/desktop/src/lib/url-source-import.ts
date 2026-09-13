@@ -49,9 +49,15 @@ function isPrivateNetworkHost(hostname: string): boolean {
     const mapped = host.slice(7)
     if (mapped.includes('.')) return isPrivateNetworkHost(mapped)
     const groups = mapped.split(':')
-    if (groups.length === 2 && groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))) {
-      const high = Number.parseInt(groups[0], 16)
-      const low = Number.parseInt(groups[1], 16)
+    const [highGroup, lowGroup] = groups
+    if (
+      groups.length === 2 &&
+      highGroup !== undefined &&
+      lowGroup !== undefined &&
+      groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))
+    ) {
+      const high = Number.parseInt(highGroup, 16)
+      const low = Number.parseInt(lowGroup, 16)
       return isPrivateNetworkHost(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`)
     }
   }
@@ -60,6 +66,7 @@ function isPrivateNetworkHost(hostname: string): boolean {
     return false
   }
   const [a, b] = parts
+  if (a === undefined || b === undefined) return false
   return a === 0 ||
     a === 10 ||
     a === 127 ||
@@ -121,7 +128,7 @@ function safeSlug(value: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 100)
   const stem = slug.split('.')[0]?.toUpperCase()
-  return /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/.test(stem) ? `${slug}-web` : slug
+  return /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/.test(stem ?? '') ? `${slug}-web` : slug
 }
 
 export function urlSourceFileName(url: string, contentType: string, body: string): string {

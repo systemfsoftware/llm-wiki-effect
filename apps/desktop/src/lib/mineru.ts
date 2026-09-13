@@ -112,9 +112,10 @@ function localMineruRequestInit(
   token: string | undefined,
   init: RequestInit = {},
 ): TauriRequestInit {
+  const headers = localMineruHeaders(token)
   return {
     ...init,
-    headers: localMineruHeaders(token),
+    ...(headers ? { headers } : {}),
     // plugin-http uses maxRedirections while browser fetch uses redirect.
     // Set both so credentials never follow an untrusted service redirect.
     redirect: 'manual',
@@ -357,6 +358,7 @@ function convertHtmlTablesInSegment(segment: string): string {
       return out
     })
     const header = padded[0]
+    if (header === undefined) return tableHtml
     const separator = Array.from({ length: width }, () => '---')
     const body = padded.slice(1)
     return [
@@ -392,7 +394,7 @@ function encodeMarkdownImageUrl(relPath: string): string {
 function rewriteMineruMarkdownImages(markdown: string, pathMap: Map<string, string>): string {
   const lookup = (rawUrl: string): string | null => {
     if (!rawUrl || isExternalOrDataUrl(rawUrl)) return null
-    const cleaned = normalizeMineruZipPath(rawUrl.split('#')[0])
+    const cleaned = normalizeMineruZipPath(rawUrl.split('#')[0] ?? '')
     if (!cleaned) return null
     const decoded = decodeMineruPath(cleaned)
     return pathMap.get(cleaned) ?? pathMap.get(decoded) ?? pathMap.get(getFileName(decoded)) ?? null
@@ -408,10 +410,10 @@ function rewriteMineruMarkdownImages(markdown: string, pathMap: Map<string, stri
         candidates.push({ url: trimmed.slice(1, end), suffix: trimmed.slice(end + 1) })
       } else {
         const titleMatch = trimmed.match(/^([\s\S]+?)(\s+["'][^"']*["']\s*)$/)
-        if (titleMatch) candidates.push({ url: titleMatch[1].trim(), suffix: titleMatch[2] })
+        if (titleMatch) candidates.push({ url: titleMatch[1]?.trim() ?? '', suffix: titleMatch[2] ?? '' })
         candidates.push({ url: trimmed, suffix: '' })
         const tokenMatch = trimmed.match(/^(\S+)([\s\S]*)$/)
-        if (tokenMatch) candidates.push({ url: tokenMatch[1], suffix: tokenMatch[2] })
+        if (tokenMatch) candidates.push({ url: tokenMatch[1] ?? '', suffix: tokenMatch[2] ?? '' })
       }
 
       for (const candidate of candidates) {
@@ -446,7 +448,7 @@ async function submitUrlTask(
   const res = await httpFetch(`${API_BASE}/extract/task`, {
     method: 'POST',
     headers: await mineruHeaders(token),
-    signal,
+    ...(signal ? { signal } : {}),
     body: JSON.stringify({ url, model_version: modelVersion }),
   })
   if (!res.ok) throw new Error(`MinerU submit failed: HTTP ${res.status}`)
@@ -470,7 +472,7 @@ async function uploadFileForTask(
   const res = await httpFetch(`${API_BASE}/file-urls/batch`, {
     method: 'POST',
     headers,
-    signal,
+    ...(signal ? { signal } : {}),
     body: JSON.stringify({
       files: [{ name: fileName, data_id: fileName }],
       model_version: modelVersion,
@@ -492,7 +494,7 @@ async function uploadFileForTask(
 
   const uploadRes = await httpFetch(uploadUrl, {
     method: 'PUT',
-    signal,
+    ...(signal ? { signal } : {}),
     body: bytesToUploadBody(bytes),
   })
   if (!uploadRes.ok && uploadRes.status !== 200 && uploadRes.status !== 201) {
@@ -527,7 +529,7 @@ async function pollTask(token: string, taskId: string, signal?: AbortSignal): Pr
     throwIfAborted(signal)
     const res = await httpFetch(`${API_BASE}/extract/task/${taskId}`, {
       headers,
-      signal,
+      ...(signal ? { signal } : {}),
     })
     if (!res.ok) throw new Error(`MinerU poll failed: HTTP ${res.status}`)
     const json: TaskStatus = await res.json()
@@ -559,7 +561,7 @@ async function pollBatchTask(
     throwIfAborted(signal)
     const res = await httpFetch(
       `${API_BASE}/extract-results/batch/${batchId}`,
-      { headers, signal },
+      { headers, ...(signal ? { signal } : {}) },
     )
     if (!res.ok) throw new Error(`MinerU batch poll failed: HTTP ${res.status}`)
     const json: BatchStatus = await res.json()
@@ -638,7 +640,7 @@ async function downloadAndExtractMarkdown(
 ): Promise<MineruExtractedMarkdown> {
   const httpFetch = await getHttpFetch()
   throwIfAborted(signal)
-  const res = await httpFetch(zipUrl, { signal })
+  const res = await httpFetch(zipUrl, { ...(signal ? { signal } : {}) })
   if (!res.ok) throw new Error(`MinerU zip download failed: HTTP ${res.status}`)
 
   const buffer = await res.arrayBuffer()
@@ -654,12 +656,13 @@ async function downloadAndExtractMarkdown(
     }
   })
 
-  if (mdEntries.length === 0) {
+  const fullMd = mdEntries.find(([relativePath]) => relativePath.split('/').pop()?.toLowerCase() === 'full.md')
+  const markdownEntry = fullMd ?? mdEntries[0]
+  if (markdownEntry === undefined) {
     throw new Error('No Markdown file found in MinerU result zip')
   }
 
-  const fullMd = mdEntries.find(([relativePath]) => relativePath.split('/').pop()?.toLowerCase() === 'full.md')
-  const markdown = await (fullMd ?? mdEntries[0])[1].async('string')
+  const markdown = await markdownEntry[1].async('string')
   const markdownWithTables = convertHtmlTablesToMarkdown(markdown)
   if (!assetOptions) return { markdown: markdownWithTables, savedImages: [] }
 
@@ -729,7 +732,7 @@ async function parseWithLocalMineru(
     try {
       const healthRes = await httpFetch(
         `${apiBase}/health`,
-        localMineruRequestInit(config.localToken, { signal }),
+        localMineruRequestInit(config.localToken, { ...(signal ? { signal } : {}) }),
       )
       if (healthRes.ok) {
         const health: { version?: unknown } = await healthRes.json()
@@ -762,7 +765,7 @@ async function parseWithLocalMineru(
     `${apiBase}/tasks`,
     localMineruRequestInit(config.localToken, {
       method: 'POST',
-      signal,
+      ...(signal ? { signal } : {}),
       body: form,
     }),
   )
@@ -788,9 +791,7 @@ async function parseWithLocalMineru(
 
     const statusRes = await httpFetch(
       statusUrl,
-      localMineruRequestInit(config.localToken, {
-        signal,
-      }),
+      localMineruRequestInit(config.localToken, { ...(signal ? { signal } : {}) }),
     )
     if (!statusRes.ok) {
       throw new Error(`Local MinerU status check failed: HTTP ${statusRes.status}`)
@@ -801,9 +802,7 @@ async function parseWithLocalMineru(
       onProgress?.('Downloading parsed result...')
       const resultRes = await httpFetch(
         resultUrl,
-        localMineruRequestInit(config.localToken, {
-          signal,
-        }),
+        localMineruRequestInit(config.localToken, { ...(signal ? { signal } : {}) }),
       )
       if (!resultRes.ok) {
         throw new Error(`Local MinerU download failed: HTTP ${resultRes.status}`)
@@ -833,8 +832,10 @@ async function parseWithLocalMineru(
           // The data URI describes the bytes actually written. The server's
           // filename is untrusted lookup metadata and may carry a mismatched
           // extension, which would break previews and downstream MIME handling.
-          const mimeType = match[1].toLowerCase()
-          const extension = mineruExtensionForMimeType(mimeType)
+          const mimeType = match[1]
+          const dataUriBase64 = match[2]
+          if (mimeType === undefined || dataUriBase64 === undefined) continue
+          const extension = mineruExtensionForMimeType(mimeType.toLowerCase())
           if (!extension) continue
           // Server-provided names are untrusted and may collide or contain a
           // Windows reserved device name. Generate deterministic local names
@@ -842,7 +843,7 @@ async function parseWithLocalMineru(
           const safeName = `image-${savedImages.length + 1}.${extension}`
           const absPath = `${mediaDir}/${safeName}`
           const relPath = `media/${assetOptions.sourceSummarySlug}/mineru/images/${safeName}`
-          await writeFileBase64(absPath, match[2])
+          await writeFileBase64(absPath, dataUriBase64)
           savedImages.push({
             index: savedImages.length,
             mimeType,

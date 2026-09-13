@@ -2,6 +2,12 @@ import type { LintResult } from '@/lib/lint'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { type LintItem, useLintStore } from './lint-store'
 
+function at<T>(items: readonly T[], index: number): T {
+  const item = items[index]
+  if (item === undefined) throw new Error(`expected an element at index ${index}`)
+  return item
+}
+
 function makeLintResult(
   overrides: Partial<Omit<LintResult, 'type' | 'severity' | 'page' | 'detail'>> & {
     type?: LintResult['type']
@@ -28,9 +34,9 @@ describe('lint-store addItems', () => {
     useLintStore.getState().addItems(results)
     const items = useLintStore.getState().items
     expect(items).toHaveLength(1)
-    expect(items[0].id).toMatch(/^lint-\d+$/)
-    expect(items[0].createdAt).toBeTypeOf('number')
-    expect(items[0].page).toBe('page-a.md')
+    expect(at(items, 0).id).toMatch(/^lint-\d+$/)
+    expect(at(items, 0).createdAt).toBeTypeOf('number')
+    expect(at(items, 0).page).toBe('page-a.md')
   })
 
   it('adds multiple LintResult items in one call', () => {
@@ -57,7 +63,7 @@ describe('lint-store addItems', () => {
       },
     ]
     useLintStore.getState().addItems(results)
-    const item = useLintStore.getState().items[0]
+    const item = at(useLintStore.getState().items, 0)
     expect(item.type).toBe('semantic')
     expect(item.severity).toBe('warning')
     expect(item.page).toBe('entities/transformer.md')
@@ -77,7 +83,7 @@ describe('lint-store setItems', () => {
     ]
     useLintStore.getState().setItems(incoming)
     expect(useLintStore.getState().items).toHaveLength(1)
-    expect(useLintStore.getState().items[0].page).toBe('new.md')
+    expect(at(useLintStore.getState().items, 0).page).toBe('new.md')
   })
 
   it('can set empty array to clear items', () => {
@@ -102,7 +108,7 @@ describe('lint-store setItems', () => {
 describe('lint-store removeItem', () => {
   it('removes the item with the given id', () => {
     useLintStore.getState().addItems([makeLintResult({ page: 'to-remove.md' })])
-    const id = useLintStore.getState().items[0].id
+    const id = at(useLintStore.getState().items, 0).id
     useLintStore.getState().removeItem(id)
     expect(useLintStore.getState().items).toHaveLength(0)
   })
@@ -116,10 +122,10 @@ describe('lint-store removeItem', () => {
   it('only removes the item with the matching id', () => {
     useLintStore.getState().addItems([makeLintResult({ page: 'keep.md' }), makeLintResult({ page: 'remove.md' })])
     const ids = useLintStore.getState().items.map((i) => i.id)
-    useLintStore.getState().removeItem(ids[1])
+    useLintStore.getState().removeItem(at(ids, 1))
     const remaining = useLintStore.getState().items
     expect(remaining).toHaveLength(1)
-    expect(remaining[0].page).toBe('keep.md')
+    expect(at(remaining, 0).page).toBe('keep.md')
   })
 })
 
@@ -132,11 +138,11 @@ describe('lint-store removeItems', () => {
     ])
     const items = useLintStore.getState().items
 
-    useLintStore.getState().removeItems([items[1].id, items[2].id])
+    useLintStore.getState().removeItems([at(items, 1).id, at(items, 2).id])
 
     const remaining = useLintStore.getState().items
     expect(remaining).toHaveLength(1)
-    expect(remaining[0].page).toBe('keep.md')
+    expect(at(remaining, 0).page).toBe('keep.md')
   })
 
   it('is a no-op for an empty id list', () => {

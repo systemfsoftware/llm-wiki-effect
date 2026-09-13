@@ -65,8 +65,8 @@ export function resolveConfig(
       reasoning,
       ingestReasoning,
       localCliIsolation: false,
-      requestTimeoutMinutes,
-      customHeaders,
+      ...(requestTimeoutMinutes !== undefined ? { requestTimeoutMinutes } : {}),
+      ...(customHeaders !== undefined ? { customHeaders } : {}),
       ...streamingConfig,
     }
   }
@@ -82,8 +82,8 @@ export function resolveConfig(
       reasoning,
       ingestReasoning,
       localCliIsolation: false,
-      requestTimeoutMinutes,
-      customHeaders,
+      ...(requestTimeoutMinutes !== undefined ? { requestTimeoutMinutes } : {}),
+      ...(customHeaders !== undefined ? { customHeaders } : {}),
       ...streamingConfig,
     }
   }
@@ -101,8 +101,8 @@ export function resolveConfig(
       reasoning,
       ingestReasoning,
       localCliIsolation: false,
-      requestTimeoutMinutes,
-      customHeaders,
+      ...(requestTimeoutMinutes !== undefined ? { requestTimeoutMinutes } : {}),
+      ...(customHeaders !== undefined ? { customHeaders } : {}),
       ...streamingConfig,
     }
   }
@@ -120,8 +120,10 @@ export function resolveConfig(
       reasoning,
       ingestReasoning,
       localCliIsolation,
-      codexCliTimeoutMinutes: preset.provider === 'codex-cli' ? codexCliTimeoutMinutes : undefined,
-      requestTimeoutMinutes,
+      ...(preset.provider === 'codex-cli' && codexCliTimeoutMinutes !== undefined
+        ? { codexCliTimeoutMinutes }
+        : {}),
+      ...(requestTimeoutMinutes !== undefined ? { requestTimeoutMinutes } : {}),
       ...streamingConfig,
     }
   }
@@ -139,8 +141,8 @@ export function resolveConfig(
     reasoning,
     ingestReasoning,
     localCliIsolation: false,
-    requestTimeoutMinutes,
-    customHeaders,
+    ...(requestTimeoutMinutes !== undefined ? { requestTimeoutMinutes } : {}),
+    ...(customHeaders !== undefined ? { customHeaders } : {}),
     ...streamingConfig,
   }
 }

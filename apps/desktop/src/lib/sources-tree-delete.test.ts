@@ -59,7 +59,7 @@ describe('collectAllFilesIncludingDot', () => {
     const out = collectAllFilesIncludingDot(tree)
     expect(out.every((n) => !n.is_dir)).toBe(true)
     expect(out).toHaveLength(1)
-    expect(out[0].path).toBe('/p/sub/x.md')
+    expect(out[0]?.path).toBe('/p/sub/x.md')
   })
 
   it('handles a directory with no children property (defensive)', () => {
@@ -81,7 +81,7 @@ describe('collectAllFilesIncludingDot', () => {
     const root = dir('/p', [leaf])
     const out = collectAllFilesIncludingDot(root)
     expect(out).toHaveLength(1)
-    expect(out[0].path).toBe('/p/0/1/2/3/4/5/6/7/8/9/leaf.txt')
+    expect(out[0]?.path).toBe('/p/0/1/2/3/4/5/6/7/8/9/leaf.txt')
   })
 })
 

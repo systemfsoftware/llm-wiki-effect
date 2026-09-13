@@ -6,6 +6,12 @@ import { array, assert, constant, constantFrom, option, property, record, string
 import { beforeEach, describe, expect, it } from 'vitest'
 import { type ReviewItem, useReviewStore } from './review-store'
 
+function at<T>(items: readonly T[], index: number): T {
+  const item = items[index]
+  if (item === undefined) throw new Error(`expected an element at index ${index}`)
+  return item
+}
+
 beforeEach(() => {
   useReviewStore.setState({ items: [] })
 })
@@ -43,8 +49,8 @@ describe('review-store addItems — dedupe invariants', () => {
             title: b.title,
             description: b.description,
             options: [...b.options],
-            affectedPages: b.affectedPages ? [...b.affectedPages] : undefined,
-            searchQueries: b.searchQueries ? [...b.searchQueries] : undefined,
+            ...(b.affectedPages ? { affectedPages: [...b.affectedPages] } : {}),
+            ...(b.searchQueries ? { searchQueries: [...b.searchQueries] } : {}),
           }))
           useReviewStore.getState().addItems(input)
         }
@@ -73,7 +79,7 @@ describe('review-store addItems — dedupe invariants', () => {
                 title,
                 description: '',
                 options: [],
-                affectedPages: pages.length > 0 ? pages : undefined,
+                ...(pages.length > 0 ? { affectedPages: pages } : {}),
               },
             ])
           }
@@ -83,7 +89,7 @@ describe('review-store addItems — dedupe invariants', () => {
           expect(pending.length).toBe(1)
 
           const allExpectedPages = new Set(affectedBatches.flat())
-          const actualPages = new Set(pending[0].affectedPages ?? [])
+          const actualPages = new Set(at(pending, 0).affectedPages ?? [])
           expect(actualPages).toEqual(allExpectedPages)
         },
       ),
@@ -104,7 +110,7 @@ describe('review-store addItems — dedupe invariants', () => {
           useReviewStore.getState().addItems([
             { type, title, description: '', options: [], affectedPages: ['first.md'] },
           ])
-          const firstId = useReviewStore.getState().items[0].id
+          const firstId = at(useReviewStore.getState().items, 0).id
           useReviewStore.getState().resolveItem(firstId, 'auto-resolved')
 
           useReviewStore.getState().addItems([
@@ -113,10 +119,11 @@ describe('review-store addItems — dedupe invariants', () => {
 
           const all = useReviewStore.getState().items
           expect(all.length).toBe(1)
-          expect(all[0].id).toBe(firstId)
-          expect(all[0].resolved).toBe(true)
-          expect(all[0].resolvedAction).toBe('auto-resolved')
-          expect(all[0].affectedPages).toEqual(expect.arrayContaining(['second.md']))
+          const merged = at(all, 0)
+          expect(merged.id).toBe(firstId)
+          expect(merged.resolved).toBe(true)
+          expect(merged.resolvedAction).toBe('auto-resolved')
+          expect(merged.affectedPages).toEqual(expect.arrayContaining(['second.md']))
         },
       ),
     )

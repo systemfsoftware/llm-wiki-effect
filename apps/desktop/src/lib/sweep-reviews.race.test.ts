@@ -206,8 +206,8 @@ describe('sweep — rule-based auto-resolution', () => {
     expect(resolved).toBe(1)
 
     const items = useReviewStore.getState().items
-    expect(items[0].resolved).toBe(true)
-    expect(items[0].resolvedAction).toBe('auto-resolved')
+    expect(items[0]?.resolved).toBe(true)
+    expect(items[0]?.resolvedAction).toBe('auto-resolved')
   })
 
   it("does not resolve when the page doesn't exist", async () => {
@@ -220,7 +220,7 @@ describe('sweep — rule-based auto-resolution', () => {
 
     const resolved = await sweepResolvedReviews('/project')
     expect(resolved).toBe(0)
-    expect(useReviewStore.getState().items[0].resolved).toBe(false)
+    expect(useReviewStore.getState().items[0]?.resolved).toBe(false)
   })
 })
 

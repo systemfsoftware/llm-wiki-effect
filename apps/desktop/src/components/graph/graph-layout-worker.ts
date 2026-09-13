@@ -38,7 +38,7 @@ self.onmessage = (event: MessageEvent<LayoutRequest>) => {
 
   const positions: Array<{ id: string; x: number; y: number }> = []
   graph.forEachNode((id, attrs) => {
-    positions.push({ id, x: attrs.x, y: attrs.y })
+    positions.push({ id, x: attrs['x'], y: attrs['y'] })
   })
 
   self.postMessage({ key, positions })

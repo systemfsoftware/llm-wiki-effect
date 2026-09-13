@@ -38,7 +38,7 @@ describe('buildWikiGraph frontmatter extraction', () => {
     const graph = await buildWikiGraph('/project')
 
     expect(graph.nodes).toHaveLength(1)
-    expect(graph.nodes[0].label).toBe('Real Heading')
+    expect(graph.nodes[0]?.label).toBe('Real Heading')
   })
 
   it('does not read a type: line from the document body as the frontmatter type', async () => {
@@ -52,7 +52,7 @@ describe('buildWikiGraph frontmatter extraction', () => {
 
     // A misread type of "query" would match HIDDEN_TYPES and silently drop the page.
     expect(graph.nodes).toHaveLength(1)
-    expect(graph.nodes[0].type).toBe('other')
+    expect(graph.nodes[0]?.type).toBe('other')
   })
 
   it('parses CRLF frontmatter consistently with the rest of the application', async () => {

@@ -117,7 +117,7 @@ async function fetchEmbeddingViaMockHttp(
   }
   if (config.apiKey) {
     if (isGoogle) headers['x-goog-api-key'] = config.apiKey
-    else headers.Authorization = `Bearer ${config.apiKey}`
+    else headers['Authorization'] = `Bearer ${config.apiKey}`
   }
   for (const [name, value] of Object.entries(config.extraHeaders ?? {})) {
     const trimmed = name.trim()
@@ -273,9 +273,16 @@ function googleBodyForTest(model: string, text: string, outputDimensionality?: n
     content: { parts: [{ text }] },
   }
   if (typeof outputDimensionality === 'number' && Number.isFinite(outputDimensionality) && outputDimensionality > 0) {
-    body.output_dimensionality = Math.floor(outputDimensionality)
+    body['output_dimensionality'] = Math.floor(outputDimensionality)
   }
   return body
+}
+
+/** Recorded `embedding_fetch` call at `index`; throws when the call never happened. */
+function fetchCallAt(index: number): [url: string, opts: RecordedFetchInit] {
+  const call = mockHttpFetch.mock.calls[index]
+  if (call === undefined) throw new Error(`mockHttpFetch has no call at index ${index}`)
+  return call
 }
 
 // ── searchByEmbedding — chunk→page aggregation ─────────────────────
@@ -308,11 +315,11 @@ describe('searchByEmbedding — aggregation', () => {
     const out = await searchByEmbedding('/tmp/p', 'q', cfg, 10)
     expect(out.map((p) => p.id)).toEqual(['A', 'B', 'C'])
     // A's score: 0.9 + min(0.5 * 0.3, 1 - 0.9) = 0.9 + min(0.15, 0.1) = 1.0
-    expect(out[0].score).toBeCloseTo(1.0, 5)
+    expect(out[0]?.score).toBeCloseTo(1.0, 5)
     // B's score: 0.88 + 0 = 0.88
-    expect(out[1].score).toBeCloseTo(0.88, 5)
+    expect(out[1]?.score).toBeCloseTo(0.88, 5)
     // C's score: 0.2 + 0 = 0.2
-    expect(out[2].score).toBeCloseTo(0.2, 5)
+    expect(out[2]?.score).toBeCloseTo(0.2, 5)
   })
 
   it('caps tail contribution so the blended score cannot exceed 1.0', async () => {
@@ -336,8 +343,8 @@ describe('searchByEmbedding — aggregation', () => {
     expect(out.map((p) => p.id)).toEqual(['X', 'Y'])
     // Exact pinned score: if the cap regressed (e.g. uncapped sum),
     // X would land at 1.08 and this assertion would fail loudly.
-    expect(out[0].score).toBeCloseTo(1.0, 10)
-    expect(out[1].score).toBeCloseTo(0.95, 10)
+    expect(out[0]?.score).toBeCloseTo(1.0, 10)
+    expect(out[1]?.score).toBeCloseTo(0.95, 10)
   })
 
   it('applies the tail contribution below the cap when weighted tail < (1 - top)', async () => {
@@ -351,7 +358,7 @@ describe('searchByEmbedding — aggregation', () => {
       { chunk_id: 'P#2', page_id: 'P', chunk_index: 2, chunk_text: '', heading_path: '', score: 0.1 },
     ])
     const out = await searchByEmbedding('/tmp/p', 'q', cfg, 10)
-    expect(out[0].score).toBeCloseTo(0.56, 10)
+    expect(out[0]?.score).toBeCloseTo(0.56, 10)
   })
 
   it('over-fetches topK × 3 chunks with a floor of 30 so the page-grouping has enough candidates', async () => {
@@ -391,7 +398,7 @@ describe('searchByEmbedding — aggregation', () => {
       { chunk_id: 'A#2', page_id: 'A', chunk_index: 2, chunk_text: 'mid', heading_path: '', score: 0.5 },
     ])
     const out = await searchByEmbedding('/tmp/p', 'q', cfg, 5)
-    expect(out[0].matchedChunks?.map((c) => c.text)).toEqual(['high', 'mid', 'low'])
+    expect(out[0]?.matchedChunks?.map((c) => c.text)).toEqual(['high', 'mid', 'low'])
   })
 
   it('attaches up to 3 matched chunks with metadata', async () => {
@@ -404,10 +411,11 @@ describe('searchByEmbedding — aggregation', () => {
     ])
     const out = await searchByEmbedding('/tmp/p', 'q', cfg, 10)
     const a = out[0]
+    if (a === undefined) throw new Error('expected a page result at index 0')
     expect(a.matchedChunks).toHaveLength(3)
-    expect(a.matchedChunks?.[0].text).toBe('first')
-    expect(a.matchedChunks?.[0].headingPath).toBe('## Intro')
-    expect(a.matchedChunks?.[0].score).toBeCloseTo(0.9, 5)
+    expect(a.matchedChunks?.[0]?.text).toBe('first')
+    expect(a.matchedChunks?.[0]?.headingPath).toBe('## Intro')
+    expect(a.matchedChunks?.[0]?.score).toBeCloseTo(0.9, 5)
   })
 
   it('respects the topK cutoff', async () => {
@@ -441,11 +449,13 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.1, 0.2])
-    const [url, opts] = mockHttpFetch.mock.calls[0]
+    const fetchCall = mockHttpFetch.mock.calls[0]
+    if (fetchCall === undefined) throw new Error('expected a recorded embedding fetch call')
+    const [url, opts] = fetchCall
     const headers = opts.headers
     expect(url).toBe('https://api.openai.com/v1/embeddings')
-    expect(headers.Authorization).toBe('Bearer sk-test')
-    expect(headers.Origin).toBeUndefined()
+    expect(headers['Authorization']).toBe('Bearer sk-test')
+    expect(headers['Origin']).toBeUndefined()
     expect(headers['x-goog-api-key']).toBeUndefined()
     expect(JSON.parse(opts.body)).toEqual({
       model: 'text-embedding-3-small',
@@ -464,11 +474,11 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.3, 0.4])
-    const [url, opts] = mockHttpFetch.mock.calls[0]
+    const [url, opts] = fetchCallAt(0)
     const headers = opts.headers
     expect(url).toBe('http://127.0.0.1:1234/v1/embeddings')
-    expect(headers.Authorization).toBeUndefined()
-    expect(headers.Origin).toBe('http://localhost')
+    expect(headers['Authorization']).toBeUndefined()
+    expect(headers['Origin']).toBe('http://localhost')
     expect(headers['x-goog-api-key']).toBeUndefined()
     expect(JSON.parse(opts.body)).toEqual({
       model: 'text-embedding-qwen3-embedding-0.6b',
@@ -487,9 +497,9 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.3, 0.4])
-    const [, opts] = mockHttpFetch.mock.calls[0]
+    const [, opts] = fetchCallAt(0)
     const headers = opts.headers
-    expect(headers.Origin).toBe('http://localhost')
+    expect(headers['Origin']).toBe('http://localhost')
   })
 
   it('sends safe custom embedding headers on OpenAI-compatible endpoints', async () => {
@@ -514,13 +524,13 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.5, 0.6])
-    const [, opts] = mockHttpFetch.mock.calls[0]
+    const [, opts] = fetchCallAt(0)
     const headers = opts.headers
     expect(headers['X-Model-Provider-Id']).toBe('siliconflow')
-    expect(headers.Authorization).toBe('Bearer sk-test')
+    expect(headers['Authorization']).toBe('Bearer sk-test')
     expect(headers['Content-Type']).toBe('application/json')
-    expect(headers.Origin).toBeUndefined()
-    expect(headers.Host).toBeUndefined()
+    expect(headers['Origin']).toBeUndefined()
+    expect(headers['Host']).toBeUndefined()
     expect(headers['Content-Length']).toBeUndefined()
     expect(headers['x-goog-api-key']).toBeUndefined()
     expect(headers['Bad Header']).toBeUndefined()
@@ -538,7 +548,7 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.5, 0.6])
-    const [url, opts] = mockHttpFetch.mock.calls[0]
+    const [url, opts] = fetchCallAt(0)
     expect(url).toBe('https://gateway.example.com/v1')
     expect(JSON.parse(opts.body)).toEqual({
       model: 'text-embedding-3-small',
@@ -557,9 +567,9 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.1, 0.2])
-    const [url, opts] = mockHttpFetch.mock.calls[0]
+    const [url, opts] = fetchCallAt(0)
     expect(url).toBe('https://ark.cn-beijing.volces.com/api/v3/embeddings')
-    expect(opts.headers.Authorization).toBe('Bearer ark-key')
+    expect(opts.headers['Authorization']).toBe('Bearer ark-key')
     expect(JSON.parse(opts.body)).toEqual({
       model: 'doubao-embedding-text-240715',
       input: 'hi',
@@ -576,7 +586,7 @@ describe('fetchEmbedding — provider wire formats', () => {
       model: 'text-embedding-3-small',
     })
 
-    expect(mockHttpFetch.mock.calls[0][0]).toBe(
+    expect(mockHttpFetch.mock.calls[0]?.[0]).toBe(
       'https://gateway.example.com/proxy/volcengine?upstream=volces.com',
     )
   })
@@ -597,9 +607,9 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.7, 0.8])
-    const [url, opts] = mockHttpFetch.mock.calls[0]
+    const [url, opts] = fetchCallAt(0)
     expect(url).toBe('https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal')
-    expect(opts.headers.Authorization).toBe('Bearer ark-key')
+    expect(opts.headers['Authorization']).toBe('Bearer ark-key')
     expect(JSON.parse(opts.body)).toEqual({
       model: 'doubao-embedding-vision',
       encoding_format: 'float',
@@ -623,7 +633,7 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.4, 0.5])
-    const [url, opts] = mockHttpFetch.mock.calls[0]
+    const [url, opts] = fetchCallAt(0)
     expect(url).toBe('https://gateway.example.com/ark/embeddings/multimodal')
     expect(JSON.parse(opts.body)).toEqual({
       model: 'doubao-embedding-vision',
@@ -647,7 +657,7 @@ describe('fetchEmbedding — provider wire formats', () => {
       model: 'doubao-embedding-vision',
     })
 
-    expect(mockHttpFetch.mock.calls[0][0]).toBe(
+    expect(mockHttpFetch.mock.calls[0]?.[0]).toBe(
       'https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal?trace=1',
     )
   })
@@ -728,10 +738,10 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.7, 0.8])
-    const [, opts] = mockHttpFetch.mock.calls[0]
+    const [, opts] = fetchCallAt(0)
     const headers = opts.headers
     expect(headers['x-goog-api-key']).toBe('real-google-key')
-    expect(headers.Origin).toBeUndefined()
+    expect(headers['Origin']).toBeUndefined()
     expect(headers['X-Trace-Id']).toBe('trace-1')
   })
 
@@ -752,10 +762,10 @@ describe('fetchEmbedding — provider wire formats', () => {
 
     expect(out).toEqual([0.1, 0.2, 0.3])
     expect(mockHttpFetch).toHaveBeenCalledTimes(1)
-    const [url, opts] = mockHttpFetch.mock.calls[0]
+    const [url, opts] = fetchCallAt(0)
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent')
     expect(opts.headers['x-goog-api-key']).toBe('g-key')
-    expect(opts.headers.Authorization).toBeUndefined()
+    expect(opts.headers['Authorization']).toBeUndefined()
     expect(JSON.parse(opts.body)).toEqual({
       model: 'models/gemini-embedding-001',
       content: { parts: [{ text: 'hello' }] },
@@ -778,7 +788,7 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([1, 2])
-    expect(mockHttpFetch.mock.calls[0][0]).toBe(
+    expect(mockHttpFetch.mock.calls[0]?.[0]).toBe(
       'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent',
     )
   })
@@ -799,7 +809,7 @@ describe('fetchEmbedding — provider wire formats', () => {
       model: 'gemini-embedding-2',
     })
 
-    expect(mockHttpFetch.mock.calls[0][0]).toBe(
+    expect(mockHttpFetch.mock.calls[0]?.[0]).toBe(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?other=foo',
     )
   })
@@ -820,7 +830,7 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.7])
-    const [url, opts] = mockHttpFetch.mock.calls[0]
+    const [url, opts] = fetchCallAt(0)
     expect(url).toBe('https://proxy.example.com/google/models/gemini-embedding-2:embedContent')
     expect(opts.headers['x-goog-api-key']).toBe('g-key')
     expect(JSON.parse(opts.body)).toEqual({
@@ -844,7 +854,7 @@ describe('fetchEmbedding — provider wire formats', () => {
       model: 'gemini-embedding-2',
     })
 
-    expect(mockHttpFetch.mock.calls[0][0]).toBe(
+    expect(mockHttpFetch.mock.calls[0]?.[0]).toBe(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent',
     )
   })
@@ -866,7 +876,7 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.1, 0.2])
-    const [, opts] = mockHttpFetch.mock.calls[0]
+    const [, opts] = fetchCallAt(0)
     expect(JSON.parse(opts.body)).toEqual({
       model: 'models/gemini-embedding-2',
       content: { parts: [{ text: 'What is the meaning of life?' }] },
@@ -893,7 +903,7 @@ describe('fetchEmbedding — provider wire formats', () => {
         outputDimensionality: value,
       })
 
-      expect(JSON.parse(mockHttpFetch.mock.calls[0][1].body)).toEqual({
+      expect(JSON.parse(fetchCallAt(0)[1].body)).toEqual({
         model: 'models/gemini-embedding-2',
         content: { parts: [{ text: 'hello' }] },
       })
@@ -916,7 +926,7 @@ describe('fetchEmbedding — provider wire formats', () => {
       outputDimensionality: 1.5,
     })
 
-    expect(JSON.parse(mockHttpFetch.mock.calls[0][1].body)).toEqual({
+    expect(JSON.parse(fetchCallAt(0)[1].body)).toEqual({
       model: 'models/gemini-embedding-2',
       content: { parts: [{ text: 'hello' }] },
       output_dimensionality: 1,
@@ -939,7 +949,7 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.4])
-    expect(mockHttpFetch.mock.calls[0][0]).toBe(
+    expect(mockHttpFetch.mock.calls[0]?.[0]).toBe(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent',
     )
   })
@@ -960,7 +970,7 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.5])
-    const [url, opts] = mockHttpFetch.mock.calls[0]
+    const [url, opts] = fetchCallAt(0)
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent')
     expect(opts.headers['x-goog-api-key']).toBe('header-key')
   })
@@ -1069,8 +1079,8 @@ describe('fetchEmbedding — provider wire formats', () => {
     })
 
     expect(out).toEqual([0.1])
-    const firstBody = JSON.parse(mockHttpFetch.mock.calls[0][1].body)
-    const secondBody = JSON.parse(mockHttpFetch.mock.calls[1][1].body)
+    const firstBody = JSON.parse(fetchCallAt(0)[1].body)
+    const secondBody = JSON.parse(fetchCallAt(1)[1].body)
     expect(firstBody.content.parts[0].text).toHaveLength(200)
     expect(secondBody.content.parts[0].text).toHaveLength(100)
   })
@@ -1091,8 +1101,8 @@ describe('fetchEmbedding (via searchByEmbedding) — auto-halve', () => {
     expect(out.map((p) => p.id)).toEqual(['P'])
     // First call with 2000 chars, second with 1000 chars.
     expect(mockHttpFetch).toHaveBeenCalledTimes(2)
-    const firstBody = JSON.parse(mockHttpFetch.mock.calls[0][1].body)
-    const secondBody = JSON.parse(mockHttpFetch.mock.calls[1][1].body)
+    const firstBody = JSON.parse(fetchCallAt(0)[1].body)
+    const secondBody = JSON.parse(fetchCallAt(1)[1].body)
     expect(firstBody.input.length).toBe(2000)
     expect(secondBody.input.length).toBe(1000)
   })
@@ -1272,7 +1282,9 @@ describe('embedPage', () => {
     )
 
     expect(mockInvoke).toHaveBeenCalledTimes(1)
-    const [cmd, args] = mockInvoke.mock.calls[0]
+    const invokeCall = mockInvoke.mock.calls[0]
+    if (invokeCall === undefined) throw new Error('expected a recorded invoke call')
+    const [cmd, args] = invokeCall
     expect(cmd).toBe('vector_upsert_chunks')
     // TS→Rust conversion happens at the Tauri boundary — from the TS
     // side the arg object keeps its camelCase keys.
@@ -1280,16 +1292,16 @@ describe('embedPage', () => {
     expect(args?.pageId).toBe('rope')
     // Exact count — short body should produce exactly one chunk.
     expect(chunks).toHaveLength(1)
-    expect(chunks[0].chunk_index).toBe(0)
-    expect(chunks[0].chunk_text).toContain('Rotary positional embeddings')
+    expect(chunks[0]?.chunk_index).toBe(0)
+    expect(chunks[0]?.chunk_text).toContain('Rotary positional embeddings')
     // Math.fround(0.1) / 0.2 / 0.3 are the exact f32 representations
     // the Rust side will see. Assert the EXACT rounded value so a
     // regression that removed Math.fround is caught.
-    const emb = chunks[0].embedding
+    const emb = chunks[0]?.embedding
     expect(emb).toEqual([Math.fround(0.1), Math.fround(0.2), Math.fround(0.3)])
     // Also confirm f32 rounding actually drifted the representation
     // (sanity check that we're not comparing to the f64 inputs).
-    expect(emb[0]).not.toBe(0.1)
+    expect(emb?.[0]).not.toBe(0.1)
   })
 
   it('optimizes periodically for incremental page embeddings', async () => {
@@ -1352,7 +1364,7 @@ describe('embedPage', () => {
     // Exactly 3 embed attempts (one per chunk), 2 successes, 1 upsert.
     expect(mockHttpFetch).toHaveBeenCalledTimes(3)
     expect(mockInvoke).toHaveBeenCalledTimes(1)
-    const chunks = mockInvoke.mock.calls[0][1]?.chunks ?? []
+    const chunks = mockInvoke.mock.calls[0]?.[1]?.chunks ?? []
     expect(chunks.map((c) => c.chunk_index)).toEqual([0, 2])
   })
 
@@ -1386,7 +1398,7 @@ describe('embedPage', () => {
       cfg,
     )
 
-    const body = JSON.parse(mockHttpFetch.mock.calls[0][1].body)
+    const body = JSON.parse(fetchCallAt(0)[1].body)
     // Exact shape: title + \n\n + heading path + \n\n + chunk text.
     // A regression that drops the heading-path prefix (the most
     // important context signal for short chunks) would be caught here.
@@ -1404,7 +1416,7 @@ describe('embedPage', () => {
       'Preamble sentence before any heading.',
       cfg,
     )
-    const body = JSON.parse(mockHttpFetch.mock.calls[0][1].body)
+    const body = JSON.parse(fetchCallAt(0)[1].body)
     // No empty blank line between title and body — enrichment must
     // skip empty parts rather than emit `"RoPE\n\n\n\nPreamble..."`.
     expect(body.input).toBe('RoPE\n\nPreamble sentence before any heading.')
@@ -1413,7 +1425,7 @@ describe('embedPage', () => {
   it('omits the title prefix when pageTitle is empty/whitespace', async () => {
     mockHttpFetch.mockResolvedValue(okResponse([0.5]))
     await embedPage('/tmp/p', 'rope', '   ', '## H\n\nbody text.', cfg)
-    const body = JSON.parse(mockHttpFetch.mock.calls[0][1].body)
+    const body = JSON.parse(fetchCallAt(0)[1].body)
     // Must NOT start with "\n\n" (would indicate an empty title was
     // joined in). Must start with the heading path.
     expect(body.input.startsWith('## H')).toBe(true)
@@ -1439,14 +1451,14 @@ describe('embedPage', () => {
 
     mockInvoke.mockClear()
     await embedPage('/tmp/p', 'p', 'P', content, { ...cfg })
-    const defaultChunks = (mockInvoke.mock.calls[0][1]?.chunks ?? []).length
+    const defaultChunks = (mockInvoke.mock.calls[0]?.[1]?.chunks ?? []).length
 
     mockInvoke.mockClear()
     await embedPage('/tmp/p', 'p', 'P', content, {
       ...cfg,
       maxChunkChars: 400,
     })
-    const smallChunks = (mockInvoke.mock.calls[0][1]?.chunks ?? []).length
+    const smallChunks = (mockInvoke.mock.calls[0]?.[1]?.chunks ?? []).length
 
     expect(
       smallChunks,
@@ -1464,25 +1476,26 @@ describe('embedPage', () => {
 
     mockInvoke.mockClear()
     await embedPage('/tmp/p', 'p', 'P', content, { ...cfg, overlapChunkChars: 0 })
-    const zeroOverlap = mockInvoke.mock.calls[0][1]?.chunks ?? []
+    const zeroOverlap = mockInvoke.mock.calls[0]?.[1]?.chunks ?? []
 
     mockInvoke.mockClear()
     await embedPage('/tmp/p', 'p', 'P', content, { ...cfg, overlapChunkChars: 200 })
-    const bigOverlap = mockInvoke.mock.calls[0][1]?.chunks ?? []
+    const bigOverlap = mockInvoke.mock.calls[0]?.[1]?.chunks ?? []
 
     expect(zeroOverlap.length).toBeGreaterThanOrEqual(2)
     expect(bigOverlap).toHaveLength(zeroOverlap.length)
 
     // The first chunk is identical (no prepending); chunks 1..N have
     // the overlap prefix from the previous chunk's tail added.
-    expect(bigOverlap[0].chunk_text).toBe(zeroOverlap[0].chunk_text)
+    expect(bigOverlap[0]?.chunk_text).toBe(zeroOverlap[0]?.chunk_text)
     for (let i = 1; i < bigOverlap.length; i++) {
-      const delta = bigOverlap[i].chunk_text.length - zeroOverlap[i].chunk_text.length
+      const big = bigOverlap[i]
+      const zero = zeroOverlap[i]
+      if (big === undefined || zero === undefined) throw new Error(`missing chunk at index ${i}`)
+      const delta = big.chunk_text.length - zero.chunk_text.length
       expect(
         delta,
-        `chunk[${i}] overlap delta=${delta} (zero=${zeroOverlap[i].chunk_text.length}, big=${
-          bigOverlap[i].chunk_text.length
-        }) — cfg.overlapChunkChars plumbing is probably broken`,
+        `chunk[${i}] overlap delta=${delta} (zero=${zero.chunk_text.length}, big=${big.chunk_text.length}) — cfg.overlapChunkChars plumbing is probably broken`,
       ).toBeGreaterThanOrEqual(100)
     }
   })
@@ -1820,7 +1833,7 @@ describe('embedAllPages', () => {
     expect(commands).toContain('vector_drop_legacy')
     const upserts = mockInvoke.mock.calls.filter((call) => call[0] === 'vector_upsert_chunks')
     expect(upserts).toHaveLength(1)
-    expect(upserts[0][1]?.pageId).toBe('body')
+    expect(upserts[0]?.[1]?.pageId).toBe('body')
     expect(commands.indexOf('vector_drop_legacy')).toBeGreaterThan(commands.lastIndexOf('vector_upsert_chunks'))
   })
 
@@ -1957,7 +1970,7 @@ describe('embedAllPages', () => {
     )
     mockHttpFetch.mockImplementation(async () => okResponse([0.5]))
     await embedAllPages('/proj', cfg)
-    const body = JSON.parse(mockHttpFetch.mock.calls[0][1].body)
+    const body = JSON.parse(fetchCallAt(0)[1].body)
     expect(body.input.startsWith('RoPE 旋转位置编码')).toBe(true)
   })
 
@@ -1968,7 +1981,7 @@ describe('embedAllPages', () => {
     readFileMock.mockResolvedValueOnce('no frontmatter here, just body.')
     mockHttpFetch.mockImplementation(async () => okResponse([0.5]))
     await embedAllPages('/proj', cfg)
-    const body = JSON.parse(mockHttpFetch.mock.calls[0][1].body)
+    const body = JSON.parse(fetchCallAt(0)[1].body)
     expect(body.input.startsWith('mystery')).toBe(true)
   })
 
@@ -2028,7 +2041,7 @@ describe('embedAllPages', () => {
     expect(count).toBe(1)
     const upserts = mockInvoke.mock.calls.filter((c) => c[0] === 'vector_upsert_chunks')
     expect(upserts).toHaveLength(1)
-    expect(upserts[0][1]?.pageId).toBe('b')
+    expect(upserts[0]?.[1]?.pageId).toBe('b')
   })
 })
 

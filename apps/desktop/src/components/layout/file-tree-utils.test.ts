@@ -13,7 +13,12 @@ function file(path: string): FileNode {
 }
 
 function dir(path: string, children?: FileNode[]): FileNode {
-  return { name: lastSegment(path), path, is_dir: true, children }
+  return {
+    name: lastSegment(path),
+    path,
+    is_dir: true,
+    ...(children !== undefined ? { children } : {}),
+  }
 }
 
 describe('replaceNodeChildren', () => {
@@ -40,10 +45,12 @@ describe('replaceNodeChildren', () => {
 
     const result = replaceNodeChildren(tree, '/p/wiki/nested', children)
 
+    const [root] = result.nodes
+    if (!root) throw new Error('expected a root node')
     expect(result.matched).toBe(true)
-    expect(result.nodes[0]).not.toBe(tree[0])
-    expect(result.nodes[0].children?.[0]).toBe(sibling)
-    expect(result.nodes[0].children?.[1]).toEqual({ ...dir('/p/wiki/nested'), children })
+    expect(root).not.toBe(tree[0])
+    expect(root.children?.[0]).toBe(sibling)
+    expect(root.children?.[1]).toEqual({ ...dir('/p/wiki/nested'), children })
   })
 
   it('returns the original tree when the path is not found', () => {

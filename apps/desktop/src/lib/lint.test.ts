@@ -74,7 +74,7 @@ describe('runSemanticLint — language directive', () => {
     useWikiStore.getState().setOutputLanguage('Korean')
     await runSemanticLint('/project', fakeLlmConfig())
 
-    const prompt = mockStreamChat.mock.calls[0][1][0].content
+    const prompt = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
     expect(prompt).toContain('MANDATORY OUTPUT LANGUAGE: Korean')
   })
 
@@ -97,14 +97,16 @@ describe('runSemanticLint — language directive', () => {
     useWikiStore.getState().setOutputLanguage('auto')
     await runSemanticLint('/project', fakeLlmConfig())
 
-    const prompt = mockStreamChat.mock.calls[0][1][0].content
+    const prompt = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
     expect(prompt).toContain('MANDATORY OUTPUT LANGUAGE: Chinese')
   })
 
   it('explicit setting wins over source language', async () => {
     const pages = [makeFileNode('x.md', 'これは日本語の内容です')]
     mockListDirectory.mockResolvedValue(pages.map((p) => p.node))
-    mockReadFile.mockResolvedValue(pages[0].content)
+    const page = pages[0]
+    if (page === undefined) throw new Error('expected a page fixture')
+    mockReadFile.mockResolvedValue(page.content)
     mockStreamChat.mockImplementation(async (_c, _m, cb) => {
       cb.onToken('')
       cb.onDone()
@@ -113,7 +115,7 @@ describe('runSemanticLint — language directive', () => {
     useWikiStore.getState().setOutputLanguage('English')
     await runSemanticLint('/project', fakeLlmConfig())
 
-    const prompt = mockStreamChat.mock.calls[0][1][0].content
+    const prompt = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
     expect(prompt).toContain('MANDATORY OUTPUT LANGUAGE: English')
     expect(prompt).not.toContain('MANDATORY OUTPUT LANGUAGE: Japanese')
   })
@@ -157,7 +159,7 @@ describe('runSemanticLint — missing-page false positives (#537)', () => {
     const missingPages = results.filter((r) => r.detail.includes('[missing-page]'))
     // The two existing-entity false positives are filtered; only 尼采 remains.
     expect(missingPages).toHaveLength(1)
-    expect(missingPages[0].page).toBe('尼采')
+    expect(missingPages[0]?.page).toBe('尼采')
   })
 
   it('does not suppress an unrelated finding that merely contains an existing short title', async () => {
@@ -183,7 +185,7 @@ describe('runSemanticLint — missing-page false positives (#537)', () => {
     const results = await runSemanticLint('/project', fakeLlmConfig())
 
     expect(results).toHaveLength(1)
-    expect(results[0].page).toBe('FAIR data governance')
+    expect(results[0]?.page).toBe('FAIR data governance')
   })
 })
 
@@ -199,8 +201,8 @@ describe('runSemanticLint — activity & early returns', () => {
     const items = useActivityStore.getState().items
     expect(items).toHaveLength(1)
     // Final state after run completes
-    expect(items[0].type).toBe('lint')
-    expect(['done', 'error']).toContain(items[0].status)
+    expect(items[0]?.type).toBe('lint')
+    expect(['done', 'error']).toContain(items[0]?.status)
   })
 
   it('returns empty and marks done when wiki has no pages', async () => {
@@ -211,14 +213,14 @@ describe('runSemanticLint — activity & early returns', () => {
     expect(mockStreamChat).not.toHaveBeenCalled()
 
     const items = useActivityStore.getState().items
-    expect(items[0].detail).toMatch(/no wiki pages/i)
+    expect(items[0]?.detail).toMatch(/no wiki pages/i)
   })
 
   it('marks error status when wiki directory read fails', async () => {
     mockListDirectory.mockRejectedValue(new Error('ENOENT'))
     await runSemanticLint('/project', fakeLlmConfig())
     const items = useActivityStore.getState().items
-    expect(items[0].status).toBe('error')
+    expect(items[0]?.status).toBe('error')
   })
 })
 

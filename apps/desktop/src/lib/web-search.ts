@@ -42,9 +42,9 @@ export function resolveSearchConfig(config: SearchApiConfig): SearchApiConfig {
       ? {
         [config.provider]: {
           apiKey: config.apiKey,
-          serpApiEngine: config.serpApiEngine,
-          searXngUrl: config.searXngUrl,
-          searXngCategories: config.searXngCategories,
+          ...(config.serpApiEngine !== undefined ? { serpApiEngine: config.serpApiEngine } : {}),
+          ...(config.searXngUrl !== undefined ? { searXngUrl: config.searXngUrl } : {}),
+          ...(config.searXngCategories !== undefined ? { searXngCategories: config.searXngCategories } : {}),
         },
       }
       : {}),
@@ -52,7 +52,7 @@ export function resolveSearchConfig(config: SearchApiConfig): SearchApiConfig {
       ? {
         searxng: {
           searXngUrl: config.searXngUrl,
-          searXngCategories: config.searXngCategories,
+          ...(config.searXngCategories !== undefined ? { searXngCategories: config.searXngCategories } : {}),
         },
       }
       : {}),

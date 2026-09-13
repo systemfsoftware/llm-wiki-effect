@@ -78,14 +78,16 @@ describe('fs command path guards', () => {
     expect(firstTree).toEqual(tree)
     expect(secondTree).toEqual(tree)
     expect(firstTree).not.toBe(secondTree)
-    expect(firstTree[0]).not.toBe(secondTree[0])
-    expect(firstTree[0].children?.[0]).not.toBe(secondTree[0].children?.[0])
-    secondTree[0].name = 'mutated'
-    const mutatedChild = secondTree[0].children?.[0]
+    const [firstRoot, secondRoot] = [firstTree[0], secondTree[0]]
+    if (!firstRoot || !secondRoot) throw new Error('expected both cloned trees to expose a root node')
+    expect(firstRoot).not.toBe(secondRoot)
+    expect(firstRoot.children?.[0]).not.toBe(secondRoot.children?.[0])
+    secondRoot.name = 'mutated'
+    const mutatedChild = secondRoot.children?.[0]
     if (!mutatedChild) throw new Error('expected the cloned tree to expose a child node')
     mutatedChild.name = 'mutated-child.md'
-    expect(firstTree[0].name).toBe('wiki')
-    expect(firstTree[0].children?.[0]?.name).toBe('page.md')
+    expect(firstRoot.name).toBe('wiki')
+    expect(firstRoot.children?.[0]?.name).toBe('page.md')
 
     mocks.invoke.mockResolvedValueOnce([])
     await listDirectory('/tmp/project', { maxDepth: 2 })

@@ -23,7 +23,7 @@ void test('normalizeBaseUrl trims trailing slashes and falls back to localhost',
 void test('projects sends bearer token and parses current project', async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = []
   const fetchImpl = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    calls.push({ url: readRequestUrl(url), init })
+    calls.push({ url: readRequestUrl(url), ...(init !== undefined ? { init } : {}) })
     return new Response(
       JSON.stringify({
         ok: true,

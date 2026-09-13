@@ -207,7 +207,7 @@ export async function streamCodexCli(
       model: config.model,
       prompt: buildPrompt(messages),
       isolateLocalConfig: config.localCliIsolation === true,
-      timeoutMinutes: config.codexCliTimeoutMinutes,
+      ...(config.codexCliTimeoutMinutes !== undefined ? { timeoutMinutes: config.codexCliTimeoutMinutes } : {}),
       workingDirectory,
     }
     await invoke('codex_cli_spawn', payload)

@@ -1,5 +1,5 @@
 ---
-title: Turbo owns the task graph, and a workspace-listed root package owns tasks
+title: Turbo owns the task graph, and every task belongs to a package
 date: 2026-09-13
 category: tooling-decisions
 module: build
@@ -8,29 +8,27 @@ component: tooling
 severity: medium
 applies_when:
   - Adding or renaming a task in turbo.json
-  - Adding a script to the root package.json or to an app package under apps/
+  - Adding a script to a package under apps/ or packages/
   - A task reports FULL TURBO when it should have re-run
 tags: [turbo, task-graph, monorepo, caching, pnpm-workspace]
 ---
 
-# Turbo owns the task graph, and a workspace-listed root package owns tasks
+# Turbo owns the task graph, and every task belongs to a package
 
 ## Context
 
-This repo is a pnpm workspace of three projects: the desktop app under
-`apps/desktop`, the MCP server under `apps/mcp-server`, and the root package,
-which is a pure orchestrator (no runtime dependencies, no version). `turbo`
-routes the gates, matching the template the repo's toolchain was drawn from.
+This repo is a pnpm workspace of four projects: the desktop app under
+`apps/desktop`, the MCP server under `apps/mcp-server`, the shared lint config
+under `packages/oxlint-config`, and the root package, which is a pure
+orchestrator (no runtime dependencies, no version). `turbo` routes the gates,
+matching the template the repo's toolchain was drawn from.
 
-The shape now matches that template, with one addition the template does not
-need: the root still owns two task scripts (`lint` and `typecheck`, for the
-repo-wide oxlint pass and the root tooling tsconfig), so those two tasks are
-**registered root tasks** — `//#lint` and `//#typecheck` in `turbo.json`.
-Measured on turbo 2.10.12: a bare `turbo run <task>` selects only member
-packages' scripts; the root package joins the selection only when the task has
-a `//#<task>` definition registered. Register no other `//#` keys — the root's
-`test:mocks` and `build` wrapper scripts stay out of every bare selection for
-the same reason.
+Every task belongs to a package. `turbo.json` defines only unqualified task
+names — `lint`, `typecheck`, `build`, `test:mocks`, `test` — and the root
+package owns no task at all: its scripts are the orchestrator entry points
+(`gate:tasks`, `gate:dist`, `check:ci`) and `turbo run` wrappers. Measured on
+turbo 2.10.12: a bare `turbo run <task>` selects only member packages' scripts,
+so the root's wrapper scripts can never be selected by their own run.
 
 ## Guidance
 
@@ -51,18 +49,21 @@ per-phase reporting for nothing — turbo already reports each task's outcome
 inside a phase. Gate: `pnpm check:ci` prints one `[check:ci] <phase> ok` line per
 phase.
 
-**A task definition may be package-qualified or a registered root task, and
-every task must be one or the other.** `//#lint` and `//#typecheck` are the
-root's; `llm-wiki#test:mocks` and `llm-wiki-mcp-server#test` carry their
-package; only `typecheck` and `build` stay unqualified, because member packages
-define them. Unqualified definitions are not harmless: an unqualified `test`
-would also capture a root `test` wrapper — which builds the whole app before
-running suites that need paid API keys — and phantom entries appear for packages
-without the script. Gate: `pnpm exec turbo run lint typecheck test:mocks
-llm-wiki-mcp-server#test --dry=json` lists exactly the seven tasks that execute
-(`//#lint`, `//#typecheck`, `llm-wiki#typecheck`, `llm-wiki-mcp-server#typecheck`,
-`llm-wiki#test:mocks`, `llm-wiki-mcp-server#build`,
-`llm-wiki-mcp-server#test`), with no phantom entries.
+**Task definitions are unqualified; only the gate's selection may name a
+package.** `turbo.json` defines `lint`, `typecheck`, `build`, `test:mocks`, and
+`test`, and turbo runs each in the packages that define the script. The gate
+selects `llm-wiki-mcp-server#test` because the desktop app's own `test` script
+is the paid-API suite (`pnpm test:mocks && pnpm test:llm`), which CI must not
+run; the qualified name picks one package without giving `test` a
+package-specific definition. A package-qualified key in `turbo.json` would
+instead make the task's `inputs`, `outputs`, and `dependsOn` apply to that
+package alone. Gate: `pnpm exec turbo run lint typecheck test:mocks
+llm-wiki-mcp-server#test --dry=json` lists exactly the nine tasks that execute
+(`llm-wiki#lint`, `llm-wiki-mcp-server#lint`, `llm-wiki-oxlint-config#lint`,
+`llm-wiki#typecheck`, `llm-wiki-mcp-server#typecheck`,
+`llm-wiki-oxlint-config#typecheck`, `llm-wiki#test:mocks`,
+`llm-wiki-mcp-server#build`, `llm-wiki-mcp-server#test`), with no phantom
+entries and no root task.
 
 **`dependsOn` replaces an inline chained command, and the release path restates
 it.** The app's `build` script is `vite build`; the ordering that used to be
@@ -74,18 +75,19 @@ supplies it. Gate: `pnpm build:desktop` from a deleted `apps/desktop/dist/` and
 `apps/mcp-server/dist/` restores both.
 
 **Narrow `inputs` only to trees the task provably cannot read, and prove the
-narrowing with an A/B on a real edit.** Root tasks key on `$TURBO_DEFAULT$`
-(the root package's files, which include the vendored `repos/` tree) plus
-explicit positive globs for the trees oxlint reads outside the root package
-(`apps/*/src/**`, `apps/*/test/**`, app-root configs, `extension/**/*.js`);
-`//#lint` carries depth-free `!**/repos/**` and `!**/src-tauri/**` negations,
-`//#typecheck` carries `!**/repos/**`. Member-package tasks keep package-relative
-negations (`!src-tauri/**` on `typecheck`/`build` resolves to
-`apps/desktop/src-tauri/**` for the app and matches nothing for the MCP server).
-What excludes which tree: `oxlint.config.ts` ignorePatterns are depth-free
-(`**/src-tauri/**`, `**/repos/**`), the app's `tsconfig.app.json` scopes to
-`apps/desktop/src`, and the root tooling tsconfig covers only
-`commitlint.config.ts` and `oxlint.config.ts`. (The A/B that justified the
+narrowing with an A/B on a real edit.** `lint` keys on `$TURBO_DEFAULT$` plus
+the files that can change its verdict outside the package's own sources: the
+package's `oxlint.config.ts`, its `tsconfig*.json` (the type-aware pass reads
+them), and the shared config package it extends
+(`$TURBO_ROOT$/packages/oxlint-config/src/**` and its `package.json`) — so
+editing one rule in the shared base re-runs every package's lint. `typecheck`
+keys on the same tsconfig set. Both carry depth-free `!**/repos/**`, `lint`
+also `!**/*.md`, and member-package `typecheck`/`build` keep the
+package-relative negation `!src-tauri/**`, which resolves to
+`apps/desktop/src-tauri/**` for the app and matches nothing for the MCP server.
+What excludes which tree: the shared base's `ignorePatterns` are depth-free
+(`**/src-tauri/**`, `**/repos/**`, `**/dist/**`), and the app's
+`tsconfig.app.json` scopes to `apps/desktop/src`. (The A/B that justified the
 first narrowing — 61 files under `src-tauri/` and 41 under `repos/`
 over-claimed — predates the `apps/*` move; the negations it proved carry over
 verbatim in depth-free form.) Gate: after a Rust-only edit to
@@ -106,11 +108,12 @@ an `apps/desktop/src-tauri/Cargo.toml` edit.
 **`dependsOn: ["^build"]` would do nothing here, so it is not written.**
 `^` expands to a package's `directDependencies`, and both packages report
 `directDependencies: ["//"]` with `packageGraph.edges.length = 0`. Adding
-`^build` to the `build` task produced an identical four-task schedule and an
+`^build` to the `build` task produced an identical schedule and an
 identical resolved `dependencies` list on the `build` task; only the task hash
 moved, which is a one-time full cache invalidation for no ordering gain. Gate:
-`pnpm exec turbo run build --dry=json` schedules the same four tasks with and
-without it.
+`pnpm exec turbo run build --dry=json` schedules the same five tasks with and
+without it (`gate:dist` runs five: both packages' `build` and `typecheck`, plus
+the config package's `typecheck`, which `build`'s `dependsOn` pulls in).
 
 **`outputs` must name only artifacts the task actually writes.** `test:mocks`
 runs vitest without `--coverage`, so its `outputs` is `[]`. Listing a
@@ -244,16 +247,16 @@ root-`assets` file appears in `dist/`. Excluding `assets/**` from `build`'s
 inputs would therefore have been safe, not a regression; it was left in place
 only because those nine files do not churn.
 
-Today the graph is three projects — the root orchestrator plus the two members
-under `apps/` — still with zero package edges. The root appears as the
-synthetic `//` entry; the registered `//#lint` and `//#typecheck` keys target
-it, while member tasks use `package#task` keys, so the two never contend.
+Today the graph is four projects — the root orchestrator, the two members under
+`apps/`, and the shared lint config under `packages/` — still with zero package
+edges. The root appears as the synthetic `//` entry and owns no task; every
+task key is `package#task`.
 
 ## Where this landed in CI
 
 `.github/workflows/ci.yml` restores `.turbo/cache` under
 `turbo-${{ runner.os }}-gate-${{ github.event.pull_request.head.sha || github.sha }}`
-with prefix `restore-keys`, so the six tasks run warm on all three matrix
+with prefix `restore-keys`, so the nine tasks run warm on all three matrix
 platforms instead of cold. The key names the pull request's head commit rather
 than `github.sha`, because on a `pull_request` event `github.sha` is the merge
 commit GitHub synthesizes for the run: it moves every time the base branch does,

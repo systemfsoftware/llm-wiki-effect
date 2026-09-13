@@ -237,7 +237,7 @@ describe('MinerU API helpers', () => {
       relPath: 'media/paper/mineru/images/chart.png',
       absPath: '/project/wiki/media/paper/mineru/images/chart.png',
     })
-    expect(result.savedImages[0].sha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(result.savedImages[0]?.sha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('rewrites Markdown image paths containing spaces', async () => {

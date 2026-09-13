@@ -33,8 +33,8 @@ export async function findRawSourceForImage(
   //   2. WIKI-RELATIVE: `media/<slug>/img-N.png`
   // Match `media/<slug>/` either at the URL start or after any `/`.
   const m = imageUrl.replace(/\\/g, '/').match(/(?:^|\/)media\/([^/]+)\//)
-  if (!m) return null
-  const slug = m[1]
+  const slug = m?.[1]
+  if (slug === undefined) return null
   const normalizedProjectPath = projectPath.replace(/\/+$/, '')
 
   let tree: FileNode[]

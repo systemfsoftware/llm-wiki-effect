@@ -29,7 +29,7 @@ function buildReferenceGraph(references: MessageReference[]): ReferenceGraphData
       nodes.set(sourceId, {
         id: sourceId,
         label: relatedTitle,
-        reference: source,
+        ...(source !== undefined ? { reference: source } : {}),
         graphResult: false,
       })
       const key = [sourceId, targetId].sort().join('\u0000')

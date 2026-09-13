@@ -79,7 +79,7 @@ export function buildDeletedKeys(infos: DeletedPageInfo[]): Set<string> {
  */
 export function extractFrontmatterTitle(content: string): string {
   const m = content.match(/^title:\s*["']?(.+?)["']?\s*$/m)
-  return m ? m[1].trim() : ''
+  return m?.[1]?.trim() ?? ''
 }
 
 // Matches a markdown list item whose first wikilink is the logical
@@ -101,8 +101,9 @@ export function cleanIndexListing(text: string, deletedKeys: Set<string>): strin
     .split('\n')
     .filter((line) => {
       const m = line.match(INDEX_ENTRY_RE)
-      if (!m) return true
-      return !deletedKeys.has(normalizeWikiRefKey(m[1].trim()))
+      const target = m?.[1]
+      if (target === undefined) return true
+      return !deletedKeys.has(normalizeWikiRefKey(target.trim()))
     })
     .join('\n')
 }

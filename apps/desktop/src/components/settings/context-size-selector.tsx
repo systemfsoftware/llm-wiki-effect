@@ -24,11 +24,10 @@ export function ContextSizeSelector({
   value: number
   onChange: (v: number) => void
 }) {
-  const closestIndex = CONTEXT_PRESETS.reduce((best, preset, i) => {
-    return Math.abs(preset.value - value) < Math.abs(CONTEXT_PRESETS[best].value - value)
-      ? i
-      : best
-  }, 0)
+  const closestPreset = CONTEXT_PRESETS.reduce((best, preset) =>
+    Math.abs(preset.value - value) < Math.abs(best.value - value) ? preset : best
+  )
+  const closestIndex = CONTEXT_PRESETS.indexOf(closestPreset)
   const pct = (closestIndex / (CONTEXT_PRESETS.length - 1)) * 100
 
   return (
@@ -45,7 +44,10 @@ export function ContextSizeSelector({
         max={CONTEXT_PRESETS.length - 1}
         step={1}
         value={closestIndex}
-        onChange={(e) => onChange(CONTEXT_PRESETS[parseInt(e.target.value)].value)}
+        onChange={(e) => {
+          const preset = CONTEXT_PRESETS[Number.parseInt(e.target.value)]
+          if (preset !== undefined) onChange(preset.value)
+        }}
         className='w-full h-2 rounded-lg appearance-none cursor-pointer accent-primary'
         style={{
           background: `linear-gradient(to right, #4f46e5 ${pct}%, #e5e7eb ${pct}%)`,

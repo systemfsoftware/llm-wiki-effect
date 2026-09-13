@@ -20,7 +20,7 @@ export async function resetProjectState(): Promise<void> {
   const globalLlmConfig = useWikiStore.getState().globalLlmConfig
   useWikiStore.setState({
     llmConfig: globalLlmConfig,
-    projectLlmOverride: { enabled: false, presetId: null, model: '', profile: undefined },
+    projectLlmOverride: { enabled: false, presetId: null, model: '' },
   })
   useChatStore.setState({
     conversations: [],

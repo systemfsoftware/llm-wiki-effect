@@ -93,7 +93,9 @@ const mockSweep = vi.mocked(sweepResolvedReviews)
  *  tests need this — enqueue / retry / cancel guard against inactive
  *  projects. */
 async function activateProject(id: string = TEST_ID): Promise<void> {
-  await restoreQueue(id, idToPath[id])
+  const projectPath = idToPath[id]
+  if (projectPath === undefined) throw new Error(`no path registered for project ${id}`)
+  await restoreQueue(id, projectPath)
 }
 
 beforeEach(async () => {
@@ -221,7 +223,7 @@ describe('ingest-queue — enqueue & basic processing', () => {
     // writeFile should have been called to save the queue
     const calls = mockWriteFile.mock.calls
     expect(calls.length).toBeGreaterThan(0)
-    const queuePath = calls[0][0]
+    const queuePath = calls[0]?.[0]
     expect(queuePath).toContain('.llm-wiki/ingest-queue.json')
   })
 
@@ -261,6 +263,7 @@ describe('ingest-queue — concurrent workers', () => {
 
     const firstRun = [...runs.values()][0]
     expect(firstRun).toBeDefined()
+    if (firstRun === undefined) throw new Error('expected a pending run')
     firstRun.resolve(['wiki/sources/a.md'])
     await waitFor(() => mockAutoIngest.mock.calls.length === 3)
     expect(getQueueSummary().processing).toBe(2)
@@ -315,6 +318,7 @@ describe('ingest-queue — concurrent workers', () => {
     await enqueueIngest(TEST_ID, 'cancel-during-write.md')
     await waitFor(() => getQueueSummary().processing === 1)
     const task = getQueue()[0]
+    if (task === undefined) throw new Error('expected a queued cancel-during-write task')
     await cancelTask(task.id)
 
     expect(mockDeleteFile).not.toHaveBeenCalled()
@@ -333,6 +337,7 @@ describe('ingest-queue — concurrent workers', () => {
     await enqueueIngest(TEST_ID, 'retry-after-cancel.md')
     await waitFor(() => mockAutoIngest.mock.calls.length === 1)
     const task = getQueue()[0]
+    if (task === undefined) throw new Error('expected a queued retry-after-cancel task')
     await cancelTask(task.id)
     await retryTask(task.id)
     await flushMicrotasks(10)
@@ -351,6 +356,7 @@ describe('ingest-queue — concurrent workers', () => {
     await enqueueIngest(TEST_ID, 'still-processing.md')
     await waitFor(() => getQueueSummary().processing === 1)
     const task = getQueue()[0]
+    if (task === undefined) throw new Error('expected a queued still-processing task')
     await retryTask(task.id)
 
     expect(task.status).toBe('processing')
@@ -386,7 +392,7 @@ describe('ingest-queue — concurrent workers', () => {
     firstRun.reject(new Error('429 usage limit exceeded'))
     await waitFor(() => getQueueSummary().processing === 0)
 
-    expect(signals[1].aborted).toBe(true)
+    expect(signals[1]?.aborted).toBe(true)
     expect(isQueuePaused()).toBe(true)
     expect(getQueue().map((task) => task.status)).toEqual(['pending', 'pending'])
     expect(getQueue().every((task) => task.retryCount === 0)).toBe(true)
@@ -403,9 +409,9 @@ describe('ingest-queue — retry & failure', () => {
     expect(mockAutoIngest).toHaveBeenCalledTimes(3)
     const queue = getQueue()
     expect(queue).toHaveLength(1)
-    expect(queue[0].status).toBe('failed')
-    expect(queue[0].error).toContain('LLM error')
-    expect(queue[0].retryCount).toBe(3)
+    expect(queue[0]?.status).toBe('failed')
+    expect(queue[0]?.error).toContain('LLM error')
+    expect(queue[0]?.retryCount).toBe(3)
   })
 
   it('succeeds on retry after transient failure', async () => {
@@ -436,9 +442,9 @@ describe('ingest-queue — retry & failure', () => {
     expect(mockAutoIngest).toHaveBeenCalledTimes(3)
     const queue = getQueue()
     expect(queue).toHaveLength(1)
-    expect(queue[0].status).toBe('failed')
-    expect(queue[0].error).toContain('no output files')
-    expect(queue[0].retryCount).toBe(3)
+    expect(queue[0]?.status).toBe('failed')
+    expect(queue[0]?.error).toContain('no output files')
+    expect(queue[0]?.retryCount).toBe(3)
   })
 
   it('retryTask resets a failed task to pending and reprocesses it', async () => {
@@ -446,10 +452,12 @@ describe('ingest-queue — retry & failure', () => {
 
     await enqueueIngest(TEST_ID, 'x.md')
     await flushMicrotasks(20)
-    expect(getQueue()[0].status).toBe('failed')
+    const failed = getQueue()[0]
+    if (failed === undefined) throw new Error('expected a queued failed task')
+    expect(failed.status).toBe('failed')
 
-    const taskId = getQueue()[0].id
-    expect(getQueue()[0].retryCount).toBe(3)
+    const taskId = failed.id
+    expect(failed.retryCount).toBe(3)
     mockAutoIngest.mockResolvedValueOnce(['wiki/sources/foo.md'])
     await retryTask(taskId)
     await flushMicrotasks(10)
@@ -533,6 +541,7 @@ describe('ingest-queue — cancel', () => {
     // first.md is processing; cancel second.md (still pending)
     const queue = getQueue()
     const [second] = queue.filter((t) => t.sourcePath === 'second.md')
+    if (second === undefined) throw new Error('second.md is not in the queue')
     await cancelTask(second.id)
 
     expect(getQueue().find((t) => t.sourcePath === 'second.md')?.status).toBe('cancelled')
@@ -563,6 +572,7 @@ describe('ingest-queue — cancel', () => {
     ])
     await flushMicrotasks(2)
     const [stopped] = getQueue().filter((task) => task.sourcePath === 'cancelled.md')
+    if (stopped === undefined) throw new Error('cancelled.md is not in the queue')
     await cancelTask(stopped.id)
 
     const restartedId = await enqueueIngest(TEST_ID, 'cancelled.md', 'new')
@@ -589,6 +599,7 @@ describe('ingest-queue — cancel', () => {
     await enqueueIngest(TEST_ID, 'restart.md')
     await flushMicrotasks(2)
     const task = getQueue()[0]
+    if (task === undefined) throw new Error('expected a queued restart task')
     await cancelTask(task.id)
     await retryTasks([task.id])
 
@@ -610,6 +621,7 @@ describe('ingest-queue — cancel', () => {
     ])
     await flushMicrotasks(2)
     const [d] = getQueue().filter((task) => task.sourcePath === 'd.md')
+    if (d === undefined) throw new Error('d.md is not in the queue')
 
     expect(await movePendingTask(d.id, 'up')).toBe(true)
     expect(getQueue().map((task) => task.sourcePath)).toEqual([
@@ -798,7 +810,7 @@ describe('ingest-queue — restoreQueue', () => {
 
     const queue = getQueue()
     expect(queue).toHaveLength(1)
-    expect(queue[0].status).toBe('pending')
+    expect(queue[0]?.status).toBe('pending')
     expect(getQueueSummary().paused).toBe(true)
     expect(mockAutoIngest).not.toHaveBeenCalled()
   })
@@ -820,8 +832,8 @@ describe('ingest-queue — restoreQueue', () => {
     await restoreQueue(TEST_ID, TEST_PATH)
     const queue = getQueue()
     expect(queue).toHaveLength(1)
-    expect(queue[0].status).toBe('failed')
-    expect(queue[0].error).toBe('prior failure')
+    expect(queue[0]?.status).toBe('failed')
+    expect(queue[0]?.error).toBe('prior failure')
   })
 
   it('backfills projectId on older task files that predate the field', async () => {
@@ -843,8 +855,8 @@ describe('ingest-queue — restoreQueue', () => {
     await restoreQueue(TEST_ID, TEST_PATH)
     const queue = getQueue()
     expect(queue).toHaveLength(1)
-    expect(queue[0].projectId).toBe(TEST_ID)
-    expect(queue[0].status).toBe('pending')
+    expect(queue[0]?.projectId).toBe(TEST_ID)
+    expect(queue[0]?.status).toBe('pending')
     expect(mockAutoIngest).not.toHaveBeenCalled()
   })
 
@@ -897,7 +909,7 @@ describe('ingest-queue — restoreQueue', () => {
     await flushMicrotasks(10)
 
     expect(mockAutoIngest).toHaveBeenCalledTimes(1)
-    expect(mockAutoIngest.mock.calls[0][1]).toBe(`${TEST_PATH}/live.md`)
+    expect(mockAutoIngest.mock.calls[0]?.[1]).toBe(`${TEST_PATH}/live.md`)
     expect(getQueue().map((task) => task.sourcePath)).toEqual(['restored.md'])
     expect(getQueueSummary().paused).toBe(true)
   })
@@ -951,7 +963,7 @@ describe('ingest-queue — restoreQueue', () => {
     await flushMicrotasks(10)
 
     expect(mockAutoIngest).toHaveBeenCalledTimes(1)
-    expect(mockAutoIngest.mock.calls[0][1]).toBe(`${TEST_PATH}/same.md`)
+    expect(mockAutoIngest.mock.calls[0]?.[1]).toBe(`${TEST_PATH}/same.md`)
     expect(getQueue()).toHaveLength(0)
     expect(getQueueSummary().paused).toBe(false)
   })
@@ -1003,7 +1015,9 @@ describe('ingest-queue — pauseQueue & switch-project survival', () => {
     // one demoted back to pending for resume-on-return.
     const writes = mockWriteFile.mock.calls
     expect(writes.length).toBeGreaterThan(0)
-    const [pathArg, contentArg] = writes[writes.length - 1]
+    const lastWrite = writes[writes.length - 1]
+    if (lastWrite === undefined) throw new Error('pauseQueue did not persist the queue')
+    const [pathArg, contentArg] = lastWrite
     expect(pathArg).toContain('/project/.llm-wiki/ingest-queue.json')
     const persisted: unknown = JSON.parse(contentArg)
     expect(persisted).toMatchObject([{ status: 'pending' }, { status: 'pending' }])
@@ -1027,7 +1041,7 @@ describe('ingest-queue — pauseQueue & switch-project survival', () => {
 
     const queue = getQueue()
     expect(queue).toHaveLength(1)
-    expect(queue[0].sourcePath).toBe('first.md')
+    expect(queue[0]?.sourcePath).toBe('first.md')
   })
 
   it('processNext bails if currentProjectId changes mid-ingest (no cross-project writes)', async () => {
@@ -1193,6 +1207,7 @@ describe('ingest-queue — pause/resume processing', () => {
     pauseProcessing()
     await flushMicrotasks(10)
     const [only] = getQueue().filter((t) => t.sourcePath === 'only.md')
+    if (only === undefined) throw new Error('only.md is not in the queue')
     expect(only?.status).toBe('pending')
     expect(getQueueSummary().paused).toBe(true)
 
@@ -1202,7 +1217,7 @@ describe('ingest-queue — pause/resume processing', () => {
     await enqueueIngest(TEST_ID, 'fresh.md')
     await flushMicrotasks(10)
     expect(mockAutoIngest).toHaveBeenCalledTimes(2)
-    expect(mockAutoIngest.mock.calls[1][1]).toBe(`${TEST_PATH}/fresh.md`)
+    expect(mockAutoIngest.mock.calls[1]?.[1]).toBe(`${TEST_PATH}/fresh.md`)
     expect(getQueue()).toHaveLength(1)
     expect(getQueue()[0]).toMatchObject({ sourcePath: 'only.md', status: 'cancelled' })
   })

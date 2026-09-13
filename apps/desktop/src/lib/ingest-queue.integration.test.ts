@@ -105,7 +105,7 @@ describe('ingest-queue persistence — write', () => {
   it('writes .llm-wiki/ingest-queue.json after enqueue', async () => {
     await enqueueIngest(TEST_ID_A, 'raw/sources/a.md')
     const parsed = await waitForQueueSnapshot<Array<{ sourcePath: string }>>((items) => items.length === 1)
-    expect(parsed[0].sourcePath).toBe('raw/sources/a.md')
+    expect(parsed[0]?.sourcePath).toBe('raw/sources/a.md')
   })
 
   it('deduplicates repeated pending tasks for the same source', async () => {
@@ -115,7 +115,7 @@ describe('ingest-queue persistence — write', () => {
     ])
     const parsed = await waitForQueueSnapshot<Array<{ sourcePath: string }>>((items) => items.length === 1)
     expect(parsed).toHaveLength(1)
-    expect(parsed[0].sourcePath).toBe('raw/sources/a.md')
+    expect(parsed[0]?.sourcePath).toBe('raw/sources/a.md')
   })
 
   it('persists Unicode source paths without corruption', async () => {
@@ -200,7 +200,7 @@ describe('ingest-queue persistence — restore round-trip', () => {
     expect(restored).toHaveLength(1)
     // After restore + kick-off, either still reset to 'pending' or
     // bumped back into 'processing' as processNext picks it up.
-    expect(['pending', 'processing']).toContain(restored[0].status)
+    expect(['pending', 'processing']).toContain(restored[0]?.status)
   })
 
   it("preserves 'failed' status on restore (does NOT auto-retry)", async () => {
@@ -222,9 +222,9 @@ describe('ingest-queue persistence — restore round-trip', () => {
 
     await restoreQueue(TEST_ID_A, tmp.path)
     const restored = getQueue()
-    expect(restored[0].status).toBe('failed')
-    expect(restored[0].error).toBe('LLM hit its rate limit')
-    expect(restored[0].retryCount).toBe(3)
+    expect(restored[0]?.status).toBe('failed')
+    expect(restored[0]?.error).toBe('LLM hit its rate limit')
+    expect(restored[0]?.retryCount).toBe(3)
   })
 
   it("returns empty queue when the file doesn't exist", async () => {
@@ -249,8 +249,8 @@ describe('ingest-queue persistence — restore round-trip', () => {
     const onDisk = await waitForQueueSnapshot<Array<{ sourcePath: string; folderContext: string }>>(
       (items) => items.length === 1,
     )
-    expect(onDisk[0].sourcePath).toBe('raw/sources/注意力.pdf')
-    expect(onDisk[0].folderContext).toBe('研究 > 深度学习')
+    expect(onDisk[0]?.sourcePath).toBe('raw/sources/注意力.pdf')
+    expect(onDisk[0]?.folderContext).toBe('研究 > 深度学习')
 
     clearQueueState()
     await writeFileRaw(
@@ -261,8 +261,8 @@ describe('ingest-queue persistence — restore round-trip', () => {
 
     const restored = getQueue()
     expect(restored).toHaveLength(1)
-    expect(restored[0].sourcePath).toBe('raw/sources/注意力.pdf')
-    expect(restored[0].folderContext).toBe('研究 > 深度学习')
+    expect(restored[0]?.sourcePath).toBe('raw/sources/注意力.pdf')
+    expect(restored[0]?.folderContext).toBe('研究 > 深度学习')
   })
 })
 

@@ -73,7 +73,7 @@ describe('findImageReferences (helper)', () => {
   it('ignores links and HTML img', () => {
     const refs = captionInternals.findImageReferences('[link](url) <img src=foo.png /> ![real](z.png)')
     expect(refs).toHaveLength(1)
-    expect(refs[0].url).toBe('z.png')
+    expect(refs[0]?.url).toBe('z.png')
   })
 })
 
@@ -112,7 +112,9 @@ describe('captionMarkdownImages', () => {
 
     // Cache file written exactly once at the end of the batch.
     expect(mockWriteFile).toHaveBeenCalledTimes(1)
-    const [cachePath, contents] = mockWriteFile.mock.calls[0]
+    const cacheWrite = mockWriteFile.mock.calls[0]
+    if (cacheWrite === undefined) throw new Error('expected a caption cache write')
+    const [cachePath, contents] = cacheWrite
     expect(cachePath).toBe('/proj/.llm-wiki/image-caption-cache.json')
     const written = JSON.parse(contents)
     const entries = Object.values(written)
@@ -162,7 +164,9 @@ describe('captionMarkdownImages', () => {
     expect(out.freshCaptions).toBe(1)
     expect(out.cachedCaptions).toBe(0)
     expect(mockCaption).toHaveBeenCalledTimes(1)
-    const written = JSON.parse(mockWriteFile.mock.calls[0][1])
+    const cacheWrite = mockWriteFile.mock.calls[0]
+    if (cacheWrite === undefined) throw new Error('expected a caption cache write')
+    const written = JSON.parse(cacheWrite[1])
     expect(written[captionInternals.captionCacheKey(knownHash, 'German')]).toMatchObject({
       caption: 'ein rotes Quadrat',
       imageHash: knownHash,
@@ -413,8 +417,10 @@ describe('captionMarkdownImages', () => {
 
     await captionMarkdownImages('/proj', md, cfg)
 
-    const args = mockCaption.mock.calls[0]
-    const opts = args[4]
+    const captionCall = mockCaption.mock.calls[0]
+    if (captionCall === undefined) throw new Error('expected a caption call')
+    const opts = captionCall[4]
+    if (opts === undefined) throw new Error('expected caption context options')
     expect(opts.contextBefore).toContain('Figure 3: Quarterly revenue 2024')
     expect(opts.contextAfter).toContain('Following commentary about the chart')
     // The image's own `![](url)` must NOT leak into either side
@@ -431,17 +437,23 @@ describe('captionMarkdownImages', () => {
     // Image at the very end: contextAfter must be empty string.
     const md1 = '![](/abs/start.png) trailing text only'
     await captionMarkdownImages('/proj', md1, cfg)
-    let opts = mockCaption.mock.calls[0][4]
-    expect(opts.contextBefore).toBe('')
-    expect(opts.contextAfter).toBe(' trailing text only')
+    const startCall = mockCaption.mock.calls[0]
+    if (startCall === undefined) throw new Error('expected a caption call for the start image')
+    const startOpts = startCall[4]
+    if (startOpts === undefined) throw new Error('expected caption context options')
+    expect(startOpts.contextBefore).toBe('')
+    expect(startOpts.contextAfter).toBe(' trailing text only')
 
     mockCaption.mockClear()
 
     const md2 = 'leading text only ![](/abs/end.png)'
     await captionMarkdownImages('/proj', md2, cfg)
-    opts = mockCaption.mock.calls[0][4]
-    expect(opts.contextBefore).toBe('leading text only ')
-    expect(opts.contextAfter).toBe('')
+    const endCall = mockCaption.mock.calls[0]
+    if (endCall === undefined) throw new Error('expected a caption call for the end image')
+    const endOpts = endCall[4]
+    if (endOpts === undefined) throw new Error('expected caption context options')
+    expect(endOpts.contextBefore).toBe('leading text only ')
+    expect(endOpts.contextAfter).toBe('')
   })
 })
 

@@ -41,7 +41,7 @@ describe('buildWikiIndex', () => {
     const index = await buildWikiIndex('/project')
 
     expect(index.byTitle.has('attention mechanism')).toBe(false)
-    expect(index.pages[0].title).toBeNull()
+    expect(index.pages[0]?.title).toBeNull()
   })
 
   it('still indexes a genuine frontmatter title', async () => {

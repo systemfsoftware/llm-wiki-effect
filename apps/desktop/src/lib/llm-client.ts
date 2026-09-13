@@ -245,7 +245,7 @@ export async function streamChat(
       method: 'POST',
       headers: providerConfig.headers,
       body: JSON.stringify(body),
-      signal: combinedSignal,
+      ...(combinedSignal !== undefined ? { signal: combinedSignal } : {}),
     })
   } catch (err) {
     if (signal?.aborted) {

@@ -43,7 +43,7 @@ function valueAtPath(bundle: unknown, path: string): unknown {
 function interpolationVariables(value: unknown): string[] {
   if (typeof value !== 'string') throw new Error('expected a translation string')
   return [...value.matchAll(/{{\s*([A-Za-z_][\w]*)/g)]
-    .map((match) => match[1])
+    .flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
     .sort()
 }
 
@@ -66,6 +66,7 @@ describe('i18n bundle parity', () => {
       const duplicates = new Set<string>()
       for (const match of text.matchAll(/^  "([^"]+)":/gm)) {
         const key = match[1]
+        if (key === undefined) continue
         if (seen.has(key)) duplicates.add(key)
         seen.add(key)
       }
@@ -158,7 +159,9 @@ describe('i18n bundle parity', () => {
     for (const file of sourceFiles) {
       const source = readFileSync(file, 'utf8')
       for (const match of source.matchAll(literalKey)) {
-        if (!enKeys.has(match[1])) missing.add(match[1])
+        const key = match[1]
+        if (key === undefined) continue
+        if (!enKeys.has(key)) missing.add(key)
       }
     }
 

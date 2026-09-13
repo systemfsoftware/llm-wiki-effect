@@ -79,16 +79,19 @@ function mergeOptions(a: ReviewOption[], b: ReviewOption[]): ReviewOption[] {
 function mergeReviewItems(a: ReviewItem, b: ReviewItem): ReviewItem {
   const resolved = a.resolved || b.resolved
   const resolvedAction = resolved ? a.resolvedAction ?? b.resolvedAction : undefined
+  const sourcePath = a.sourcePath ?? b.sourcePath
+  const affectedPages = unionField(a.affectedPages, b.affectedPages)
+  const searchQueries = unionField(a.searchQueries, b.searchQueries)
   return {
     ...a, // a.id is kept; both share it by construction
     resolved,
-    resolvedAction,
     description: a.description || b.description,
-    sourcePath: a.sourcePath ?? b.sourcePath,
-    affectedPages: unionField(a.affectedPages, b.affectedPages),
-    searchQueries: unionField(a.searchQueries, b.searchQueries),
     options: mergeOptions(a.options, b.options),
     createdAt: Math.min(a.createdAt, b.createdAt),
+    ...(resolvedAction !== undefined ? { resolvedAction } : {}),
+    ...(sourcePath !== undefined ? { sourcePath } : {}),
+    ...(affectedPages !== undefined ? { affectedPages } : {}),
+    ...(searchQueries !== undefined ? { searchQueries } : {}),
   }
 }
 
@@ -134,15 +137,18 @@ export const useReviewStore = create<ReviewState>((set) => ({
       for (const incoming of items) {
         const id = reviewIdFor(incoming)
         const existingIdx = indexById.get(id)
+        const old = existingIdx === undefined ? undefined : result[existingIdx]
 
-        if (existingIdx !== undefined) {
-          const old = result[existingIdx]
+        if (existingIdx !== undefined && old !== undefined) {
+          const sourcePath = incoming.sourcePath ?? old.sourcePath
+          const affectedPages = unionField(old.affectedPages, incoming.affectedPages)
+          const searchQueries = unionField(old.searchQueries, incoming.searchQueries)
           result[existingIdx] = {
             ...old, // preserves resolved / resolvedAction / createdAt / id
             description: incoming.description || old.description,
-            sourcePath: incoming.sourcePath ?? old.sourcePath,
-            affectedPages: unionField(old.affectedPages, incoming.affectedPages),
-            searchQueries: unionField(old.searchQueries, incoming.searchQueries),
+            ...(sourcePath !== undefined ? { sourcePath } : {}),
+            ...(affectedPages !== undefined ? { affectedPages } : {}),
+            ...(searchQueries !== undefined ? { searchQueries } : {}),
           }
         } else {
           result.push({ ...incoming, id, resolved: false, createdAt: Date.now() })

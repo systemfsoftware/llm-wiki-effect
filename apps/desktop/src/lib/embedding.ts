@@ -321,7 +321,7 @@ type PageEmbeddingPreparation =
 
 /** @internal Exported for unit tests only. */
 export function extractEmbeddingTitle(content: string, fallbackId: string): string {
-  const title = parseFrontmatter(content).frontmatter?.title
+  const title = parseFrontmatter(content).frontmatter?.['title']
   return typeof title === 'string' && title.trim() ? title.trim() : fallbackId
 }
 
@@ -355,6 +355,7 @@ async function preparePageEmbeddingRows(
       return resolved.flatMap((embedding, index) => {
         if (!embedding) return []
         const chunk = batch[index]
+        if (chunk === undefined) return []
         return [{
           chunkIndex: chunk.index,
           chunkText: chunk.text,
@@ -466,7 +467,9 @@ async function parallelForEach<T>(
   await Promise.all(Array.from({ length: workerCount }, async () => {
     while (next < items.length) {
       const index = next++
-      await visit(items[index])
+      const item = items[index]
+      if (item === undefined) continue
+      await visit(item)
     }
   }))
 }
@@ -744,7 +747,9 @@ export async function searchByEmbedding(
   const ranked: PageSearchResult[] = []
   for (const [pageId, chunks] of byPage.entries()) {
     chunks.sort((a, b) => b.score - a.score)
-    const top = chunks[0].score
+    const firstChunk = chunks[0]
+    if (firstChunk === undefined) continue
+    const top = firstChunk.score
     const tail = chunks.slice(1).reduce((sum, c) => sum + c.score, 0)
     // Cap the tail contribution so many-weak-chunks can't drown a
     // single-strong-chunk page. 0.3 weight is empirical; adjust later

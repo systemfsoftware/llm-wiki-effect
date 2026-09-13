@@ -16,7 +16,7 @@ describe('research store batch queue', () => {
       topic: `Topic ${index}`,
       searchQueries: [`query ${index}`],
       sourceReviewId: `review-${index}`,
-      rerunOfTaskId: index === 99 ? 'research-original' : undefined,
+      ...(index === 99 ? { rerunOfTaskId: 'research-original' } : {}),
     })))
     unsubscribe()
 
@@ -44,7 +44,7 @@ describe('research rerun lineage', () => {
       id,
       topic: id,
       status,
-      rerunOfTaskId,
+      ...(rerunOfTaskId !== undefined ? { rerunOfTaskId } : {}),
       webResults: [],
       synthesis: '',
       savedPath: null,

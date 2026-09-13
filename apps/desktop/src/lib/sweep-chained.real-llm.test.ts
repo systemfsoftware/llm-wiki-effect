@@ -30,13 +30,13 @@ import { materializeRealContent } from '@/test-helpers/real-content'
 import { autoIngest } from './ingest'
 import { sweepResolvedReviews } from './sweep-reviews'
 
-const LLM_PROVIDER: 'ollama' | 'minimax' = process.env.LLM_PROVIDER === 'minimax' ? 'minimax' : 'ollama'
-const OLLAMA_URL = process.env.OLLAMA_URL ?? 'http://192.168.1.50:8080'
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? 'Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
-const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY ?? ''
-const MINIMAX_MODEL = process.env.MINIMAX_MODEL ?? 'MiniMax-M2.7-highspeed'
-const MINIMAX_ENDPOINT = process.env.MINIMAX_ENDPOINT ?? 'https://api.minimaxi.com/v1'
-const ENABLED = process.env.RUN_LLM_TESTS === '1'
+const LLM_PROVIDER: 'ollama' | 'minimax' = process.env['LLM_PROVIDER'] === 'minimax' ? 'minimax' : 'ollama'
+const OLLAMA_URL = process.env['OLLAMA_URL'] ?? 'http://192.168.1.50:8080'
+const OLLAMA_MODEL = process.env['OLLAMA_MODEL'] ?? 'Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
+const MINIMAX_API_KEY = process.env['MINIMAX_API_KEY'] ?? ''
+const MINIMAX_MODEL = process.env['MINIMAX_MODEL'] ?? 'MiniMax-M2.7-highspeed'
+const MINIMAX_ENDPOINT = process.env['MINIMAX_ENDPOINT'] ?? 'https://api.minimaxi.com/v1'
+const ENABLED = process.env['RUN_LLM_TESTS'] === '1'
 
 const REAL_CONTENT_ROOT = path.join(process.cwd(), 'tests', 'fixtures', 'real-content')
 const TEST_TIMEOUT_MS = 20 * 60 * 1000

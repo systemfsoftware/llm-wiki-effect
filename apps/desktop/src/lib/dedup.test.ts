@@ -81,15 +81,15 @@ describe('parseDetectorResponse', () => {
     const raw = '```json\n{"groups": [{"slugs": ["a","b"], "reason": "x", "confidence": "high"}]}\n```'
     const out = parseDetectorResponse(raw)
     expect(out).toHaveLength(1)
-    expect(out[0].slugs).toEqual(['a', 'b'])
+    expect(out[0]?.slugs).toEqual(['a', 'b'])
   })
 
   it('strips conversational preamble before the JSON', () => {
     const raw =
       'Sure, here are the duplicates I found:\n\n{"groups": [{"slugs": ["foo","bar"], "reason": "synonyms", "confidence": "medium"}]}\n\nLet me know if you need anything else.'
     const out = parseDetectorResponse(raw)
-    expect(out[0].slugs).toEqual(['foo', 'bar'])
-    expect(out[0].confidence).toBe('medium')
+    expect(out[0]?.slugs).toEqual(['foo', 'bar'])
+    expect(out[0]?.confidence).toBe('medium')
   })
 
   it('rejects groups with fewer than 2 slugs', () => {
@@ -99,7 +99,7 @@ describe('parseDetectorResponse', () => {
 
   it("defaults invalid confidence values to 'low'", () => {
     const raw = '{"groups": [{"slugs": ["a","b"], "reason": "", "confidence": "extremely-high"}]}'
-    expect(parseDetectorResponse(raw)[0].confidence).toBe('low')
+    expect(parseDetectorResponse(raw)[0]?.confidence).toBe('low')
   })
 
   it('returns [] for malformed JSON', () => {
@@ -115,7 +115,7 @@ describe('parseDetectorResponse', () => {
   it('survives quoted braces inside reason strings', () => {
     const raw = '{"groups": [{"slugs": ["a","b"], "reason": "Same thing { really }", "confidence": "high"}]}'
     const out = parseDetectorResponse(raw)
-    expect(out[0].reason).toBe('Same thing { really }')
+    expect(out[0]?.reason).toBe('Same thing { really }')
   })
 })
 
@@ -152,7 +152,7 @@ describe('detectDuplicateGroups', () => {
       llm,
     )
     expect(result).toHaveLength(1)
-    expect(result[0].slugs).toEqual(['real-a', 'real-b'])
+    expect(result[0]?.slugs).toEqual(['real-a', 'real-b'])
   })
 
   it("filters out groups already on the user's not-duplicates whitelist", async () => {
@@ -209,7 +209,7 @@ describe('detectDuplicateGroups', () => {
       llm,
     )
     expect(llm).toHaveBeenCalledOnce()
-    const userMsg = llm.mock.calls[0][1]
+    const userMsg = llm.mock.calls[0]?.[1]
     expect(userMsg).toContain('type=entity')
     expect(userMsg).toContain('slug=foo')
     expect(userMsg).toContain('"Foo"')
@@ -474,7 +474,8 @@ describe('mergeDuplicateGroup', () => {
     )
 
     expect(result.rewrites).toHaveLength(1)
-    const rewritten = result.rewrites[0].newContent
+    const rewritten = result.rewrites[0]?.newContent
+    if (rewritten === undefined) throw new Error('expected one rewrite')
     // wikilinks rewritten
     expect(rewritten).toContain('[[a]]')
     expect(rewritten).toContain('[[a|the b]]')

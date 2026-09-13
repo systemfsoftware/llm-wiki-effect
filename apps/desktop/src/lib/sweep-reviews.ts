@@ -67,7 +67,7 @@ export async function buildWikiIndex(projectPath: string): Promise<WikiIndex> {
       let title: string | null = null
       try {
         const content = await readFile(file.path)
-        const fmTitle = parseFrontmatter(content).frontmatter?.title
+        const fmTitle = parseFrontmatter(content).frontmatter?.['title']
         if (typeof fmTitle === 'string' && fmTitle.trim()) {
           title = fmTitle.trim()
           byTitle.add(title.toLowerCase())

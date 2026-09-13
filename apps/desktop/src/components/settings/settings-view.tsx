@@ -8,6 +8,7 @@ import { applyTheme, type AppTheme } from '@/lib/theme'
 import { useChatStore } from '@/stores/chat-store'
 import { hasAvailableUpdate, useUpdateStore } from '@/stores/update-store'
 import { useWikiStore } from '@/stores/wiki-store'
+import type { EmbeddingConfig, LlmConfig, MultimodalConfig } from '@/stores/wiki-store'
 import { useZoomStore } from '@/stores/zoom-store'
 import { invoke } from '@tauri-apps/api/core'
 import { disable as disableAutostart, enable as enableAutostart } from '@tauri-apps/plugin-autostart'
@@ -377,33 +378,37 @@ export function SettingsView() {
       loadZoomLevel,
     } = await import('@/lib/project-store')
 
-    const newLlm = {
+    const newLlm: LlmConfig = {
       provider: draft.provider,
       apiKey: draft.apiKey,
       model: draft.model,
       ollamaUrl: draft.ollamaUrl,
       customEndpoint: draft.customEndpoint,
-      azureApiVersion: draft.provider === 'azure' ? draft.azureApiVersion.trim() : undefined,
-      azureModelFamily: draft.provider === 'azure' ? draft.azureModelFamily : undefined,
+      ...(draft.provider === 'azure' ? { azureApiVersion: draft.azureApiVersion.trim() } : {}),
+      ...(draft.provider === 'azure' ? { azureModelFamily: draft.azureModelFamily } : {}),
       maxContextSize: draft.maxContextSize,
-      apiMode: draft.provider === 'custom' ? draft.apiMode : undefined,
-      reasoning: draft.reasoning,
-      ingestReasoning: draft.ingestReasoning,
+      ...(draft.provider === 'custom' && draft.apiMode !== undefined ? { apiMode: draft.apiMode } : {}),
+      ...(draft.reasoning !== undefined ? { reasoning: draft.reasoning } : {}),
+      ...(draft.ingestReasoning !== undefined ? { ingestReasoning: draft.ingestReasoning } : {}),
       localCliIsolation: draft.localCliIsolation,
     }
-    const newEmbed = {
+    const newEmbed: EmbeddingConfig = {
       enabled: draft.embeddingEnabled,
       endpoint: draft.embeddingEndpoint,
       apiKey: draft.embeddingApiKey,
       model: draft.embeddingModel,
-      outputDimensionality: draft.embeddingOutputDimensionality,
-      maxChunkChars: draft.embeddingMaxChunkChars,
-      overlapChunkChars: draft.embeddingOverlapChunkChars,
+      ...(draft.embeddingOutputDimensionality !== undefined
+        ? { outputDimensionality: draft.embeddingOutputDimensionality }
+        : {}),
+      ...(draft.embeddingMaxChunkChars !== undefined ? { maxChunkChars: draft.embeddingMaxChunkChars } : {}),
+      ...(draft.embeddingOverlapChunkChars !== undefined
+        ? { overlapChunkChars: draft.embeddingOverlapChunkChars }
+        : {}),
       concurrency: Math.max(1, Math.min(32, Math.floor(draft.embeddingConcurrency || 1))),
       batchSize: Math.max(1, Math.min(64, Math.floor(draft.embeddingBatchSize || 1))),
       extraHeaders: draft.embeddingExtraHeaders,
     }
-    const newMultimodal = {
+    const newMultimodal: MultimodalConfig = {
       enabled: draft.multimodalEnabled,
       useMainLlm: draft.multimodalUseMainLlm,
       provider: draft.multimodalProvider,
@@ -411,9 +416,11 @@ export function SettingsView() {
       model: draft.multimodalModel,
       ollamaUrl: draft.multimodalOllamaUrl,
       customEndpoint: draft.multimodalCustomEndpoint,
-      azureApiVersion: draft.multimodalProvider === 'azure' ? draft.multimodalAzureApiVersion.trim() : undefined,
-      azureModelFamily: draft.multimodalProvider === 'azure' ? draft.multimodalAzureModelFamily : undefined,
-      apiMode: draft.multimodalProvider === 'custom' ? draft.multimodalApiMode : undefined,
+      ...(draft.multimodalProvider === 'azure' ? { azureApiVersion: draft.multimodalAzureApiVersion.trim() } : {}),
+      ...(draft.multimodalProvider === 'azure' ? { azureModelFamily: draft.multimodalAzureModelFamily } : {}),
+      ...(draft.multimodalProvider === 'custom' && draft.multimodalApiMode !== undefined
+        ? { apiMode: draft.multimodalApiMode }
+        : {}),
       // Clamp at save time so a hand-edited persisted store with a
       // ridiculous concurrency value (e.g. someone setting 1000 in
       // the JSON) doesn't blow up the captioning pipeline. Caption

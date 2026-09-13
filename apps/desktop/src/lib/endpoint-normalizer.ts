@@ -123,7 +123,7 @@ export function normalizeEndpoint(raw: string, mode: EndpointMode): NormalizedEn
     return {
       normalized: url,
       changed,
-      warning: notes.length ? notes.join(' ') : undefined,
+      ...(notes.length ? { warning: notes.join(' ') } : {}),
     }
   }
 
@@ -174,6 +174,6 @@ export function normalizeEndpoint(raw: string, mode: EndpointMode): NormalizedEn
   return {
     normalized: url,
     changed,
-    warning: notes.length ? notes.join(' ') : undefined,
+    ...(notes.length ? { warning: notes.join(' ') } : {}),
   }
 }

@@ -41,10 +41,12 @@ function makeFilters(overrides: Partial<GraphFilterState> = {}): GraphFilterStat
 
 describe('graph filters', () => {
   it('detects structural graph nodes by id, type, and path', () => {
-    expect(isStructuralGraphNode(nodes[0])).toBe(true)
-    expect(isStructuralGraphNode({ ...nodes[1], id: 'overview', path: '/p/wiki/concepts/overview.md' })).toBe(true)
-    expect(isStructuralGraphNode({ ...nodes[1], type: 'overview' })).toBe(true)
-    expect(isStructuralGraphNode(nodes[1])).toBe(false)
+    const [index, conceptA] = nodes
+    if (index === undefined || conceptA === undefined) throw new Error('expected the first two graph fixtures')
+    expect(isStructuralGraphNode(index)).toBe(true)
+    expect(isStructuralGraphNode({ ...conceptA, id: 'overview', path: '/p/wiki/concepts/overview.md' })).toBe(true)
+    expect(isStructuralGraphNode({ ...conceptA, type: 'overview' })).toBe(true)
+    expect(isStructuralGraphNode(conceptA)).toBe(false)
   })
 
   it('hides structural nodes and their connected edges by default', () => {

@@ -48,14 +48,14 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
   const projectPathIndex = useWikiStore((s) => s.projectPathIndex)
   const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
 
-  const title = stringValue(data.title)
-  const type = stringValue(data.type)
-  const created = stringValue(data.created)
-  const description = stringValue(data.description)
-  const origin = stringValue(data.origin)
-  const tags = arrayValue(data.tags)
-  const sources = arrayValue(data.sources)
-  const related = arrayValue(data.related)
+  const title = stringValue(data['title'])
+  const type = stringValue(data['type'])
+  const created = stringValue(data['created'])
+  const description = stringValue(data['description'])
+  const origin = stringValue(data['origin'])
+  const tags = arrayValue(data['tags'])
+  const sources = arrayValue(data['sources'])
+  const related = arrayValue(data['related'])
 
   const extras = useMemo(
     () =>
@@ -173,8 +173,8 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
                   key={source}
                   name={label}
                   status={resolution.kind}
-                  externalUrl={resolution.kind === 'external' ? resolution.url : undefined}
-                  onClick={onClick}
+                  {...(resolution.kind === 'external' ? { externalUrl: resolution.url } : {})}
+                  {...(onClick !== undefined ? { onClick } : {})}
                 />
               )
             })}

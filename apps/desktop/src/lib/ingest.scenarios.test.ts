@@ -202,6 +202,7 @@ describe('ingest scenarios (fixture-driven)', () => {
 
   it('routes project mutations through the injected commit runner', async () => {
     const scenario = ingestScenarios[0]
+    if (scenario === undefined) throw new Error('expected an ingest scenario')
     ctx = await setup(scenario)
     const sourceFullPath = path.join(ctx.tmp.path, scenario.source.path)
     let commitCalls = 0
@@ -238,6 +239,7 @@ describe('ingest scenarios (fixture-driven)', () => {
 
   it('routes cache-hit mutations through the injected commit runner', async () => {
     const scenario = ingestScenarios[0]
+    if (scenario === undefined) throw new Error('expected an ingest scenario')
     ctx = await setup(scenario)
     const sourceFullPath = path.join(ctx.tmp.path, scenario.source.path)
     const firstWritten = await autoIngest(
@@ -270,6 +272,7 @@ describe('ingest scenarios (fixture-driven)', () => {
 
   it('serializes concurrent ingestion of the same source and reuses its cache', async () => {
     const scenario = ingestScenarios[0]
+    if (scenario === undefined) throw new Error('expected an ingest scenario')
     ctx = await setup(scenario)
     const sourceFullPath = path.join(ctx.tmp.path, scenario.source.path)
 

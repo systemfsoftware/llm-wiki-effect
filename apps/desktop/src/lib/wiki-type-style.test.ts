@@ -3,16 +3,16 @@ import { FALLBACK_TYPE_STYLE, getWikiTypeStyle, WIKI_TYPE_STYLES } from './wiki-
 
 describe('getWikiTypeStyle', () => {
   it("returns the entity style for 'entity'", () => {
-    expect(getWikiTypeStyle('entity')).toBe(WIKI_TYPE_STYLES.entity)
+    expect(getWikiTypeStyle('entity')).toBe(WIKI_TYPE_STYLES['entity'])
   })
 
   it('is case-insensitive', () => {
-    expect(getWikiTypeStyle('ENTITY')).toBe(WIKI_TYPE_STYLES.entity)
-    expect(getWikiTypeStyle('Concept')).toBe(WIKI_TYPE_STYLES.concept)
+    expect(getWikiTypeStyle('ENTITY')).toBe(WIKI_TYPE_STYLES['entity'])
+    expect(getWikiTypeStyle('Concept')).toBe(WIKI_TYPE_STYLES['concept'])
   })
 
   it('trims surrounding whitespace', () => {
-    expect(getWikiTypeStyle('  query  ')).toBe(WIKI_TYPE_STYLES.query)
+    expect(getWikiTypeStyle('  query  ')).toBe(WIKI_TYPE_STYLES['query'])
   })
 
   it('returns fallback for null', () => {

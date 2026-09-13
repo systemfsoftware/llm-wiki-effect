@@ -10,6 +10,7 @@ import { useAppDialog } from '@/stores/app-dialog-store'
 import { type LintItem, useLintStore } from '@/stores/lint-store'
 import { useReviewStore } from '@/stores/review-store'
 import { useWikiStore } from '@/stores/wiki-store'
+import type { TFunction } from 'i18next'
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -192,10 +193,8 @@ export function LintView() {
   async function handleOpenPage(page: string) {
     if (!project) return
     const pp = normalizePath(project.path)
-    const candidates = [
-      `${pp}/wiki/${page}`,
-      `${pp}/wiki/${page}.md`,
-    ]
+    const primaryPath = `${pp}/wiki/${page}`
+    const candidates = [primaryPath, `${primaryPath}.md`]
     for (const path of candidates) {
       try {
         const content = await readFile(path)
@@ -205,7 +204,7 @@ export function LintView() {
         // try next
       }
     }
-    openFileInPreview(candidates[0], `Unable to load: ${page}`)
+    openFileInPreview(primaryPath, `Unable to load: ${page}`)
   }
 
   const addLintItemToReview = useCallback((item: LintItem) => {
@@ -647,7 +646,7 @@ export function LintView() {
                   onSelectedChange={setLintSelected}
                   onOpenPage={handleOpenPage}
                   onFix={handleFix}
-                  onDelete={item.type === 'orphan' ? handleDeleteOrphan : undefined}
+                  {...(item.type === 'orphan' ? { onDelete: handleDeleteOrphan } : {})}
                   typeConfig={typeConfig}
                   t={t}
                 />
@@ -664,7 +663,7 @@ export function LintView() {
                   onSelectedChange={setLintSelected}
                   onOpenPage={handleOpenPage}
                   onFix={handleFix}
-                  onDelete={item.type === 'orphan' ? handleDeleteOrphan : undefined}
+                  {...(item.type === 'orphan' ? { onDelete: handleDeleteOrphan } : {})}
                   typeConfig={typeConfig}
                   t={t}
                 />
@@ -687,7 +686,7 @@ function SectionHeader({
   label: string
   count: number
   color: string
-  t: (key: string, opts?: Record<string, unknown>) => string
+  t: TFunction
 }) {
   return (
     <div className={`flex items-center gap-1.5 px-1 py-1 text-xs font-semibold ${color}`}>
@@ -696,6 +695,13 @@ function SectionHeader({
     </div>
   )
 }
+
+interface LintTypeConfigEntry {
+  icon: typeof AlertTriangle
+  label: string
+}
+
+type LintTypeConfig = Record<string, LintTypeConfigEntry> & { semantic: LintTypeConfigEntry }
 
 function LintCard({
   item,
@@ -715,10 +721,10 @@ function LintCard({
   onOpenPage: (page: string) => void
   onFix: (item: LintItem) => void
   onDelete?: (item: LintItem) => void
-  typeConfig: Record<string, { icon: typeof AlertTriangle; label: string }>
-  t: (key: string, opts?: Record<string, unknown>) => string
+  typeConfig: LintTypeConfig
+  t: TFunction
 }) {
-  const config = typeConfig[item.type] ?? typeConfig.semantic
+  const config = typeConfig[item.type] ?? typeConfig['semantic']
   const Icon = config.icon
 
   return (

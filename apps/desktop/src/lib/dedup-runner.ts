@@ -203,7 +203,7 @@ export async function runDuplicateDetection(
         embeddingConfig,
         llm,
         {
-          signal: options.signal,
+          ...(options.signal !== undefined ? { signal: options.signal } : {}),
           notDuplicates: notDup,
         },
       )
@@ -218,7 +218,7 @@ export async function runDuplicateDetection(
   }
 
   return detectDuplicateGroupsInBoundedBatches(summaries, llm, {
-    signal: options.signal,
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
     notDuplicates: notDup,
   })
 }
@@ -259,7 +259,7 @@ async function detectDuplicateGroupsWithEmbeddingPrefilter(
     topK: DEDUP_PREFILTER_TOP_K,
     threshold: DEDUP_PREFILTER_THRESHOLD,
     maxPages: DEDUP_PREFILTER_MAX_PAGES,
-    signal: options.signal,
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
   })
   if (pairs.length === 0) {
     // Preserve recall for small/medium wikis: a weak or non-multilingual
@@ -437,7 +437,7 @@ export async function executeMerge(
       otherWikiPages: otherPages,
     },
     llm,
-    { signal: options.signal },
+    { ...(options.signal !== undefined ? { signal: options.signal } : {}) },
   )
 
   // 2. Snapshot backup before any writes. If a write fails partway

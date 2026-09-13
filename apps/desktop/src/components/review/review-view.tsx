@@ -176,8 +176,8 @@ export function ReviewView() {
 
       resolveItem(
         id,
-        created.length === 1
-          ? `Created: wiki/${created[0].dir}/${created[0].fileName}`
+        created.length === 1 && first
+          ? `Created: wiki/${first.dir}/${first.fileName}`
           : `Created ${created.length} pages`,
       )
     } catch (err) {
@@ -201,8 +201,9 @@ export function ReviewView() {
       if (item) {
         const llmConfig = useWikiStore.getState().llmConfig
         // Use pre-generated search queries if available, otherwise fall back to title
+        const [firstDescriptionLine = ''] = item.description.split('\n')
         const topic = item.title.replace(/^(Save to Wiki|Create|Research)[:\s]*/i, '').trim() ||
-          item.description.split('\n')[0]
+          firstDescriptionLine
         queueResearch(pp, topic, llmConfig, searchConfig, item.searchQueries, id)
       } else {
         resolveItem(id, action)
@@ -321,7 +322,8 @@ export function ReviewView() {
       }
       if (item) {
         const llmConfig = useWikiStore.getState().llmConfig
-        const topic = action.replace(/^research\s*/i, '').trim() || item.description.split('\n')[0]
+        const [firstDescriptionLine = ''] = item.description.split('\n')
+        const topic = action.replace(/^research\s*/i, '').trim() || firstDescriptionLine
         queueResearch(pp, topic, llmConfig, searchConfig, undefined, id)
       } else {
         resolveItem(id, action)
@@ -405,7 +407,7 @@ export function ReviewView() {
       normalizePath(project.path),
       eligibleItems.map((item) => ({
         topic: reviewResearchTopic(item),
-        searchQueries: item.searchQueries,
+        ...(item.searchQueries !== undefined ? { searchQueries: item.searchQueries } : {}),
         sourceReviewId: item.id,
       })),
       state.llmConfig,
@@ -510,7 +512,7 @@ export function ReviewView() {
                   selected={selectedReviewIds.has(item.id)}
                   onSelectedChange={setReviewSelected}
                   working={workingReviewIds.has(item.id)}
-                  error={reviewErrors[item.id]}
+                  {...(reviewErrors[item.id] !== undefined ? { error: reviewErrors[item.id] } : {})}
                 />
               ))}
               {resolved.length > 0 && pending.length > 0 && (
@@ -527,7 +529,7 @@ export function ReviewView() {
                   selected={selectedReviewIds.has(item.id)}
                   onSelectedChange={setReviewSelected}
                   working={workingReviewIds.has(item.id)}
-                  error={reviewErrors[item.id]}
+                  {...(reviewErrors[item.id] !== undefined ? { error: reviewErrors[item.id] } : {})}
                 />
               ))}
             </div>

@@ -46,8 +46,8 @@ import type { ChatMessage } from './llm-providers'
 
 const DEFAULT_ENDPOINT = 'http://192.168.1.50:8000/v1'
 const DEFAULT_MODEL = 'Qwen3.6-27B-Q4_K_M.gguf'
-const ENDPOINT = process.env.VISION_ENDPOINT ?? DEFAULT_ENDPOINT
-const MODEL = process.env.VISION_MODEL ?? DEFAULT_MODEL
+const ENDPOINT = process.env['VISION_ENDPOINT'] ?? DEFAULT_ENDPOINT
+const MODEL = process.env['VISION_MODEL'] ?? DEFAULT_MODEL
 const REACHABILITY_TIMEOUT_MS = 2000
 const TEST_TIMEOUT_MS = 120_000
 

@@ -27,8 +27,8 @@ describe('custom LLM request headers', () => {
       customHeaders: { 'X-Tenant-ID': 'team-a', authorization: 'Custom secret' },
     }))
     expect(cfg.headers['X-Tenant-ID']).toBe('team-a')
-    expect(cfg.headers.Authorization).toBe('Bearer real-key')
-    expect(cfg.headers.authorization).toBeUndefined()
+    expect(cfg.headers['Authorization']).toBe('Bearer real-key')
+    expect(cfg.headers['authorization']).toBeUndefined()
   })
 
   it('allows custom Authorization when a custom endpoint has no API key', () => {
@@ -38,7 +38,7 @@ describe('custom LLM request headers', () => {
       customEndpoint: 'https://gateway.example/v1',
       customHeaders: { Authorization: 'Basic gateway-token' },
     }))
-    expect(cfg.headers.Authorization).toBe('Basic gateway-token')
+    expect(cfg.headers['Authorization']).toBe('Basic gateway-token')
   })
 
   it('drops malformed names and newline-bearing values', () => {
@@ -68,7 +68,7 @@ describe('MiniMax Provider', () => {
 
   it('uses Authorization: Bearer (MiniMax rejects x-api-key at CORS layer)', () => {
     const cfg = getProviderConfig(makeConfig({ apiKey: 'my-key' }))
-    expect(cfg.headers.Authorization).toBe('Bearer my-key')
+    expect(cfg.headers['Authorization']).toBe('Bearer my-key')
     expect(cfg.headers['x-api-key']).toBeUndefined()
   })
 

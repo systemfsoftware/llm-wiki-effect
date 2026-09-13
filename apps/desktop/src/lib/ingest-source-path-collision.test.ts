@@ -486,15 +486,15 @@ describe('autoIngest source summary paths', () => {
       promptContent(messages, 0).startsWith('You are analyzing a long source document')
     )
     expect(chunkCalls.length).toBeGreaterThan(1)
-    const chunkSystemPrompt = promptContent(chunkCalls[0][1], 0)
+    const chunkSystemPrompt = promptContent(chunkCalls[0]?.[1], 0)
     expect(chunkSystemPrompt).toContain('wiki/goals/')
     expect(chunkSystemPrompt).toContain('Schema-Typed Candidates')
     expect(chunkSystemPrompt).toContain('never invent goals')
-    expect(promptContent(chunkCalls[0][1], 1)).toContain('## MAIN CHUNK TO ANALYZE')
-    expect(promptContent(chunkCalls[1][1], 1)).toContain(
+    expect(promptContent(chunkCalls[0]?.[1], 1)).toContain('## MAIN CHUNK TO ANALYZE')
+    expect(promptContent(chunkCalls[1]?.[1], 1)).toContain(
       'Digest after chunk 1: stable context 1.',
     )
-    expect(promptContent(chunkCalls[1][1], 1)).not.toContain(
+    expect(promptContent(chunkCalls[1]?.[1], 1)).not.toContain(
       'introduced topic 1',
     )
 
@@ -555,11 +555,11 @@ describe('autoIngest source summary paths', () => {
       promptContent(messages, 0).startsWith('You are analyzing a long source document')
     )
     expect(resumedChunkCalls.length).toBeGreaterThan(0)
-    expect(promptContent(resumedChunkCalls[0][1], 1)).toContain('Chunk: 2/3')
-    expect(promptContent(resumedChunkCalls[0][1], 1)).toContain(
+    expect(promptContent(resumedChunkCalls[0]?.[1], 1)).toContain('Chunk: 2/3')
+    expect(promptContent(resumedChunkCalls[0]?.[1], 1)).toContain(
       'Digest after chunk 1: stable context 1.',
     )
-    expect(promptContent(resumedChunkCalls[0][1], 1)).not.toContain(
+    expect(promptContent(resumedChunkCalls[0]?.[1], 1)).not.toContain(
       'introduced topic 1',
     )
     await expect(fs.readdir(progressDir)).resolves.toEqual([])
@@ -602,7 +602,7 @@ describe('autoIngest source summary paths', () => {
       type: 'suggestion',
       title: 'Research nitrification inhibition signals',
     })
-    expect(reviews[0].searchQueries).toEqual([
+    expect(reviews[0]?.searchQueries).toEqual([
       'nitrification inhibition early warning wastewater',
       'ammonia oxidation inhibition signals',
       'wastewater nitrification process upset indicators',
@@ -639,7 +639,7 @@ describe('autoIngest source summary paths', () => {
       type: 'suggestion',
       title: 'Real Follow-up',
     })
-    expect(reviews[0].description).not.toContain('Truncated Orphan')
+    expect(reviews[0]?.description).not.toContain('Truncated Orphan')
   })
 
   it('retries a truncated FILE block with a targeted generation request', async () => {
@@ -725,6 +725,7 @@ describe('autoIngest source summary paths', () => {
     )).rejects.toThrow('Ingest incomplete')
 
     const activity = useActivityStore.getState().items[0]
+    if (activity === undefined) throw new Error('expected an activity item')
     expect(activity.status).toBe('error')
     expect(activity.detail).toContain('could not be repaired')
     expect(activity.detail).toContain('wiki/concepts/incomplete.md')

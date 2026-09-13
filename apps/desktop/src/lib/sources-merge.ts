@@ -37,6 +37,7 @@ export function parseFrontmatterArray(content: string, fieldName: string): strin
   const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (!fmMatch) return []
   const fm = fmMatch[1]
+  if (fm === undefined) return []
   // Anchor to start of line + exact field name + colon. The negative
   // lookahead-style check is done by requiring `:` immediately after.
   const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -44,10 +45,10 @@ export function parseFrontmatterArray(content: string, fieldName: string): strin
     `^${escapedName}:\\s*\\r?\\n((?:[ \\t]+-\\s+.+(?:\\r?\\n|$))+)`,
     'm',
   )
-  const block = fm.match(blockRe)
-  if (block) {
+  const blockBody = fm.match(blockRe)?.[1]
+  if (blockBody !== undefined) {
     const out: string[] = []
-    for (const line of block[1].split(/\r?\n/)) {
+    for (const line of blockBody.split(/\r?\n/)) {
       const m = line.match(/^\s+-\s+["']?(.+?)["']?\s*$/)
       if (m && m[1]) out.push(m[1].trim())
     }
@@ -57,7 +58,7 @@ export function parseFrontmatterArray(content: string, fieldName: string): strin
   const inlineRe = new RegExp(`^${escapedName}:\\s*\\[([^\\]]*)\\]`, 'm')
   const inline = fm.match(inlineRe)
   if (!inline) return []
-  const body = inline[1].trim()
+  const body = inline[1]?.trim() ?? ''
   if (body === '') return []
   return splitInlineArray(body)
 }
@@ -119,7 +120,10 @@ export function writeFrontmatterArray(
   const fmMatch = content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)/)
   if (!fmMatch) return content
 
-  const [, openDelim, fmBody, closeDelim] = fmMatch
+  const openDelim = fmMatch[1]
+  const fmBody = fmMatch[2]
+  const closeDelim = fmMatch[3]
+  if (openDelim === undefined || fmBody === undefined || closeDelim === undefined) return content
   const newline = openDelim.endsWith('\r\n') ? '\r\n' : '\n'
   const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const serialized = values.map(quoteInlineArrayValue).join(', ')

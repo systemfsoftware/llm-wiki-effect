@@ -20,9 +20,10 @@ let activeParsers = 0
 const waitingParsers: WaitingParser[] = []
 
 function drainWaitingParsers(): void {
-  while (waitingParsers.length > 0 && activeParsers < waitingParsers[0].limit) {
-    const waiter = waitingParsers.shift()
-    if (!waiter) return
+  for (;;) {
+    const waiter = waitingParsers[0]
+    if (waiter === undefined || activeParsers >= waiter.limit) return
+    waitingParsers.shift()
     activeParsers += 1
     waiter.resolve()
   }

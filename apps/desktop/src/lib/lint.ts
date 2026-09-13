@@ -41,7 +41,8 @@ function extractWikilinks(content: string): string[] {
   const regex = /\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]/g
   let match: RegExpExecArray | null
   while ((match = regex.exec(content)) !== null) {
-    links.push(match[1].trim())
+    const target = match[1]
+    if (target !== undefined) links.push(target.trim())
   }
   return links
 }
@@ -76,9 +77,9 @@ function missingPageAlreadyExists(
 }
 
 function extractTitle(content: string, fallbackPath: string): string {
-  const frontmatter = content.match(/^---\s*\n([\s\S]*?)\n---/)
-  if (frontmatter) {
-    const title = frontmatter[1].match(/^title:\s*["']?(.+?)["']?\s*$/m)
+  const frontmatterBody = content.match(/^---\s*\n([\s\S]*?)\n---/)?.[1]
+  if (frontmatterBody !== undefined) {
+    const title = frontmatterBody.match(/^title:\s*["']?(.+?)["']?\s*$/m)
     if (title?.[1]?.trim()) return title[1].trim()
   }
   const heading = content.match(/^#\s+(.+)$/m)
@@ -175,6 +176,7 @@ export async function runStructuralLint(
   for (let index = 0; index < contentFiles.length; index += 1) {
     if (options.signal?.aborted) throw new DOMException('Structural lint cancelled', 'AbortError')
     const f = contentFiles[index]
+    if (f === undefined) continue
     try {
       const content = await readFile(f.path)
       const shortName = getRelativePath(f.path, wikiRoot)
@@ -321,10 +323,13 @@ export async function runSemanticLint(
   const matches = raw.matchAll(LINT_BLOCK_REGEX)
 
   for (const match of matches) {
-    const rawType = match[1].trim().toLowerCase()
-    const severity = match[2].trim().toLowerCase()
-    const title = match[3].trim()
-    const body = match[4].trim()
+    const rawType = match[1]?.trim().toLowerCase()
+    const severity = match[2]?.trim().toLowerCase()
+    const title = match[3]?.trim()
+    const body = match[4]?.trim()
+    if (rawType === undefined || severity === undefined || title === undefined || body === undefined) {
+      continue
+    }
 
     // Drop `missing-page` findings whose page already exists — the LLM often
     // flags entities that already have a page, especially in non-English wikis
@@ -333,9 +338,9 @@ export async function runSemanticLint(
       continue
     }
 
-    const pagesMatch = body.match(/^PAGES:\s*(.+)$/m)
-    const affectedPages = pagesMatch
-      ? pagesMatch[1].split(',').map((p) => p.trim())
+    const pagesList = body.match(/^PAGES:\s*(.+)$/m)?.[1]
+    const affectedPages = pagesList
+      ? pagesList.split(',').map((p) => p.trim())
       : undefined
 
     const detail = body.replace(/^PAGES:.*$/m, '').trim()
@@ -345,7 +350,7 @@ export async function runSemanticLint(
       severity: severity === 'warning' ? 'warning' : 'info',
       page: title,
       detail: `[${rawType}] ${detail}`,
-      affectedPages,
+      ...(affectedPages !== undefined ? { affectedPages } : {}),
     })
   }
 

@@ -123,9 +123,11 @@ describe('writeSources', () => {
     const after = writeSources(before, ['a.md', 'b.md'])
     const frontmatter = after.match(/^---\n([\s\S]*?)\n---/)
     if (!frontmatter) throw new Error('expected a frontmatter block in rewritten content')
-    const fmLines = frontmatter[1]
+    const frontmatterBody = frontmatter[1]
+    if (frontmatterBody === undefined) throw new Error('expected a frontmatter body')
+    const fmLines = frontmatterBody
       .split('\n')
-      .map((l) => l.split(':')[0].trim())
+      .map((l) => l.split(':')[0]?.trim())
     expect(fmLines).toEqual(['title', 'sources', 'tags'])
   })
 

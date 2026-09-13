@@ -8,8 +8,9 @@
     "llm-wiki-mcp": "dist/src/index.js"
   },
   "scripts": {
+    "lint": "oxlint . --type-aware --type-check",
     "build": "rolldown -c rolldown.config.js",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "start": "node dist/src/index.js",
     "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/*.test.js\""
   },
@@ -26,7 +27,11 @@
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
+    "@systemfsoftware/tsconfig": "catalog:",
     "@types/node": "^20.0.0",
+    "llm-wiki-oxlint-config": "workspace:*",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "rolldown": "catalog:",
     "typescript": "catalog:"
   }

@@ -24,11 +24,11 @@ import { describe, expect, it } from 'vitest'
 import { afterAll, beforeAll } from 'vitest'
 import { API_SERVER_BASE_URL } from './api-server-constants'
 
-const ENABLED = process.env.RUN_API_TESTS === '1' || process.env.RUN_LLM_TESTS === '1'
-const BASE_URL = process.env.API_BASE_URL ?? API_SERVER_BASE_URL
-const PROJECT_ID = process.env.API_PROJECT_ID ?? 'a0e90b29-fcf3-4364-9502-8bd1272de820'
-const API_TOKEN = process.env.API_TOKEN ?? process.env.LLM_WIKI_API_TOKEN ?? ''
-const TEST_TOKEN = process.env.API_TEST_TOKEN ?? 'llm-wiki-real-api-test-token'
+const ENABLED = process.env['RUN_API_TESTS'] === '1' || process.env['RUN_LLM_TESTS'] === '1'
+const BASE_URL = process.env['API_BASE_URL'] ?? API_SERVER_BASE_URL
+const PROJECT_ID = process.env['API_PROJECT_ID'] ?? 'a0e90b29-fcf3-4364-9502-8bd1272de820'
+const API_TOKEN = process.env['API_TOKEN'] ?? process.env['LLM_WIKI_API_TOKEN'] ?? ''
+const TEST_TOKEN = process.env['API_TEST_TOKEN'] ?? 'llm-wiki-real-api-test-token'
 
 const TEST_TIMEOUT_MS = 30_000
 const RESCAN_TIMEOUT_MS = 60_000
@@ -234,7 +234,7 @@ async function requireUsableApi(): Promise<ApiHealth> {
 }
 
 function appStateCandidates(): string[] {
-  const explicit = process.env.API_APP_STATE_PATH
+  const explicit = process.env['API_APP_STATE_PATH']
   const home = os.homedir()
   const candidates = explicit ? [explicit] : []
   if (process.platform === 'darwin') {
@@ -243,15 +243,15 @@ function appStateCandidates(): string[] {
       path.join(home, 'Library/Application Support/LLM Wiki/app-state.json'),
     )
   } else if (process.platform === 'win32') {
-    const appData = process.env.APPDATA ?? path.join(home, 'AppData/Roaming')
+    const appData = process.env['APPDATA'] ?? path.join(home, 'AppData/Roaming')
     candidates.push(
       path.join(appData, 'com.llmwiki.app/app-state.json'),
       path.join(appData, 'LLM Wiki/app-state.json'),
     )
   } else {
     candidates.push(
-      path.join(process.env.XDG_DATA_HOME ?? path.join(home, '.local/share'), 'com.llmwiki.app/app-state.json'),
-      path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, '.config'), 'com.llmwiki.app/app-state.json'),
+      path.join(process.env['XDG_DATA_HOME'] ?? path.join(home, '.local/share'), 'com.llmwiki.app/app-state.json'),
+      path.join(process.env['XDG_CONFIG_HOME'] ?? path.join(home, '.config'), 'com.llmwiki.app/app-state.json'),
     )
   }
   return [...new Set(candidates)]
@@ -286,7 +286,7 @@ async function writeApiConfig(config: {
   const state = await readAppState()
   const target = appStatePath
   if (target === null) throw new Error('app-state.json path is not available')
-  state.apiConfig = { allowLanAccess: false, ...config }
+  state['apiConfig'] = { allowLanAccess: false, ...config }
   await fs.writeFile(target, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
   appStateMutated = true
 }
@@ -565,7 +565,7 @@ describe.skipIf(!ENABLED)('local API v1 against real project', () => {
         `/api/v1/projects/${PROJECT_ID}/files/content?path=${encodeURIComponent(file.path)}`,
       )
       expect(contentResp.status).toBe(200)
-      const query = searchQueryFromContent(contentResp.body.content, file.name.replace(/\.[^.]+$/, ''))
+      const query = searchQueryFromContent(contentResp.body.content, file.name.replace(/\[^.]+$/, ''))
 
       const searchResp = await api<ApiEnvelope & { mode: string; results: SearchHit[] }>(
         `/api/v1/projects/${PROJECT_ID}/search`,
@@ -578,9 +578,9 @@ describe.skipIf(!ENABLED)('local API v1 against real project', () => {
       expect(searchResp.body.ok).toBe(true)
       expect(['keyword', 'vector', 'hybrid']).toContain(searchResp.body.mode)
       expect(searchResp.body.results.length).toBeGreaterThan(0)
-      expect(searchResp.body.results[0].score).toBeGreaterThan(0)
-      expect(searchResp.body.results[0].path).toBeTruthy()
-      expect(searchResp.body.results[0].content).toBeTruthy()
+      expect(searchResp.body.results[0]?.score).toBeGreaterThan(0)
+      expect(searchResp.body.results[0]?.path).toBeTruthy()
+      expect(searchResp.body.results[0]?.content).toBeTruthy()
     },
     TEST_TIMEOUT_MS,
   )
@@ -598,9 +598,9 @@ describe.skipIf(!ENABLED)('local API v1 against real project', () => {
       expect(Array.isArray(graphResp.body.nodes)).toBe(true)
       expect(Array.isArray(graphResp.body.edges)).toBe(true)
       expect(graphResp.body.nodes.length, 'real project should have graph nodes').toBeGreaterThan(0)
-      expect(graphResp.body.nodes[0].id).toBeTruthy()
-      expect(graphResp.body.nodes[0].path).toMatch(/^wiki\//)
-      expect(typeof graphResp.body.nodes[0].linkCount).toBe('number')
+      expect(graphResp.body.nodes[0]?.id).toBeTruthy()
+      expect(graphResp.body.nodes[0]?.path).toMatch(/^wiki\//)
+      expect(typeof graphResp.body.nodes[0]?.linkCount).toBe('number')
       for (const edge of graphResp.body.edges) {
         expect(typeof edge.weight).toBe('number')
       }
@@ -617,11 +617,13 @@ describe.skipIf(!ENABLED)('local API v1 against real project', () => {
         `/api/v1/projects/${PROJECT_ID}/graph?limit=1000`,
       )
       expect(graphResp.status).toBe(200)
-      if (graphResp.body.nodes.length === 0) {
+      const firstGraphNode = graphResp.body.nodes[0]
+      if (firstGraphNode === undefined) {
         console.warn('Skipping graph q filter assertion because this project has no graph nodes.')
         ctx.skip()
+        return
       }
-      const q = encodeURIComponent(graphResp.body.nodes[0].label.slice(0, 4))
+      const q = encodeURIComponent(firstGraphNode.label.slice(0, 4))
       const filtered = await api<ApiEnvelope & { nodes: GraphNode[] }>(
         `/api/v1/projects/${PROJECT_ID}/graph?q=${q}&limit=1000`,
       )

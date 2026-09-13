@@ -166,11 +166,12 @@ export async function loadProjectLlmOverride(projectId: string): Promise<Project
   const store = await getStore()
   const existing = await store.get<Record<string, Partial<ProjectLlmOverride>>>(PROJECT_LLM_OVERRIDES_KEY)
   const saved = existing?.[projectId]
+  const profile = saved?.profile
   return {
     enabled: saved?.enabled === true,
     presetId: typeof saved?.presetId === 'string' ? saved.presetId : null,
     model: typeof saved?.model === 'string' ? saved.model : '',
-    profile: saved?.profile,
+    ...(profile !== undefined ? { profile } : {}),
   }
 }
 
@@ -462,8 +463,8 @@ export async function loadProjectFileSyncEnabled(projectId?: string): Promise<bo
   if (projectId && settings && typeof settings[projectId] === 'boolean') {
     return settings[projectId]
   }
-  if (settings && typeof settings.default === 'boolean') {
-    return settings.default
+  if (settings && typeof settings['default'] === 'boolean') {
+    return settings['default']
   }
   return true
 }
@@ -484,7 +485,7 @@ export async function loadSourceWatchConfig(projectId?: string): Promise<SourceW
   const settings = await store.get<Record<string, SourceWatchConfig>>(SOURCE_WATCH_CONFIG_KEY)
   const config = projectId ? settings?.[projectId] : undefined
   if (config) return normalizeSourceWatchConfig(config)
-  if (settings?.default) return normalizeSourceWatchConfig(settings.default)
+  if (settings?.['default']) return normalizeSourceWatchConfig(settings['default'])
 
   const legacyEnabled = await loadProjectFileSyncEnabled(projectId)
   return normalizeSourceWatchConfig({ enabled: legacyEnabled })

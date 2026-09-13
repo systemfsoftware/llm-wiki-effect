@@ -67,7 +67,7 @@ export async function optimizeResearchTopic(
   const topic = topicMatch?.[1]?.trim() ?? gapTitle
   const searchQueries = queryMatches
     .slice(0, 3)
-    .map((m) => m[1].trim())
+    .map((m) => m[1]?.trim() ?? '')
     .filter((q) => q.length > 0)
 
   return {

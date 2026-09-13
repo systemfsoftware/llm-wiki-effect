@@ -43,7 +43,7 @@ describe('optimizeResearchTopic — language directive', () => {
     useWikiStore.getState().setOutputLanguage('Chinese')
     await optimizeResearchTopic(fakeLlmConfig(), 'gap', 'desc', 'missing-page', '', '')
 
-    const prompt = mockStreamChat.mock.calls[0][1][0].content
+    const prompt = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
     expect(prompt).toContain('MANDATORY OUTPUT LANGUAGE: Chinese')
   })
 
@@ -58,7 +58,7 @@ describe('optimizeResearchTopic — language directive', () => {
       '专注于深度学习研究',
     )
 
-    const prompt = mockStreamChat.mock.calls[0][1][0].content
+    const prompt = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
     expect(prompt).toContain('MANDATORY OUTPUT LANGUAGE: Chinese')
   })
 
@@ -73,14 +73,14 @@ describe('optimizeResearchTopic — language directive', () => {
       '',
     )
 
-    const prompt = mockStreamChat.mock.calls[0][1][0].content
+    const prompt = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
     expect(prompt).toContain('MANDATORY OUTPUT LANGUAGE: English')
     expect(prompt).not.toContain('MANDATORY OUTPUT LANGUAGE: Chinese')
   })
 
   it('TOPIC output-format hint tells the LLM to use the mandatory language', async () => {
     await optimizeResearchTopic(fakeLlmConfig(), 'x', 'y', 'suggestion', '', '')
-    const prompt = mockStreamChat.mock.calls[0][1][0].content
+    const prompt = mockStreamChat.mock.calls[0]?.[1]?.[0]?.content
     expect(prompt).toContain('TOPIC:')
     expect(prompt).toMatch(/TOPIC:.*mandatory output language/i)
   })

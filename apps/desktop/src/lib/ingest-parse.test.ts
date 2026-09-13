@@ -47,8 +47,8 @@ describe('parseFileBlocks — canonical shapes', () => {
     const { blocks, warnings } = parseFileBlocks(text)
     expect(warnings).toHaveLength(0)
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].path).toBe('wiki/concepts/rope.md')
-    expect(blocks[0].content).toContain('# RoPE')
+    expect(blocks[0]?.path).toBe('wiki/concepts/rope.md')
+    expect(blocks[0]?.content).toContain('# RoPE')
   })
 
   it('extracts multiple consecutive blocks', () => {
@@ -154,7 +154,7 @@ describe('parseFileBlocks — H1: CRLF line endings', () => {
     const text = '---FILE: wiki/concepts/foo.md---\nline1\r\nline2\r\n---END FILE---'
     const { blocks } = parseFileBlocks(text)
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].content).toBe('line1\nline2')
+    expect(blocks[0]?.content).toBe('line1\nline2')
   })
 })
 
@@ -173,7 +173,7 @@ describe("parseFileBlocks — H2: truncated streams (surface, don't hide)", () =
     const { blocks, warnings, truncatedPaths } = parseFileBlocks(text)
     // Completed block makes it through.
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].path).toBe('wiki/entities/qwen.md')
+    expect(blocks[0]?.path).toBe('wiki/entities/qwen.md')
     // Unclosed block is surfaced as a warning rather than silently lost.
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toMatch(/wiki\/concepts\/moe\.md/)
@@ -250,7 +250,7 @@ describe('parseFileBlocks — H3: tolerant marker matching', () => {
     ].join('\n')
     const { blocks } = parseFileBlocks(text)
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].path).toBe('wiki/concepts/foo.md')
+    expect(blocks[0]?.path).toBe('wiki/concepts/foo.md')
   })
 
   it('tolerates trailing whitespace on the opener line', () => {
@@ -270,7 +270,7 @@ describe('parseFileBlocks — H3: tolerant marker matching', () => {
     ].join('\n')
     const { blocks } = parseFileBlocks(text)
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].content).toContain('real content continues')
+    expect(blocks[0]?.content).toContain('real content continues')
   })
 })
 
@@ -300,11 +300,11 @@ describe('parseFileBlocks — H5: code-fence awareness', () => {
     const { blocks, warnings } = parseFileBlocks(text)
     expect(warnings).toHaveLength(0)
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].path).toBe('wiki/concepts/ingest-format.md')
+    expect(blocks[0]?.path).toBe('wiki/concepts/ingest-format.md')
     // Content must include BOTH the fenced example AND the post-fence
     // prose — which the old parser silently dropped.
-    expect(blocks[0].content).toContain('```plaintext')
-    expect(blocks[0].content).toContain('More explanation after the example.')
+    expect(blocks[0]?.content).toContain('```plaintext')
+    expect(blocks[0]?.content).toContain('More explanation after the example.')
   })
 
   it('handles multiple fenced blocks in one page', () => {
@@ -325,7 +325,7 @@ describe('parseFileBlocks — H5: code-fence awareness', () => {
     ].join('\n')
     const { blocks } = parseFileBlocks(text)
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].content).toContain('more prose')
+    expect(blocks[0]?.content).toContain('more prose')
   })
 
   it('handles nested-length fences per CommonMark (outer 4-tick, inner 3-tick)', () => {
@@ -342,7 +342,7 @@ describe('parseFileBlocks — H5: code-fence awareness', () => {
     ].join('\n')
     const { blocks } = parseFileBlocks(text)
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].content).toContain('real content after the outer fence closes')
+    expect(blocks[0]?.content).toContain('real content after the outer fence closes')
   })
 
   it('a 3-tick fence does NOT close a 4-tick opener (CommonMark rule)', () => {
@@ -362,7 +362,7 @@ describe('parseFileBlocks — H5: code-fence awareness', () => {
     ].join('\n')
     const { blocks } = parseFileBlocks(text)
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].content).toContain('real content')
+    expect(blocks[0]?.content).toContain('real content')
   })
 })
 
@@ -492,7 +492,7 @@ describe('parseFileBlocks — path-traversal guard end-to-end', () => {
     const { blocks, warnings } = parseFileBlocks(text)
     // Only the legit block survives.
     expect(blocks).toHaveLength(1)
-    expect(blocks[0].path).toBe('wiki/concepts/legit.md')
+    expect(blocks[0]?.path).toBe('wiki/concepts/legit.md')
     // The traversal block triggers a visible warning, not a silent drop.
     expect(warnings.some((w) => w.includes('../../etc/passwd'))).toBe(true)
     expect(warnings.some((w) => w.includes('unsafe path'))).toBe(true)
@@ -760,7 +760,8 @@ describe('application-managed aggregate boundaries', () => {
       'Keep me',
     ].join('\n')
     const result = updateBoundedRecentIndexSection(existing, ['- [[new]] — New'])
-    const recent = result.split('## Recently Updated')[1].split('## Other')[0]
+    const recent = result.split('## Recently Updated')[1]?.split('## Other')[0]
+    if (recent === undefined) throw new Error('expected a Recently Updated section')
     expect(recent.match(/^- \[\[/gm)).toHaveLength(200)
     expect(recent).toContain('[[new]]')
     expect(result).toContain('## Other\nKeep me')

@@ -29,17 +29,17 @@ import { autoIngest } from './ingest'
 import { runStructuralLint } from './lint'
 
 // ── Provider / model configuration ──────────────────────────────────────────
-const LLM_PROVIDER: 'ollama' | 'minimax' = process.env.LLM_PROVIDER === 'minimax' ? 'minimax' : 'ollama'
+const LLM_PROVIDER: 'ollama' | 'minimax' = process.env['LLM_PROVIDER'] === 'minimax' ? 'minimax' : 'ollama'
 // Local llama.cpp server (OpenAI-compatible). Default port 8080; launch with
 // `--jinja` so chat_template_kwargs.enable_thinking=false actually disables
 // Qwen3 thinking. Works via the `ollama` provider (same /v1/chat/completions
 // endpoint shape).
-const OLLAMA_URL = process.env.OLLAMA_URL ?? 'http://192.168.1.50:8080'
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? 'Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
-const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY ?? ''
-const MINIMAX_MODEL = process.env.MINIMAX_MODEL ?? 'MiniMax-M2.7-highspeed'
-const MINIMAX_ENDPOINT = process.env.MINIMAX_ENDPOINT ?? 'https://api.minimaxi.com/v1'
-const ENABLED = process.env.RUN_LLM_TESTS === '1'
+const OLLAMA_URL = process.env['OLLAMA_URL'] ?? 'http://192.168.1.50:8080'
+const OLLAMA_MODEL = process.env['OLLAMA_MODEL'] ?? 'Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
+const MINIMAX_API_KEY = process.env['MINIMAX_API_KEY'] ?? ''
+const MINIMAX_MODEL = process.env['MINIMAX_MODEL'] ?? 'MiniMax-M2.7-highspeed'
+const MINIMAX_ENDPOINT = process.env['MINIMAX_ENDPOINT'] ?? 'https://api.minimaxi.com/v1'
+const ENABLED = process.env['RUN_LLM_TESTS'] === '1'
 
 const REAL_CONTENT_ROOT = path.join(process.cwd(), 'tests', 'fixtures', 'real-content')
 
@@ -461,7 +461,7 @@ async function setupScenario(scenario: RealIngestScenario): Promise<Ctx> {
 
 afterEach(async () => {
   if (ctx) {
-    if (process.env.KEEP_REAL_LLM_OUTPUT === '1') {
+    if (process.env['KEEP_REAL_LLM_OUTPUT'] === '1') {
       const name = ctx.tmp.path.split('/').pop() ?? 'latest'
       const keep = path.join(
         process.cwd(),

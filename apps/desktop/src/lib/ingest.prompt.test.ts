@@ -233,9 +233,12 @@ describe('long-source ingest planning', () => {
     const chunks = splitSourceIntoSemanticChunks(content, 1800, 200)
 
     expect(chunks.length).toBeGreaterThan(1)
-    expect(chunks[0].headingPath).toBe('Chapter One')
+    expect(chunks[0]?.headingPath).toBe('Chapter One')
     expect(chunks.some((chunk) => chunk.headingPath.includes('Section Two'))).toBe(true)
-    expect(chunks[1].overlapBefore.length).toBeGreaterThan(0)
-    expect(chunks[1].main.startsWith(chunks[0].main.slice(-200))).toBe(false)
+    expect(chunks[1]?.overlapBefore.length).toBeGreaterThan(0)
+    const firstChunk = chunks[0]
+    const secondChunk = chunks[1]
+    if (firstChunk === undefined || secondChunk === undefined) throw new Error('expected at least two chunks')
+    expect(secondChunk.main.startsWith(firstChunk.main.slice(-200))).toBe(false)
   })
 })

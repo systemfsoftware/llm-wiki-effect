@@ -162,7 +162,9 @@ describe('chat-store conversation isolation', () => {
       ['/project/wiki/overview.md'],
     )
 
-    expect(useChatStore.getState().messages[0].contextFiles).toEqual([
+    const [message] = useChatStore.getState().messages
+    if (!message) throw new Error('expected the user message to be stored')
+    expect(message.contextFiles).toEqual([
       '/project/wiki/overview.md',
     ])
   })

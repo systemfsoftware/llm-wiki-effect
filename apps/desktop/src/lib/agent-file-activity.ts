@@ -69,12 +69,12 @@ export function mergeAgentFileChange(
   next: ChatAgentFileChange,
 ): ChatAgentFileChange {
   if (!previous) return next
+  const { beforeContent: _supersededSnapshot, ...rest } = next
   return {
-    ...next,
+    ...rest,
     id: previous.id,
     operation: previous.operation,
-    beforeContent: previous.beforeContent,
-    afterContent: next.afterContent,
+    ...(previous.beforeContent !== undefined ? { beforeContent: previous.beforeContent } : {}),
   }
 }
 

@@ -41,7 +41,8 @@ const REASONING_FIELD_RE = /"reasoning(?:_content)?"\s*:\s*"((?:[^"\\]|\\.)*)"/g
 export function countReasoningCharsInLine(rawLine: string): number {
   let total = 0
   for (const match of rawLine.matchAll(REASONING_FIELD_RE)) {
-    total += match[1].length
+    const reasoning = match[1]
+    if (reasoning !== undefined) total += reasoning.length
   }
   return total
 }

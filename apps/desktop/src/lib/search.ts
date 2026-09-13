@@ -84,7 +84,12 @@ export function tokenizeQuery(query: string): string[] {
     const hasCJK = /[\u4e00-\u9fff\u3400-\u4dbf]/.test(token)
     if (hasCJK && token.length > 2) {
       const chars = Array.from(token)
-      for (let i = 0; i < chars.length - 1; i++) tokens.push(chars[i] + chars[i + 1])
+      for (let i = 0; i < chars.length - 1; i++) {
+        const first = chars[i]
+        const second = chars[i + 1]
+        if (first === undefined || second === undefined) continue
+        tokens.push(first + second)
+      }
       for (const ch of chars) {
         if (!STOP_WORDS.has(ch)) tokens.push(ch)
       }

@@ -232,9 +232,11 @@ function normalizeWikilinksOutsideCode(body: string): string {
     const content = line.replace(/\r?\n$/, '')
     const markerMatch = content.match(/^ {0,3}(`{3,}|~{3,})/)
     if (markerMatch) {
-      const marker = markerMatch[1][0]
+      const fenceRun = markerMatch[1]
+      if (fenceRun === undefined) return line
+      const marker = fenceRun.charAt(0)
       if (marker !== '`' && marker !== '~') return line
-      const length = markerMatch[1].length
+      const length = fenceRun.length
       if (!fence) fence = { marker, length }
       else if (
         marker === fence.marker &&
@@ -359,7 +361,10 @@ function setFrontmatterScalar(
 ): string {
   const fmMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/)
   if (!fmMatch) return content
-  const [, openDelim, fmBody, closeDelim] = fmMatch
+  const openDelim = fmMatch[1]
+  const fmBody = fmMatch[2]
+  const closeDelim = fmMatch[3]
+  if (openDelim === undefined || fmBody === undefined || closeDelim === undefined) return content
   const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const newLine = `${fieldName}: ${value}`
 

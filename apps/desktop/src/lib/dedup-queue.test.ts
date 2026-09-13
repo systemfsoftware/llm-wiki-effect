@@ -60,7 +60,9 @@ function makeGroup(slugs: string[]): DuplicateGroup {
 }
 
 async function activate(id: string = TEST_ID): Promise<void> {
-  await restoreQueue(id, idToPath[id])
+  const projectPath = idToPath[id]
+  if (projectPath === undefined) throw new Error(`no path registered for project ${id}`)
+  await restoreQueue(id, projectPath)
 }
 
 beforeEach(async () => {
@@ -165,9 +167,9 @@ describe('dedup-queue — retries', () => {
     expect(mockExecuteMerge).toHaveBeenCalledTimes(3)
     const tasks = getQueue()
     expect(tasks).toHaveLength(1)
-    expect(tasks[0].status).toBe('failed')
-    expect(tasks[0].retryCount).toBe(3)
-    expect(tasks[0].error).toContain('LLM boom')
+    expect(tasks[0]?.status).toBe('failed')
+    expect(tasks[0]?.retryCount).toBe(3)
+    expect(tasks[0]?.error).toContain('LLM boom')
   })
 
   it('succeeds after a transient failure within retry budget', async () => {
@@ -194,7 +196,7 @@ describe('dedup-queue — retries', () => {
 
     const id = await enqueueMerge(TEST_ID, makeGroup(['a', 'b']), 'a')
     await flushMicrotasks(40)
-    expect(getQueue()[0].status).toBe('failed')
+    expect(getQueue()[0]?.status).toBe('failed')
     expect(mockExecuteMerge).toHaveBeenCalledTimes(3)
 
     mockExecuteMerge.mockResolvedValueOnce({
@@ -292,7 +294,7 @@ describe('dedup-queue — pauseQueue / restoreQueue', () => {
     await restoreQueue(TEST_ID, TEST_PATH)
     const restored = getQueue()
     expect(restored).toHaveLength(1)
-    expect(restored[0].group.slugs).toEqual(['a', 'b'])
+    expect(restored[0]?.group.slugs).toEqual(['a', 'b'])
   })
 
   it('restoreQueue reverts processing tasks to pending without auto-running them', async () => {
@@ -364,7 +366,7 @@ describe('dedup-queue — pauseQueue / restoreQueue', () => {
     await flushMicrotasks(20)
 
     expect(mockExecuteMerge).toHaveBeenCalledOnce()
-    expect(mockExecuteMerge.mock.calls[0][1].slugs).toEqual(['new-a', 'new-b'])
+    expect(mockExecuteMerge.mock.calls[0]?.[1]?.slugs).toEqual(['new-a', 'new-b'])
     expect(getQueue().map((task) => task.id)).toEqual(['dedup-restored'])
     expect(getQueueSummary().restoredBacklogWaiting).toBe(true)
   })

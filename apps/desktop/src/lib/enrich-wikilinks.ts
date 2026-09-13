@@ -143,13 +143,16 @@ function collectWikiPageSlugs(nodes: FileNode[]): Map<string, string> {
   for (const [key, values] of candidates) {
     // Case/Unicode-equivalent filenames can coexist on case-sensitive file
     // systems. Do not choose arbitrarily when the reader would be ambiguous.
-    if (values.size === 1) slugs.set(key, [...values][0])
+    if (values.size === 1) {
+      const [only] = values
+      if (only !== undefined) slugs.set(key, only)
+    }
   }
   return slugs
 }
 
 function normalizeTargetSlug(target: string): string {
-  const withoutAlias = target.split('|', 1)[0].split('#', 1)[0]
+  const withoutAlias = target.split('|', 1)[0]?.split('#', 1)[0] ?? ''
   const name = normalizePath(withoutAlias).split('/').pop() ?? ''
   return name.replace(/\.md$/i, '').normalize('NFKC').trim().toLowerCase()
 }

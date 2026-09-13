@@ -65,15 +65,15 @@ import {
   searchByEmbedding,
 } from './embedding'
 
-const ENABLED = process.env.RUN_LLM_TESTS === '1' &&
-  !!process.env.EMBEDDING_ENDPOINT &&
-  !!process.env.EMBEDDING_MODEL
+const ENABLED = process.env['RUN_LLM_TESTS'] === '1' &&
+  !!process.env['EMBEDDING_ENDPOINT'] &&
+  !!process.env['EMBEDDING_MODEL']
 
 const cfg = {
   enabled: true,
-  endpoint: process.env.EMBEDDING_ENDPOINT ?? '',
-  apiKey: process.env.EMBEDDING_API_KEY ?? '',
-  model: process.env.EMBEDDING_MODEL ?? '',
+  endpoint: process.env['EMBEDDING_ENDPOINT'] ?? '',
+  apiKey: process.env['EMBEDDING_API_KEY'] ?? '',
+  model: process.env['EMBEDDING_MODEL'] ?? '',
 }
 
 /** Cosine similarity — defined here (not imported) so the ranking
@@ -84,9 +84,12 @@ function cosineSim(a: number[], b: number[]): number {
   let na = 0
   let nb = 0
   for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i]
-    na += a[i] * a[i]
-    nb += b[i] * b[i]
+    const ai = a[i]
+    const bi = b[i]
+    if (ai === undefined || bi === undefined) throw new Error(`missing component at index ${i}`)
+    dot += ai * bi
+    na += ai * ai
+    nb += bi * bi
   }
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
@@ -449,9 +452,12 @@ function cosineScore(a: number[], b: number[]): number {
   let na = 0
   let nb = 0
   for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i]
-    na += a[i] * a[i]
-    nb += b[i] * b[i]
+    const ai = a[i]
+    const bi = b[i]
+    if (ai === undefined || bi === undefined) throw new Error(`missing component at index ${i}`)
+    dot += ai * bi
+    na += ai * ai
+    nb += bi * bi
   }
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
@@ -622,7 +628,7 @@ describe('real-embedding RAG pipeline — multi-page retrieval', () => {
           // Delete existing chunks for this page, then append. Mirrors
           // the Rust side's delete-then-add semantics.
           for (let i = CHUNK_STORE.length - 1; i >= 0; i--) {
-            if (CHUNK_STORE[i].page_id === payload.pageId) CHUNK_STORE.splice(i, 1)
+            if (CHUNK_STORE[i]?.page_id === payload.pageId) CHUNK_STORE.splice(i, 1)
           }
           for (const c of payload.chunks) {
             CHUNK_STORE.push({
@@ -684,7 +690,9 @@ describe('real-embedding RAG pipeline — multi-page retrieval', () => {
       // Every chunk has a real embedding vector of consistent dim,
       // every component finite. A regression that dropped Math.fround
       // or corrupted the response would show up as NaN here.
-      const dim = pageChunks[0].embedding.length
+      const firstChunk = pageChunks[0]
+      if (firstChunk === undefined) throw new Error(`page "${page.id}" produced no chunks`)
+      const dim = firstChunk.embedding.length
       expect(dim).toBeGreaterThan(0)
       for (const c of pageChunks) {
         expect(c.embedding.length).toBe(dim)
@@ -728,8 +736,10 @@ describe('real-embedding RAG pipeline — multi-page retrieval', () => {
         console.log(`[RAG] "${q}" → ${ordered}`)
 
         expect(out.length).toBeGreaterThan(0)
+        const top = out[0]
+        if (top === undefined) throw new Error(`expected a top-ranked page for "${q}"`)
         expect(
-          out[0].id,
+          top.id,
           `expected "${expectedTop}" at rank 1, got ranking: ${ordered}`,
         ).toBe(expectedTop)
 
@@ -740,20 +750,24 @@ describe('real-embedding RAG pipeline — multi-page retrieval', () => {
           out.length,
           `expected at least 2 ranked pages for "${q}", got ${out.length}`,
         ).toBeGreaterThanOrEqual(2)
-        const gap = out[0].score - out[1].score
+        const runnerUp = out[1]
+        if (runnerUp === undefined) throw new Error(`expected a runner-up page for "${q}"`)
+        const gap = top.score - runnerUp.score
         expect(
           gap,
           `top-1 score gap too small (${gap.toFixed(4)}) — ${ordered}`,
-        ).toBeGreaterThan(out[0].score * 0.05)
+        ).toBeGreaterThan(top.score * 0.05)
 
         // The winning page should expose matched chunks with the
         // highest-similarity chunk actually coming from the expected
         // page — i.e. the retrieval isn't winning because of blended
         // tail noise.
-        expect(out[0].matchedChunks, 'winning page missing matchedChunks').toBeTruthy()
-        const matchedChunks = out[0].matchedChunks
+        expect(top.matchedChunks, 'winning page missing matchedChunks').toBeTruthy()
+        const matchedChunks = top.matchedChunks
         if (!matchedChunks) throw new Error('winning page missing matchedChunks')
-        expect(matchedChunks[0].score).toBeGreaterThan(0.3)
+        const topMatch = matchedChunks[0]
+        if (topMatch === undefined) throw new Error('winning page missing matched chunks')
+        expect(topMatch.score).toBeGreaterThan(0.3)
       },
       TEST_TIMEOUT_MS,
     )
@@ -769,10 +783,13 @@ describe('real-embedding RAG pipeline — multi-page retrieval', () => {
       // miss it. Asserting this specific chunk wins its page verifies
       // the `enrichChunkForEmbedding` contribution end-to-end.
       const out = await searchByEmbedding(PROJECT_PATH, 'IO-aware tiling block size SRAM', cfg, 3)
-      expect(out[0].id).toBe('flash-attention')
-      const matchedChunks = out[0].matchedChunks
+      const top = out[0]
+      if (top === undefined) throw new Error('expected a top-ranked page for the IO-aware tiling query')
+      expect(top.id).toBe('flash-attention')
+      const matchedChunks = top.matchedChunks
       if (!matchedChunks) throw new Error('expected matched chunks on the winning page')
       const topChunk = matchedChunks[0]
+      if (topChunk === undefined) throw new Error('expected at least one matched chunk')
       expect(
         topChunk.headingPath,
         `top chunk's heading path doesn't name IO-aware tiling: ${topChunk.headingPath}`,
@@ -828,7 +845,7 @@ describe('real-embedding RAG pipeline — multi-page retrieval', () => {
         // Fetch all pages (topK large enough to see every page_id) so
         // we can assert on both the winner and the tail.
         const out = await searchByEmbedding(PROJECT_PATH, q, cfg, 10)
-        expect(out[0].id).toBe(expectedTop)
+        expect(out[0]?.id).toBe(expectedTop)
 
         const byId = new Map(out.map((p) => [p.id, p.score]))
         for (const [id, ceiling] of Object.entries(mustBeBelow)) {
@@ -876,17 +893,22 @@ describe('real-embedding RAG pipeline — multi-page retrieval', () => {
         cfg,
         3,
       )
+      const inDomainTop = inDomain[0]
+      const outOfDomainTop = outOfDomain[0]
+      if (inDomainTop === undefined || outOfDomainTop === undefined) {
+        throw new Error('expected a top-ranked page for both the in-domain and out-of-domain queries')
+      }
       // eslint-disable-next-line no-console
       console.log(
-        `[RAG] in-domain top=${inDomain[0].score.toFixed(3)} (${inDomain[0].id}), ` +
-          `out-of-domain top=${outOfDomain[0].score.toFixed(3)} (${outOfDomain[0].id})`,
+        `[RAG] in-domain top=${inDomainTop.score.toFixed(3)} (${inDomainTop.id}), ` +
+          `out-of-domain top=${outOfDomainTop.score.toFixed(3)} (${outOfDomainTop.id})`,
       )
       expect(
-        outOfDomain[0].score,
-        `out-of-domain query's top score (${outOfDomain[0].score.toFixed(3)}) should be lower than in-domain (${
-          inDomain[0].score.toFixed(3)
+        outOfDomainTop.score,
+        `out-of-domain query's top score (${outOfDomainTop.score.toFixed(3)}) should be lower than in-domain (${
+          inDomainTop.score.toFixed(3)
         }). If they tie, retrieval has no confidence signal.`,
-      ).toBeLessThan(inDomain[0].score - 0.2)
+      ).toBeLessThan(inDomainTop.score - 0.2)
     },
     TEST_TIMEOUT_MS,
   )
@@ -896,10 +918,10 @@ describe('real-embedding RAG pipeline — multi-page retrieval', () => {
     async () => {
       if (beforeAllError) throw beforeAllError
       const out = await searchByEmbedding(PROJECT_PATH, 'Flash Attention', cfg, 3)
-      expect(out[0].id).toBe('flash-attention')
+      expect(out[0]?.id).toBe('flash-attention')
       // An exact title match should comfortably clear 0.8. Lower
       // would indicate a regression in title-prefix enrichment.
-      expect(out[0].score).toBeGreaterThan(0.8)
+      expect(out[0]?.score).toBeGreaterThan(0.8)
     },
     TEST_TIMEOUT_MS,
   )
@@ -977,7 +999,7 @@ describe('real-embedding RAG pipeline — multi-page retrieval', () => {
         // Always clean up so a failure mid-test doesn't leak state
         // into the "empty query" test at the end of the describe.
         for (let i = CHUNK_STORE.length - 1; i >= 0; i--) {
-          if (CHUNK_STORE[i].page_id === scratchId) CHUNK_STORE.splice(i, 1)
+          if (CHUNK_STORE[i]?.page_id === scratchId) CHUNK_STORE.splice(i, 1)
         }
       }
     },

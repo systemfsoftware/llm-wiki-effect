@@ -6,7 +6,7 @@
 export function normalizeSelectionReplacement(content: string): string {
   const trimmed = content.trim()
   const fenced = trimmed.match(/^```[^\n]*\n([\s\S]*?)\n```$/)
-  return fenced ? fenced[1] : content
+  return fenced?.[1] ?? content
 }
 
 /**
@@ -43,10 +43,13 @@ export function buildWordDiff(original: string, replacement: string): WordDiffPa
   }
   const rows = Array.from({ length: left.length + 1 }, () => new Uint32Array(right.length + 1))
   for (let i = left.length - 1; i >= 0; i -= 1) {
+    const row = requireDefined(rows, i)
+    const nextRow = requireDefined(rows, i + 1)
+    const leftToken = requireDefined(left, i)
     for (let j = right.length - 1; j >= 0; j -= 1) {
-      rows[i][j] = left[i] === right[j]
-        ? rows[i + 1][j + 1] + 1
-        : Math.max(rows[i + 1][j], rows[i][j + 1])
+      row[j] = leftToken === right[j]
+        ? requireDefined(nextRow, j + 1) + 1
+        : Math.max(requireDefined(nextRow, j), requireDefined(row, j + 1))
     }
   }
   const parts: WordDiffPart[] = []
@@ -54,14 +57,16 @@ export function buildWordDiff(original: string, replacement: string): WordDiffPa
   let j = 0
   while (i < left.length || j < right.length) {
     if (i < left.length && j < right.length && left[i] === right[j]) {
-      pushDiff(parts, 'equal', left[i])
+      pushDiff(parts, 'equal', requireDefined(left, i))
       i += 1
       j += 1
-    } else if (j < right.length && (i === left.length || rows[i][j + 1] >= rows[i + 1][j])) {
-      pushDiff(parts, 'insert', right[j])
+    } else if (
+      j < right.length && (i === left.length || requireMatrixCell(rows, i, j + 1) >= requireMatrixCell(rows, i + 1, j))
+    ) {
+      pushDiff(parts, 'insert', requireDefined(right, j))
       j += 1
     } else {
-      pushDiff(parts, 'delete', left[i])
+      pushDiff(parts, 'delete', requireDefined(left, i))
       i += 1
     }
   }
@@ -80,6 +85,16 @@ function pushDiff(parts: WordDiffPart[], type: WordDiffPart['type'], value: stri
   const previous = parts[parts.length - 1]
   if (previous?.type === type) previous.value += value
   else parts.push({ type, value })
+}
+
+function requireDefined<T>(values: { readonly [index: number]: T }, index: number): T {
+  const value = values[index]
+  if (value === undefined) throw new RangeError(`index ${index} is out of range`)
+  return value
+}
+
+function requireMatrixCell(rows: readonly Uint32Array[], row: number, column: number): number {
+  return requireDefined(requireDefined(rows, row), column)
 }
 
 /**
@@ -104,9 +119,10 @@ export function findUniqueTextSelection(
   if (tokens.length < 2) return null
   const pattern = tokens.map(escapeRegExp).join('\\s+')
   const matches = [...markdown.matchAll(new RegExp(pattern, 'gu'))]
-  if (matches.length !== 1 || matches[0].index === undefined) return null
-  const start = matches[0].index
-  return snapshot(markdown, start, start + matches[0][0].length)
+  if (matches.length !== 1) return null
+  const match = requireDefined(matches, 0)
+  if (match.index === undefined) return null
+  return snapshot(markdown, match.index, match.index + requireDefined(match, 0).length)
 }
 
 /**
@@ -140,8 +156,8 @@ function domPointToSourceOffset(
   const [target, targetOffset] = textPoint
   const parent = target.parentElement?.closest<HTMLElement>('[data-source-start][data-source-end]')
   if (!parent || !root.contains(parent)) return null
-  const start = Number(parent.dataset.sourceStart)
-  const end = Number(parent.dataset.sourceEnd)
+  const start = Number(parent.dataset['sourceStart'])
+  const end = Number(parent.dataset['sourceEnd'])
   if (
     !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end > markdown.length || start >= end
   ) return null

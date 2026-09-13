@@ -82,7 +82,8 @@ const MAX_VISIBLE_QUEUE_TASKS = 300
 function getFileTypeInfo(path: string): { icon: typeof FileText; typeKey: string } {
   const inferred = inferWikiTypeFromPath(path)
   if (inferred) {
-    const directoryIcon = FILE_TYPE_ICONS[WIKI_TYPE_ICON_KEYS[inferred]]
+    const iconKey = WIKI_TYPE_ICON_KEYS[inferred]
+    const directoryIcon = iconKey === undefined ? undefined : FILE_TYPE_ICONS[iconKey]
     return { icon: directoryIcon ?? FileText, typeKey: inferred }
   }
   for (const [dir, icon] of Object.entries(FILE_TYPE_ICONS)) {
@@ -476,7 +477,7 @@ export function ActivityPanel() {
               <ActivityRow
                 key={item.id}
                 item={item}
-                onCancel={matchingTask ? () => handleIngestCancel(matchingTask.id) : undefined}
+                {...(matchingTask ? { onCancel: () => handleIngestCancel(matchingTask.id) } : {})}
               />
             )
           })}

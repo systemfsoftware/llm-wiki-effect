@@ -67,9 +67,9 @@ describe('chunkMarkdown — trivial inputs', () => {
   it('emits a single chunk when content fits under targetChars', () => {
     const result = chunkMarkdown('Hello world.', { targetChars: 1000 })
     expect(result).toHaveLength(1)
-    expect(result[0].text).toBe('Hello world.')
-    expect(result[0].index).toBe(0)
-    expect(result[0].oversized).toBe(false)
+    expect(result[0]?.text).toBe('Hello world.')
+    expect(result[0]?.index).toBe(0)
+    expect(result[0]?.oversized).toBe(false)
   })
 })
 
@@ -78,13 +78,13 @@ describe('chunkMarkdown — trivial inputs', () => {
 describe('chunkMarkdown — heading breadcrumbs', () => {
   it('emits empty headingPath for content before any heading', () => {
     const result = chunkMarkdown('preamble text without a heading')
-    expect(result[0].headingPath).toBe('')
+    expect(result[0]?.headingPath).toBe('')
   })
 
   it('captures a single-level heading', () => {
     const input = '# Top\n\nBody'
     const result = chunkMarkdown(input)
-    expect(result[0].headingPath).toBe('# Top')
+    expect(result[0]?.headingPath).toBe('# Top')
   })
 
   it('builds a multi-level breadcrumb', () => {
@@ -98,6 +98,7 @@ describe('chunkMarkdown — heading breadcrumbs', () => {
     const result = chunkMarkdown(input)
     // Last chunk (the text) should show the full breadcrumb.
     const last = result[result.length - 1]
+    if (last === undefined) throw new Error('chunkMarkdown returned no chunks')
     expect(last.headingPath).toBe('## Section A > ### Subsection')
   })
 
@@ -151,7 +152,7 @@ describe('chunkMarkdown — fenced code blocks', () => {
     )
     const result = chunkMarkdown(input, { targetChars: 2000 })
     expect(result).toHaveLength(1)
-    expect(result[0].text).toContain('def hello():')
+    expect(result[0]?.text).toContain('def hello():')
   })
 
   it('does NOT tear a large code block', () => {
@@ -162,6 +163,7 @@ describe('chunkMarkdown — fenced code blocks', () => {
     const codeChunks = result.filter((c) => c.text.includes('```js'))
     expect(codeChunks).toHaveLength(1)
     const [codeChunk] = codeChunks
+    if (codeChunk === undefined) throw new Error('no chunk contains the code block opener')
     // The closing fence must be in the SAME chunk as the opener.
     expect(codeChunk.text).toContain('```js')
     expect(codeChunk.text.match(/```/g)?.length).toBeGreaterThanOrEqual(2)
@@ -179,7 +181,7 @@ describe('chunkMarkdown — fenced code blocks', () => {
       'Outro.',
     )
     const result = chunkMarkdown(input, { targetChars: 2000 })
-    expect(result[0].text).toContain('code here')
+    expect(result[0]?.text).toContain('code here')
   })
 })
 
@@ -198,8 +200,8 @@ describe('chunkMarkdown — markdown tables', () => {
       'Outro.',
     )
     const result = chunkMarkdown(input, { targetChars: 2000 })
-    expect(result[0].text).toContain('| A | B |')
-    expect(result[0].text).toContain('| 3 | 4 |')
+    expect(result[0]?.text).toContain('| A | B |')
+    expect(result[0]?.text).toContain('| 3 | 4 |')
   })
 
   it('does NOT tear a large table', () => {
@@ -209,7 +211,7 @@ describe('chunkMarkdown — markdown tables', () => {
     const tableChunks = result.filter((c) => c.text.includes('| row'))
     // Whole table should be in one chunk, even if oversized.
     expect(tableChunks).toHaveLength(1)
-    expect(tableChunks[0].oversized).toBe(true)
+    expect(tableChunks[0]?.oversized).toBe(true)
   })
 
   it('treats a single leading-pipe line as a normal paragraph', () => {
@@ -230,8 +232,8 @@ describe('chunkMarkdown — recursive split priority', () => {
     const input = `${p1}\n\n${p2}`
     const result = chunkMarkdown(input, { targetChars: 500, maxChars: 800, minChars: 50, overlapChars: 0 })
     expect(result).toHaveLength(2)
-    expect(result[0].text.startsWith('a')).toBe(true)
-    expect(result[1].text.startsWith('b')).toBe(true)
+    expect(result[0]?.text.startsWith('a')).toBe(true)
+    expect(result[1]?.text.startsWith('b')).toBe(true)
   })
 
   it('descends to sentence boundaries when a single paragraph exceeds target (CJK)', () => {
@@ -272,7 +274,7 @@ describe('chunkMarkdown — overlap between adjacent chunks', () => {
     const result = chunkMarkdown(input, { targetChars: 500, maxChars: 800, minChars: 50, overlapChars: 0 })
     expect(result).toHaveLength(2)
     // No shared characters at the boundary.
-    expect(result[1].text.startsWith('a')).toBe(false)
+    expect(result[1]?.text.startsWith('a')).toBe(false)
   })
 
   it('non-zero overlap injects some preceding content into the next chunk', () => {
@@ -284,7 +286,8 @@ describe('chunkMarkdown — overlap between adjacent chunks', () => {
     // previous chunk's tail — prove it by checking the first several
     // chars appear in the previous chunk somewhere.
     const second = result[1]
-    const prevTail = result[0].text.slice(-200)
+    if (second === undefined) throw new Error('chunkMarkdown returned fewer than 2 chunks')
+    const prevTail = result[0]?.text.slice(-200)
     const overlapSample = second.text.slice(0, 30)
     expect(prevTail).toContain(overlapSample)
   })
@@ -301,13 +304,13 @@ describe('chunkMarkdown — overlap between adjacent chunks', () => {
     // Hard-slice at 200 chars → 10 pieces.
     expect(result).toHaveLength(10)
     // chunk[0] is the first slice, untouched.
-    expect(result[0].text).toHaveLength(200)
+    expect(result[0]?.text).toHaveLength(200)
     // chunk[1..] = clamp(500 → 100) chars of prev + 200 chars of own →
     // 300 chars. If the clamp silently regressed to e.g. `overlapChars`
     // unclamped, `slice(-500)` on a 200-char prev yields 200 chars of
     // overlap and the second chunk would be 400 chars, not 300.
     for (let i = 1; i < result.length; i++) {
-      expect(result[i].text).toHaveLength(300)
+      expect(result[i]?.text).toHaveLength(300)
     }
   })
 })
@@ -320,8 +323,8 @@ describe('chunkMarkdown — minChars merging', () => {
     const input = 'tiny.\n\n' + rep('b', 600)
     const result = chunkMarkdown(input, { targetChars: 800, maxChars: 1200, minChars: 100, overlapChars: 0 })
     expect(result).toHaveLength(1)
-    expect(result[0].text).toContain('tiny.')
-    expect(result[0].text).toContain('b'.repeat(100))
+    expect(result[0]?.text).toContain('tiny.')
+    expect(result[0]?.text).toContain('b'.repeat(100))
   })
 
   it("doesn't merge when the combined size would exceed maxChars", () => {
@@ -369,6 +372,7 @@ describe('chunkMarkdown — charStart / charEnd offsets', () => {
     const input = '# Title\n\nBody text here.'
     const result = chunkMarkdown(input)
     const chunk = result[0]
+    if (chunk === undefined) throw new Error('chunkMarkdown returned no chunks')
     const slice = input.slice(chunk.charStart, chunk.charEnd)
     expect(slice).toContain('Body text here')
   })
@@ -379,6 +383,7 @@ describe('chunkMarkdown — charStart / charEnd offsets', () => {
     const input = fm + body
     const result = chunkMarkdown(input)
     const chunk = result[0]
+    if (chunk === undefined) throw new Error('chunkMarkdown returned no chunks')
     // charStart should be inside the body, after the frontmatter.
     expect(chunk.charStart).toBeGreaterThanOrEqual(fm.length)
     expect(input.slice(chunk.charStart)).toContain('Body after frontmatter')
@@ -392,7 +397,7 @@ describe('chunkMarkdown — bookkeeping', () => {
     const input = rep('a', 800) + '\n\n' + rep('b', 800) + '\n\n' + rep('c', 800)
     const result = chunkMarkdown(input, { targetChars: 500, maxChars: 900, minChars: 50, overlapChars: 0 })
     for (let i = 0; i < result.length; i++) {
-      expect(result[i].index).toBe(i)
+      expect(result[i]?.index).toBe(i)
     }
   })
 
@@ -482,6 +487,7 @@ describe('chunkMarkdown — realistic wiki fixture', () => {
     const preambles = result.filter((c) => c.text.includes('Rotary positional embeddings(RoPE)'))
     expect(preambles).toHaveLength(1)
     const [preamble] = preambles
+    if (preamble === undefined) throw new Error('no chunk contains the preamble paragraph')
     expect(preamble.headingPath).toBe('# RoPE 旋转位置编码')
 
     // Every OTHER chunk must have a heading path. Without the explicit
@@ -499,6 +505,7 @@ describe('chunkMarkdown — realistic wiki fixture', () => {
     const codeChunks = result.filter((c) => c.text.includes('theta_i = base'))
     expect(codeChunks).toHaveLength(1)
     const [codeChunk] = codeChunks
+    if (codeChunk === undefined) throw new Error('no chunk contains the theta_i assignment')
     // Must contain BOTH an opener and a closer (exactly 2 ``` markers),
     // not just an even count — `0 % 2 === 0` passes trivially and would
     // green an "opener escaped, closer stayed behind" regression.
@@ -530,10 +537,10 @@ describe('chunkMarkdown — CRLF in body', () => {
     const input = '# Head\r\n\r\n```py\r\ncode line 1\r\ncode line 2\r\n```\r\n\r\nafter\r\n'
     const result = chunkMarkdown(input, { targetChars: 2000 })
     expect(result).toHaveLength(1)
-    expect(result[0].headingPath).toBe('# Head')
-    expect(result[0].text).toContain('code line 1')
-    expect(result[0].text).toContain('after')
-    expect(result[0].oversized).toBe(false)
+    expect(result[0]?.headingPath).toBe('# Head')
+    expect(result[0]?.text).toContain('code line 1')
+    expect(result[0]?.text).toContain('after')
+    expect(result[0]?.oversized).toBe(false)
   })
 })
 
@@ -562,9 +569,9 @@ describe('chunkMarkdown — nested fences', () => {
     expect(result).toHaveLength(1)
     // Inner ``` fence must remain captured inside the chunk — not
     // treated as a closer that terminated the outer fence early.
-    expect(result[0].text).toContain("print('inner')")
-    expect(result[0].text).toContain('End of embedded markdown.')
-    expect(result[0].text).toContain('Outro.')
+    expect(result[0]?.text).toContain("print('inner')")
+    expect(result[0]?.text).toContain('End of embedded markdown.')
+    expect(result[0]?.text).toContain('Outro.')
   })
 })
 
@@ -588,8 +595,8 @@ describe('chunkMarkdown — table with no |---|---| separator', () => {
     const result = chunkMarkdown(input, { targetChars: 20, maxChars: 200, minChars: 5, overlapChars: 0 })
     const tableChunks = result.filter((c) => c.text.includes('| key1'))
     expect(tableChunks).toHaveLength(1)
-    expect(tableChunks[0].text).toContain('| key1 | val1 |')
-    expect(tableChunks[0].text).toContain('| key2 | val2 |')
+    expect(tableChunks[0]?.text).toContain('| key1 | val1 |')
+    expect(tableChunks[0]?.text).toContain('| key2 | val2 |')
   })
 })
 

@@ -211,6 +211,7 @@ async function migrateUnchangedSourceMoves(
     if (deletedMatches.length !== 1 || createdMatches?.length !== 1) continue
     const deleted = deletedMatches[0]
     const created = createdMatches[0]
+    if (deleted === undefined || created === undefined) continue
     try {
       await migrateSourcePath(project.path, deleted.path, created.path)
       moved.add(deleted.id)

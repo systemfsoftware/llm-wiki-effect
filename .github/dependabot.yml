@@ -147,6 +147,20 @@ updates:
         patterns: ["*"]
         update-types: ["major"]
 
+  - package-ecosystem: "npm"
+    directory: "/packages/oxlint-config"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    versioning-strategy: "increase"
+    groups:
+      other-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      other-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
   - package-ecosystem: "cargo"
     directory: "/apps/desktop/src-tauri"
     schedule:

@@ -70,7 +70,7 @@ function fileNameToId(fileName: string): string {
 
 function extractFrontmatter(content: string): { title: string; type: string; sources: string[] } {
   const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
-  const fm = fmMatch ? fmMatch[1] : ''
+  const fm = fmMatch?.[1] ?? ''
 
   const titleMatch = fm.match(/^title:\s*["']?(.+?)["']?\s*$/m)
   const typeMatch = fm.match(/^type:\s*["']?(.+?)["']?\s*$/m)
@@ -79,10 +79,10 @@ function extractFrontmatter(content: string): { title: string; type: string; sou
   const sources: string[] = []
   const sourcesBlockMatch = fm.match(/^sources:\s*\n((?:\s+-\s+.+\n?)*)/m)
   if (sourcesBlockMatch) {
-    const lines = sourcesBlockMatch[1].split('\n')
+    const lines = sourcesBlockMatch[1]?.split('\n') ?? []
     for (const line of lines) {
       const itemMatch = line.match(/^\s+-\s+["']?(.+?)["']?\s*$/)
-      if (itemMatch) {
+      if (itemMatch?.[1]) {
         sources.push(itemMatch[1])
       }
     }
@@ -90,7 +90,7 @@ function extractFrontmatter(content: string): { title: string; type: string; sou
     // Single-line: sources: ["a.pdf", "b.pdf"] or sources: [a.pdf]
     const inlineMatch = fm.match(/^sources:\s*\[([^\]]*)\]/m)
     if (inlineMatch) {
-      const items = inlineMatch[1].split(',')
+      const items = inlineMatch[1]?.split(',') ?? []
       for (const item of items) {
         const trimmed = item.trim().replace(/^["']|["']$/g, '')
         if (trimmed) sources.push(trimmed)
@@ -98,15 +98,15 @@ function extractFrontmatter(content: string): { title: string; type: string; sou
     }
   }
 
-  let title = titleMatch ? titleMatch[1].trim() : ''
+  let title = titleMatch?.[1]?.trim() ?? ''
   if (!title) {
     const headingMatch = content.match(/^#\s+(.+)$/m)
-    title = headingMatch ? headingMatch[1].trim() : ''
+    title = headingMatch?.[1]?.trim() ?? ''
   }
 
   return {
     title,
-    type: typeMatch ? typeMatch[1].trim().toLowerCase() : 'other',
+    type: typeMatch?.[1]?.trim().toLowerCase() ?? 'other',
     sources,
   }
 }
@@ -116,7 +116,8 @@ function extractWikilinks(content: string): string[] {
   const regex = new RegExp(WIKILINK_REGEX.source, 'g')
   let match: RegExpExecArray | null
   while ((match = regex.exec(content)) !== null) {
-    links.push(match[1].trim())
+    const target = match[1]
+    if (target !== undefined) links.push(target.trim())
   }
   return links
 }

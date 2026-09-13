@@ -198,12 +198,13 @@ Rust-only edit  3 cached, 6 total                5 cached, 6 total
                 lint/typecheck/test:mocks miss   test:mocks miss only
 src/ edit       3 cached, 6 total                3 cached, 6 total
                 lint/typecheck/test:mocks miss   lint/typecheck/test:mocks miss
-Cargo.toml edit (not measured)                  5 cached, 6 total
-                                                 test:mocks miss only
+Cargo.toml edit 3 cached, 6 total                5 cached, 6 total
+                lint/typecheck/test:mocks miss   test:mocks miss only
 ```
 
 The `src-tauri/Cargo.toml` row is the one that keeps the narrowing honest: the
-task that must notice a crate-version edit still does.
+task that must notice a crate-version edit still does, while `lint`, `typecheck`
+and `build` correctly do not re-run for it.
 
 The graph itself, for reference:
 
@@ -250,10 +251,14 @@ conventions apply to exactly one non-root package.
 ## Where this landed in CI
 
 `.github/workflows/ci.yml` restores `.turbo/cache` under
-`turbo-${{ runner.os }}-gate-${{ github.sha }}` with prefix `restore-keys`, so
-the six tasks run warm on all three matrix platforms instead of cold. The same
-workflow gained a merge-conflict preflight (`conflict-check.yml`, a
-`git merge-tree` against the PR base, annotated
+`turbo-${{ runner.os }}-gate-${{ github.event.pull_request.head.sha || github.sha }}`
+with prefix `restore-keys`, so the six tasks run warm on all three matrix
+platforms instead of cold. The key names the pull request's head commit rather
+than `github.sha`, because on a `pull_request` event `github.sha` is the merge
+commit GitHub synthesizes for the run: it moves every time the base branch does,
+so the exact key would miss on every PR and only the prefix fallback would
+supply a cache. The same workflow gained a merge-conflict preflight
+(`conflict-check.yml`, a `git merge-tree` against the PR base, annotated
 `::error title=merge conflicts::`) and a 45-minute job timeout. Gate: a run on
 an unchanged tree reports `FULL TURBO` and the conflict job exits 0.
 

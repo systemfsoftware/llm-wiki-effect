@@ -31,5 +31,6 @@ export default defineConfig({
     'extension/Readability.js',
     'extension/Turndown.js',
     'src-tauri/**',
+    'repos/**',
   ],
 })

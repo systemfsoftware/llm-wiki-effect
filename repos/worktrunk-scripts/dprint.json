@@ -1,6 +1,5 @@
 {
   "lineWidth": 120,
-  "newLineKind": "lf",
   "typescript": {
     "semiColons": "asi",
     "quoteStyle": "preferSingle",
@@ -14,16 +13,12 @@
   "excludes": [
     "**/node_modules",
     "**/dist",
-    "**/dist-test",
     "**/*-lock.json",
+    ".turbo",
+    ".worktrees/**",
     "pnpm-lock.yaml",
-    "coverage/**",
-    "reports/**",
-    "**/snapshots/*.md",
-    "src-tauri/**",
-    "extension/Readability.js",
-    "extension/Turndown.js",
-    "llm-wiki.md",
+    "**/etc/*.api.md",
+    "vendor/**",
     "repos/**"
   ],
   "plugins": [

@@ -1,5 +1,5 @@
 ---
-title: Turbo owns the task graph, and a workspace-listed root package owns tasks
+title: Turbo owns the task graph, and every task belongs to a package
 date: 2026-09-13
 category: tooling-decisions
 module: build
@@ -8,24 +8,27 @@ component: tooling
 severity: medium
 applies_when:
   - Adding or renaming a task in turbo.json
-  - Adding a script to the root package.json or to mcp-server
+  - Adding a script to a package under apps/ or packages/
   - A task reports FULL TURBO when it should have re-run
 tags: [turbo, task-graph, monorepo, caching, pnpm-workspace]
 ---
 
-# Turbo owns the task graph, and a workspace-listed root package owns tasks
+# Turbo owns the task graph, and every task belongs to a package
 
 ## Context
 
-This repo is a pnpm workspace of exactly two projects: the desktop app, which
-lives at the repository root, and the MCP server under `mcp-server`. `turbo`
-was installed and the gates were routed through it, matching the template the
-repo's toolchain was drawn from.
+This repo is a pnpm workspace of four projects: the desktop app under
+`apps/desktop`, the MCP server under `apps/mcp-server`, the shared lint config
+under `packages/oxlint-config`, and the root package, which is a pure
+orchestrator (no runtime dependencies, no version). `turbo` routes the gates,
+matching the template the repo's toolchain was drawn from.
 
-The shape differs from that template in one way that changes every rule below.
-The template's `pnpm-workspace.yaml` lists only `apps/*` and `packages/*`, so
-its root `package.json` is a pure orchestrator with no task scripts of its own.
-This repo lists `"."` explicitly, so the root **is** a task-owning package.
+Every task belongs to a package. `turbo.json` defines only unqualified task
+names — `lint`, `typecheck`, `build`, `test:mocks`, `test` — and the root
+package owns no task at all: its scripts are the orchestrator entry points
+(`gate:tasks`, `gate:dist`, `check:ci`) and `turbo run` wrappers. Measured on
+turbo 2.10.12: a bare `turbo run <task>` selects only member packages' scripts,
+so the root's wrapper scripts can never be selected by their own run.
 
 ## Guidance
 
@@ -33,8 +36,8 @@ This repo lists `"."` explicitly, so the root **is** a task-owning package.
 `gate:dist`, and `check:ci` are the entry points, and none of them is a task
 name. A root script named `build` that invoked `turbo run build` would re-enter
 itself. Gate: `pnpm exec turbo run build --dry=json` lists
-`llm-wiki#build` and `llm-wiki-mcp-server#build`; a recursive script would not
-terminate at all.
+`llm-wiki#build` and `llm-wiki-mcp-server#build` and never selects the root; a
+recursive script would not terminate at all.
 
 **`check:ci` stays a three-phase enumeration, not a turbo invocation.**
 `check:ci` is `node scripts/check-ci.mjs format:check gate:tasks gate:dist`:
@@ -46,37 +49,49 @@ per-phase reporting for nothing — turbo already reports each task's outcome
 inside a phase. Gate: `pnpm check:ci` prints one `[check:ci] <phase> ok` line per
 phase.
 
-**A task definition may be package-qualified, and every task only one package
-implements must be.** `llm-wiki#lint`, `llm-wiki#test:mocks`, and
-`llm-wiki-mcp-server#test` carry their package; only `typecheck` and `build`
-stay unqualified, because only those two are defined in both packages.
-Unqualified definitions are not harmless: an unqualified `test` would also
-capture the root `test` script — which runs `test:llm` and needs paid API keys
-— after building the whole app, and the unqualified `lint` and `test:mocks`
-tasks appear in the graph for the MCP server even though that package has no
-such script. Gate: `pnpm exec turbo run lint typecheck test:mocks
-llm-wiki-mcp-server#test --dry=json` lists exactly the six tasks that execute,
-with no phantom entries for a package that does not define the script.
+**Task definitions are unqualified; only the gate's selection may name a
+package.** `turbo.json` defines `lint`, `typecheck`, `build`, `test:mocks`, and
+`test`, and turbo runs each in the packages that define the script. The gate
+selects `llm-wiki-mcp-server#test` because the desktop app's own `test` script
+is the paid-API suite (`pnpm test:mocks && pnpm test:llm`), which CI must not
+run; the qualified name picks one package without giving `test` a
+package-specific definition. A package-qualified key in `turbo.json` would
+instead make the task's `inputs`, `outputs`, and `dependsOn` apply to that
+package alone. Gate: `pnpm exec turbo run lint typecheck test:mocks
+llm-wiki-mcp-server#test --dry=json` lists exactly the nine tasks that execute
+(`llm-wiki#lint`, `llm-wiki-mcp-server#lint`, `llm-wiki-oxlint-config#lint`,
+`llm-wiki#typecheck`, `llm-wiki-mcp-server#typecheck`,
+`llm-wiki-oxlint-config#typecheck`, `llm-wiki#test:mocks`,
+`llm-wiki-mcp-server#build`, `llm-wiki-mcp-server#test`), with no phantom
+entries and no root task.
 
 **`dependsOn` replaces an inline chained command, and the release path restates
-it.** The root `build` script is `vite build`; the ordering that used to be
+it.** The app's `build` script is `vite build`; the ordering that used to be
 `pnpm typecheck && vite build` now lives in the `build` task's
 `dependsOn: ["typecheck"]`. `build:desktop` is `turbo run typecheck build`, so
 the Tauri `beforeBuildCommand` still typechecks before bundling. The MCP
 `test` script likewise dropped its inline `pnpm build &&`, because the graph
-supplies it. Gate: `pnpm build:desktop` from a deleted `dist/` and
-`mcp-server/dist/` restores both.
+supplies it. Gate: `pnpm build:desktop` from a deleted `apps/desktop/dist/` and
+`apps/mcp-server/dist/` restores both.
 
 **Narrow `inputs` only to trees the task provably cannot read, and prove the
-narrowing with an A/B on a real edit.** Every root task keyed on 527 files,
-including 61 under `src-tauri/` and 41 under `repos/`; `oxlint`'s
-`ignorePatterns` and both `tsconfig` include lists exclude both trees, so the
-declared inputs over-claimed by 102 files. `llm-wiki#lint`, `typecheck`, and
-`build` now carry `!repos/**` and `!src-tauri/**`; `llm-wiki#test:mocks` carries
-`!repos/**` only. Gate: one Rust-only edit to `src-tauri/src/main.rs` left 3 of
-6 tasks cached before the change and 5 of 6 after; one `src-tauri/Cargo.toml`
-edit still invalidates `llm-wiki#test:mocks`, and one `src/` edit still
-invalidates all three root tasks.
+narrowing with an A/B on a real edit.** `lint` keys on `$TURBO_DEFAULT$` plus
+the files that can change its verdict outside the package's own sources: the
+package's `oxlint.config.ts`, its `tsconfig*.json` (the type-aware pass reads
+them), and the shared config package it extends
+(`$TURBO_ROOT$/packages/oxlint-config/src/**` and its `package.json`) — so
+editing one rule in the shared base re-runs every package's lint. `typecheck`
+keys on the same tsconfig set. Both carry depth-free `!**/repos/**`, `lint`
+also `!**/*.md`, and member-package `typecheck`/`build` keep the
+package-relative negation `!src-tauri/**`, which resolves to
+`apps/desktop/src-tauri/**` for the app and matches nothing for the MCP server.
+What excludes which tree: the shared base's `ignorePatterns` are depth-free
+(`**/src-tauri/**`, `**/repos/**`, `**/dist/**`), and the app's
+`tsconfig.app.json` scopes to `apps/desktop/src`. (The A/B that justified the
+first narrowing — 61 files under `src-tauri/` and 41 under `repos/`
+over-claimed — predates the `apps/*` move; the negations it proved carry over
+verbatim in depth-free form.) Gate: after a Rust-only edit to
+`apps/desktop/src-tauri/src/main.rs`, the JS-task hashes are unchanged.
 
 **A negation cannot be undone by naming the file back.** Turbo hoists every
 `!`-pattern ahead of the positive globs, so
@@ -84,20 +99,21 @@ invalidates all three root tasks.
 negation first and the file stays excluded — measured, the resolved input map
 contained zero `src-tauri` paths either way round. This is why
 `llm-wiki#test:mocks` keeps the whole `src-tauri/` tree rather than trying to
-keep two files out of it: `src/lib/changelog.test.ts` reads
-`src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, and it is the only guard
-against version skew between `package.json`, the Tauri config, and the crate
-manifest. Gate: `llm-wiki#test:mocks` re-runs after a `src-tauri/Cargo.toml`
-edit.
+keep two files out of it: `apps/desktop/src/lib/changelog.test.ts` reads
+`apps/desktop/src-tauri/tauri.conf.json` and `apps/desktop/src-tauri/Cargo.toml`,
+and it is the only guard against version skew between the app manifest, the
+Tauri config, and the crate manifest. Gate: `llm-wiki#test:mocks` re-runs after
+an `apps/desktop/src-tauri/Cargo.toml` edit.
 
 **`dependsOn: ["^build"]` would do nothing here, so it is not written.**
 `^` expands to a package's `directDependencies`, and both packages report
 `directDependencies: ["//"]` with `packageGraph.edges.length = 0`. Adding
-`^build` to the `build` task produced an identical four-task schedule and an
+`^build` to the `build` task produced an identical schedule and an
 identical resolved `dependencies` list on the `build` task; only the task hash
 moved, which is a one-time full cache invalidation for no ordering gain. Gate:
-`pnpm exec turbo run build --dry=json` schedules the same four tasks with and
-without it.
+`pnpm exec turbo run build --dry=json` schedules the same five tasks with and
+without it (`gate:dist` runs five: both packages' `build` and `typecheck`, plus
+the config package's `typecheck`, which `build`'s `dependsOn` pulls in).
 
 **`outputs` must name only artifacts the task actually writes.** `test:mocks`
 runs vitest without `--coverage`, so its `outputs` is `[]`. Listing a
@@ -156,7 +172,8 @@ only evidence that separates them is an injected defect and a cache miss.
 
 ## When to Apply
 
-- Adding, renaming, or removing a script in either `package.json`.
+- Adding, renaming, or removing a script in a package.json (root or an app
+  package under apps/).
 - Changing `inputs`, `outputs`, or `dependsOn` in `turbo.json`.
 - A gate that reports `FULL TURBO` on a tree whose files just changed.
 
@@ -181,15 +198,16 @@ pnpm gate:tasks
   Time:    16ms >>> FULL TURBO
 ```
 
-A cold `pnpm gate:tasks` runs six tasks in about 13 seconds; the same command
-on an unchanged tree finishes in under a tenth of a second. Deleting `dist/`
-and `mcp-server/dist/` and running `pnpm build:desktop` restores both from
-cache, which is what makes the `outputs` keys load-bearing rather than
-decorative.
+The cold-gate measurement this doc was founded on: `pnpm gate:tasks` ran six
+tasks in about 13 seconds pre-move (it schedules seven today); the same command
+on an unchanged tree finishes in under a tenth of a second. Deleting
+`apps/desktop/dist/` and `apps/mcp-server/dist/` and running
+`pnpm build:desktop` restores both from cache, which is what makes the
+`outputs` keys load-bearing rather than decorative.
 
 The A/B that justifies the input narrowing. Each side was warmed to
 `FULL TURBO` with its own `turbo.json`, then given exactly one edit to a tracked
-file under `src-tauri/`:
+file under `apps/desktop/src-tauri/` (paths below are as measured pre-move):
 
 ```text
                 inputs as first written          inputs narrowed
@@ -202,11 +220,12 @@ Cargo.toml edit 3 cached, 6 total                5 cached, 6 total
                 lint/typecheck/test:mocks miss   test:mocks miss only
 ```
 
-The `src-tauri/Cargo.toml` row is the one that keeps the narrowing honest: the
-task that must notice a crate-version edit still does, while `lint`, `typecheck`
-and `build` correctly do not re-run for it.
+The `apps/desktop/src-tauri/Cargo.toml` row is the one that keeps the narrowing
+honest: the task that must notice a crate-version edit still does, while `lint`,
+`typecheck` and `build` correctly do not re-run for it.
 
-The graph itself, for reference:
+The graph itself. First query block measured pre-move; re-measure after any
+workspace change:
 
 ```text
 turbo query 'query { packageGraph { nodes { items { name } length } edges { items { source target } } } }'
@@ -215,44 +234,29 @@ turbo query 'query { packageGraph { nodes { items { name } length } edges { item
 turbo query 'query { boundaries { items { message path } length } }'
   10 diagnostics, all under repos/ — `@std/fs`, `@std/path`, `@std/yaml`
   imported by vendored Deno scripts. None in src/ or mcp-server/.
-
-turbo query 'query { affectedTasks(base: "origin/main", head: "HEAD") { items { fullName reason { __typename } } length } }'
-  7 tasks, every reason TaskGlobalFileChanged — the set is all seven tasks in
-  the repo, and it is the same set over HEAD~3..HEAD. With zero edges and a
-  global file hash that any root-config edit moves, an --affected filter would
-  select the same seven tasks and change nothing.
 ```
 
 One hypothesis was written down and then refuted, which is why it is recorded
-here rather than acted on: `src/components/layout/icon-sidebar.tsx` imports
+here rather than acted on (paths as they were pre-move):
+`apps/desktop/src/components/layout/icon-sidebar.tsx` imports
 `@/assets/logo.jpg`, and `vite.config.ts` aliases `@` to `./src`. The import
-resolves to `src/assets/logo.jpg`, not to the root `assets/` directory of nine
-marketing screenshots — the built `dist/assets/logo-*.jpg` is byte-identical to
-`src/assets/logo.jpg` (same md5) and no root-`assets` file appears in `dist/`.
-Excluding `assets/**` from `build`'s inputs would therefore have been safe, not
-a regression; it was left in place only because those nine files do not churn.
+resolves to `apps/desktop/src/assets/logo.jpg`, not to the root `assets/`
+directory of nine marketing screenshots — the built `dist/assets/logo-*.jpg` is
+byte-identical to `apps/desktop/src/assets/logo.jpg` (same md5) and no
+root-`assets` file appears in `dist/`. Excluding `assets/**` from `build`'s
+inputs would therefore have been safe, not a regression; it was left in place
+only because those nine files do not churn.
 
-```text
-turbo query 'query { packageGraph { nodes { items { name } length } edges { items { source target } } } }'
-  2 nodes (llm-wiki, llm-wiki-mcp-server), 0 edges
-
-turbo query 'query { boundaries { items { message path } length } }'
-  10 diagnostics, all under repos/ — `@std/fs`, `@std/path`, `@std/yaml`
-  imported by vendored Deno scripts. None in src/ or mcp-server/.
-```
-
-The root also appears twice in `turbo query 'query { packages { items { name path } } }'`
-— once as the synthetic `//` entry and once as `llm-wiki`, both with an empty
-path. Task keys of the form `//#task` target the synthetic entry; this repo
-targets the named package instead, so the two never contend. The workspace has
-no `apps/` or `packages/` directories, so the template's `package#task`
-conventions apply to exactly one non-root package.
+Today the graph is four projects — the root orchestrator, the two members under
+`apps/`, and the shared lint config under `packages/` — still with zero package
+edges. The root appears as the synthetic `//` entry and owns no task; every
+task key is `package#task`.
 
 ## Where this landed in CI
 
 `.github/workflows/ci.yml` restores `.turbo/cache` under
 `turbo-${{ runner.os }}-gate-${{ github.event.pull_request.head.sha || github.sha }}`
-with prefix `restore-keys`, so the six tasks run warm on all three matrix
+with prefix `restore-keys`, so the nine tasks run warm on all three matrix
 platforms instead of cold. The key names the pull request's head commit rather
 than `github.sha`, because on a `pull_request` event `github.sha` is the merge
 commit GitHub synthesizes for the run: it moves every time the base branch does,

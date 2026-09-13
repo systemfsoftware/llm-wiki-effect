@@ -13,10 +13,10 @@ dist-rc/
 *.tsbuildinfo
 
 # Rust build artifacts
-src-tauri/target/
+apps/desktop/src-tauri/target/
 
 # Tauri generated files
-src-tauri/gen/
+apps/desktop/src-tauri/gen/
 
 # Environment files
 .env

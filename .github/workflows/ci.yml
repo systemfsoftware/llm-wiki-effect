@@ -60,7 +60,7 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: apps/desktop/src-tauri
 
       - name: Install workspace dependencies
         uses: ./.github/actions/install-deps
@@ -79,5 +79,5 @@ jobs:
         run: corepack pnpm check:ci
 
       - name: Check Rust build
-        working-directory: src-tauri
+        working-directory: apps/desktop/src-tauri
         run: cargo build

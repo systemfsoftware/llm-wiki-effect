@@ -1,0 +1,64 @@
+import type { FileNode } from '@/types/wiki'
+import { describe, expect, it } from 'vitest'
+import { replaceNodeChildren } from './file-tree-utils'
+
+function lastSegment(path: string): string {
+  const segment = path.split('/').pop()
+  if (!segment) throw new Error(`Path has no final segment: ${path}`)
+  return segment
+}
+
+function file(path: string): FileNode {
+  return { name: lastSegment(path), path, is_dir: false }
+}
+
+function dir(path: string, children?: FileNode[]): FileNode {
+  return {
+    name: lastSegment(path),
+    path,
+    is_dir: true,
+    ...(children !== undefined ? { children } : {}),
+  }
+}
+
+describe('replaceNodeChildren', () => {
+  it('replaces children for a top-level directory', () => {
+    const tree = [dir('/p/wiki'), file('/p/schema.md')]
+    const children = [file('/p/wiki/page.md')]
+
+    const result = replaceNodeChildren(tree, '/p/wiki', children)
+
+    expect(result.matched).toBe(true)
+    expect(result.nodes[0]).toEqual({ ...dir('/p/wiki'), children })
+    expect(result.nodes[1]).toBe(tree[1])
+  })
+
+  it('replaces children for a nested directory without touching siblings', () => {
+    const sibling = file('/p/wiki/a.md')
+    const tree = [
+      dir('/p/wiki', [
+        sibling,
+        dir('/p/wiki/nested'),
+      ]),
+    ]
+    const children = [file('/p/wiki/nested/b.md')]
+
+    const result = replaceNodeChildren(tree, '/p/wiki/nested', children)
+
+    const [root] = result.nodes
+    if (!root) throw new Error('expected a root node')
+    expect(result.matched).toBe(true)
+    expect(root).not.toBe(tree[0])
+    expect(root.children?.[0]).toBe(sibling)
+    expect(root.children?.[1]).toEqual({ ...dir('/p/wiki/nested'), children })
+  })
+
+  it('returns the original tree when the path is not found', () => {
+    const tree = [dir('/p/wiki')]
+
+    const result = replaceNodeChildren(tree, '/p/missing', [file('/p/missing/a.md')])
+
+    expect(result.matched).toBe(false)
+    expect(result.nodes).toBe(tree)
+  })
+})

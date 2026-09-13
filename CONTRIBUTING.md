@@ -50,13 +50,15 @@ plan in `.changeset/config.json`.
 
 1. Record the intent with the change, in the same PR:
    `pnpm changeset` (or write `.changeset/<name>.md` by hand). A PR touching
-   `src/**`, `src-tauri/**`, or `extension/**` fails the `Changeset` job without
-   one.
-2. At release time, `pnpm release:version` bumps `package.json`, writes
-   `CHANGELOG.md`, deletes the intents it consumed, and syncs the copies in
-   `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`.
-   Prepend the in-app changelog entry (`en` + `zh`) in `src/lib/changelog.ts` by
-   hand — `src/lib/changelog.test.ts` fails until its version matches.
+   `apps/desktop/src/**`, `apps/desktop/src-tauri/**`, or `extension/**` fails
+   the `Changeset` job without one.
+2. At release time, `pnpm release:version` bumps `apps/desktop/package.json`,
+   writes `CHANGELOG.md`, deletes the intents it consumed, and syncs the copies
+   in `apps/desktop/src-tauri/tauri.conf.json`,
+   `apps/desktop/src-tauri/Cargo.toml` and `apps/desktop/src-tauri/Cargo.lock`.
+   Prepend the in-app changelog entry (`en` + `zh`) in
+   `apps/desktop/src/lib/changelog.ts` by hand —
+   `apps/desktop/src/lib/changelog.test.ts` fails until its version matches.
 3. Commit the result, tag `v<version>`, push the tag. `build.yml` runs on `v*`
    tags and that tag is what cuts the desktop release — everything else is a
    dry run. Tags and releases need explicit human approval.

@@ -7,7 +7,7 @@ problem_type: tooling_decision
 component: tooling
 severity: medium
 applies_when:
-  - Adding a plugin, rule, or override to oxlint.config.ts
+  - Adding a plugin, rule, or override to packages/oxlint-config or to a package's oxlint.config.ts
   - Explaining why a rule that looks correct is not enabled here
   - Running oxlint --fix across a tree that has never been linted
 tags: [oxlint, lint, tauri, react, autofix]
@@ -20,7 +20,10 @@ tags: [oxlint, lint, tauri, react, autofix]
 This repo adopted `oxlint` with a config derived from the sibling
 `systemfsoftware/starter` template. Two of that template's assumptions do not
 hold here, and one of its practices is unsafe on a tree that has never been
-linted.
+linted. The rules now live in one place — the shared base at
+`packages/oxlint-config/src/oxlint-config.base.ts`, spread into each package's
+`oxlint.config.ts` — so a stack-specific decision made here applies to the app,
+the MCP server, and the config package at once.
 
 ## Guidance
 
@@ -100,8 +103,10 @@ rule fires -> read the rule's premise -> name what in this repo satisfies it
            -> present? fix the code
 ```
 
-The two config changes the gate forced, and why they are not suppressions:
-`tsconfig.app.json` lost `baseUrl` because `tsgolint` rejects it
-(`Option 'baseUrl' has been removed`); `paths` already resolved relative to the
-tsconfig. It moved to `ES2022` because `ErrorOptions` is ES2022 — the same bump
-the autofixed `preserve-caught-error` calls required.
+The config changes the gate forced, and why they are not suppressions:
+`tsconfig.app.json` carries no `baseUrl` because `tsgolint` rejects it
+(`Option 'baseUrl' has been removed`); `paths` resolves relative to the tsconfig
+on its own. The app project extends `@systemfsoftware/tsconfig/bundler/dom`,
+whose `target: es2024` and `lib: esnext` declare `ErrorOptions` — the same
+option the autofixed `preserve-caught-error` calls require — and adds only the
+two things the preset cannot know: `jsx: react-jsx` and the `@/*` path alias.

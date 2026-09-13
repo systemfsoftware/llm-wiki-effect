@@ -3,32 +3,47 @@
   "globalEnv": ["CI", "NODE_ENV"],
   "globalPassThroughEnv": ["XDG_CACHE_HOME", "GITHUB_ACTIONS", "AGENT"],
   "tasks": {
-    "llm-wiki#lint": {
+    "lint": {
       "outputLogs": "errors-only",
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "oxlint.config.ts",
+        "tsconfig*.json",
+        "$TURBO_ROOT$/packages/oxlint-config/src/**",
+        "$TURBO_ROOT$/packages/oxlint-config/package.json",
+        "!**/*.md",
+        "!**/repos/**"
+      ],
       "outputs": [],
       "cache": true
     },
     "typecheck": {
       "outputLogs": "errors-only",
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tsconfig*.json",
+        "$TURBO_ROOT$/packages/oxlint-config/src/**",
+        "!**/*.md",
+        "!**/repos/**",
+        "!src-tauri/**"
+      ],
       "outputs": [],
       "cache": true
     },
     "build": {
       "outputLogs": "new-only",
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/repos/**", "!src-tauri/**"],
       "outputs": ["dist/**"],
       "dependsOn": ["typecheck"],
       "cache": true
     },
-    "llm-wiki#test:mocks": {
+    "test:mocks": {
       "outputLogs": "errors-only",
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/repos/**"],
       "outputs": [],
       "cache": true
     },
-    "llm-wiki-mcp-server#test": {
+    "test": {
       "outputLogs": "errors-only",
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": ["dist-test/**"],

@@ -1,0 +1,8 @@
+{
+  "extends": "@systemfsoftware/tsconfig/bundler/dom",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,7 @@
+{
+  "extends": "@systemfsoftware/tsconfig/tsc/no-dom/library",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src", "oxlint.config.ts"]
+}

@@ -1,0 +1,18 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "hiddenTitle": false,
+        "titleBarStyle": "Visible"
+      }
+    ]
+  },
+  "bundle": {
+    "resources": {
+      "pdfium/pdfium.dll": "pdfium/pdfium.dll",
+      "../../mcp-server/package.json": "mcp-server/package.json",
+      "../../mcp-server/dist": "mcp-server/dist"
+    }
+  }
+}

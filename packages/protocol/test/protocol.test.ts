@@ -141,12 +141,49 @@ const embedPageFixture = new Domain.EmbedPageResponse({
     status: 'indexed',
   }),
 })
+const embedTextsFixture = new Domain.EmbedTextsResponse({
+  vectors: [
+    [0.1, 0.2, 0.3],
+    [0.4, 0.5, 0.6],
+  ],
+})
+const vectorStatsFixture = new Domain.VectorStatsResponse({ chunks: 7, legacyRows: 1 })
+const vectorOptimizeFixture = new Domain.VectorOptimizeResponse({ ok: true })
+const vectorDeletedFixture = new Domain.VectorDeletedResponse({ ok: true, deleted: 3 })
+const vectorDropLegacyFixture = new Domain.VectorDropLegacyResponse({ ok: true, dropped: true })
+
 const rescanFixture = new Domain.RescanSourcesResponse({
   projectId: 'p1',
   result: new Domain.RescanResult({
     queue: new Domain.FileChangeQueue({ version: 1, tasks: [] }),
     changedTasks: [],
   }),
+})
+
+const fileChangeQueueFixture = new Domain.FileChangeQueue({
+  version: 1,
+  tasks: [
+    new Domain.FileChangeTask({
+      id: 'change_1',
+      projectId: 'p1',
+      path: 'raw/sources/notes.txt',
+      kind: 'created',
+      status: 'pending',
+      hashBefore: null,
+      hashAfter: 'abc',
+      size: 12,
+      mtimeMs: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      retryCount: 0,
+      error: null,
+      needsRerun: false,
+    }),
+  ],
+})
+const fileChangesFixture = new Domain.FileChangeQueueResponse({
+  projectId: 'p1',
+  queue: fileChangeQueueFixture,
 })
 
 const chatFixture = new Domain.ChatResponse({
@@ -192,7 +229,16 @@ const handlers = {
   search: () => Effect.succeed(searchFixture),
   graph: () => Effect.succeed(graphFixture),
   rescanSources: () => Effect.succeed(rescanFixture),
+  fileChanges: () => Effect.succeed(fileChangesFixture),
+  retryFileChange: () => Effect.succeed(fileChangesFixture),
+  ignoreFileChange: () => Effect.succeed(fileChangesFixture),
   embedPage: () => Effect.succeed(embedPageFixture),
+  embedTexts: () => Effect.succeed(embedTextsFixture),
+  vectorStats: () => Effect.succeed(vectorStatsFixture),
+  vectorOptimize: () => Effect.succeed(vectorOptimizeFixture),
+  vectorClear: () => Effect.succeed(vectorDeletedFixture),
+  vectorDeletePage: () => Effect.succeed(vectorDeletedFixture),
+  vectorDropLegacy: () => Effect.succeed(vectorDropLegacyFixture),
   chat: () => Effect.succeed(chatFixture),
   chatStream: () => Stream.fromIterable(streamFrames()),
   chatCancel: () => Effect.succeed(chatCancelFixture),
@@ -247,10 +293,43 @@ const roundtrips: ReadonlyArray<
   ['search', (client) => client.search({ projectId: 'p1', query: 'a', topK: 10 }), searchFixture],
   ['graph', (client) => client.graph({ projectId: 'p1' }), graphFixture],
   ['rescanSources', (client) => client.rescanSources({ projectId: 'p1' }), rescanFixture],
+  ['fileChanges', (client) => client.fileChanges({ projectId: 'p1' }), fileChangesFixture],
+  [
+    'retryFileChange',
+    (client) => client.retryFileChange({ projectId: 'p1', taskId: 'change_1' }),
+    fileChangesFixture,
+  ],
+  [
+    'ignoreFileChange',
+    (client) => client.ignoreFileChange({ projectId: 'p1', taskId: 'change_1' }),
+    fileChangesFixture,
+  ],
   [
     'embedPage',
     (client) => client.embedPage({ projectId: 'p1', path: 'wiki/a.md' }),
     embedPageFixture,
+  ],
+  [
+    'embedTexts',
+    (client) => client.embedTexts({ provider: 'openai', texts: ['alpha', 'beta'] }),
+    embedTextsFixture,
+  ],
+  ['vectorStats', (client) => client.vectorStats({ projectId: 'p1' }), vectorStatsFixture],
+  [
+    'vectorOptimize',
+    (client) => client.vectorOptimize({ projectId: 'p1' }),
+    vectorOptimizeFixture,
+  ],
+  ['vectorClear', (client) => client.vectorClear({ projectId: 'p1' }), vectorDeletedFixture],
+  [
+    'vectorDeletePage',
+    (client) => client.vectorDeletePage({ projectId: 'p1', pageId: 'a' }),
+    vectorDeletedFixture,
+  ],
+  [
+    'vectorDropLegacy',
+    (client) => client.vectorDropLegacy({ projectId: 'p1' }),
+    vectorDropLegacyFixture,
   ],
   ['chat', (client) => client.chat(chatPayload), chatFixture],
   [
@@ -277,7 +356,16 @@ const EXPECTED_OPERATIONS: ReadonlyArray<Api.ApiOperationName> = [
   'search',
   'graph',
   'rescanSources',
+  'fileChanges',
+  'retryFileChange',
+  'ignoreFileChange',
   'embedPage',
+  'embedTexts',
+  'vectorStats',
+  'vectorOptimize',
+  'vectorClear',
+  'vectorDeletePage',
+  'vectorDropLegacy',
   'chat',
   'chatStream',
   'chatCancel',
@@ -358,6 +446,16 @@ describe('RpcTest roundtrips', () => {
     expect(Exit.isFailure(decode({ projectId: 'p1' }))).toBe(true)
     expect(Exit.isFailure(decode({ projectId: 'p1', query: 'a', topK: 'ten' }))).toBe(true)
     expect(Exit.isFailure(decode({ projectId: 'p1', query: 'a', topK: 10 }))).toBe(false)
+  })
+
+  it('rejects a malformed embedTexts payload and defaults the provider', () => {
+    const decode = Schema.decodeUnknownExit(Api.EmbedTextsPayload)
+    expect(Exit.isFailure(decode({ texts: 'alpha' }))).toBe(true)
+    expect(Exit.isFailure(decode({ texts: [1, 2] }))).toBe(true)
+    expect(Exit.isFailure(decode({ projectId: 'p1', texts: [] }))).toBe(false)
+    const decoded = decodeOrThrow(Api.EmbedTextsPayload, { texts: ['alpha'] })
+    expect(decoded.provider).toBeUndefined()
+    expect(decoded.texts).toEqual(['alpha'])
   })
 
   it('drops an approval field injected into the chat payload', () => {

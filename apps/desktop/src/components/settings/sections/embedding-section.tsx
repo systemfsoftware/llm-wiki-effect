@@ -136,9 +136,11 @@ export function EmbeddingSection({ draft, setDraft }: Props) {
 
   const handleDropLegacy = useCallback(async () => {
     if (!project) return
-    await dropLegacyVectorTable(project.path)
-    setLegacyCount(0)
-    setLegacyDropped(true)
+    const dropped = await dropLegacyVectorTable(project.path)
+    if (dropped) {
+      setLegacyCount(0)
+      setLegacyDropped(true)
+    }
   }, [project])
 
   const draftEmbeddingConfig: EmbeddingConfig = {

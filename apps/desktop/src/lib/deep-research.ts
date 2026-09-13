@@ -551,7 +551,7 @@ async function executeResearch(
     if (embeddingConfig.enabled && embeddingConfig.model) {
       try {
         const { embedPage } = await import('@/lib/embedding')
-        await embedPage(pp, researchPageIdFromPath(filePath), `Research: ${topic}`, pageContent, embeddingConfig)
+        await embedPage(pp, savedPath)
       } catch (err) {
         console.warn('[DeepResearch] failed to index generated query page:', err)
       }

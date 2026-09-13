@@ -15,7 +15,7 @@ import { Config } from '../config/Config.js'
 import type { ConfigInput, ConfigShape } from '../config/Config.js'
 import { Embeddings } from '../embeddings/Embeddings.js'
 import type { EmbeddingTransport } from '../embeddings/Embeddings.js'
-import { lanceVectorStore } from '../embeddings/vector-store.js'
+import { lanceVectorStore, VectorIndex } from '../embeddings/vector-store.js'
 import type { VectorStore as EmbeddingVectorStore } from '../embeddings/vector-store.js'
 import { Files } from '../files/Files.js'
 import { GraphBuilder } from '../graph/GraphBuilder.js'
@@ -61,6 +61,7 @@ export type AppService =
   | Search
   | RescanSources
   | Embeddings
+  | VectorIndex
   | ProviderClient
   | SessionStore
   | CancelRegistry
@@ -147,6 +148,7 @@ export const appLayer = (
     GraphBuilder.layer.pipe(Layer.provide(shared)),
     RescanSources.layer(input.rescan).pipe(Layer.provide(shared)),
     embeddingsLayer.pipe(Layer.provide(shared)),
+    VectorIndex.layer(),
     searchLayer.pipe(Layer.provide(shared)),
     provider,
     runtime,

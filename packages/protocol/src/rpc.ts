@@ -12,6 +12,8 @@ import {
   ChatResponse,
   ChatStreamEvent,
   EmbedPageResponse,
+  EmbedTextsResponse,
+  FileChangeQueueResponse,
   FileContentResponse,
   FilesResponse,
   GraphResponse,
@@ -25,6 +27,10 @@ import {
   ReviewStatus,
   SearchResponse,
   SetCurrentProjectResponse,
+  VectorDeletedResponse,
+  VectorDropLegacyResponse,
+  VectorOptimizeResponse,
+  VectorStatsResponse,
 } from './domain/index.js'
 import {
   AgentError,
@@ -123,10 +129,33 @@ export const RescanSourcesPayload = Schema.Struct({
   projectId: Schema.String,
 })
 
+export const FileChangesPayload = Schema.Struct({
+  projectId: Schema.String,
+})
+
+export const FileChangeTaskPayload = Schema.Struct({
+  projectId: Schema.String,
+  taskId: Schema.String,
+})
+
 export const EmbedPagePayload = Schema.Struct({
   projectId: Schema.String,
   path: Schema.String,
   force: Schema.optional(Schema.Boolean),
+})
+
+export const EmbedTextsPayload = Schema.Struct({
+  provider: Schema.optional(Schema.String),
+  texts: Schema.Array(Schema.String),
+})
+
+export const VectorProjectPayload = Schema.Struct({
+  projectId: Schema.String,
+})
+
+export const VectorDeletePagePayload = Schema.Struct({
+  projectId: Schema.String,
+  pageId: Schema.String,
 })
 
 export const ChatPayload = Schema.Struct({
@@ -211,10 +240,64 @@ export const RescanSourcesRpc = Rpc.make('rescanSources', {
   error: mcpRequestErrors(),
 })
 
+export const FileChangesRpc = Rpc.make('fileChanges', {
+  payload: FileChangesPayload,
+  success: FileChangeQueueResponse,
+  error: requestErrors(),
+})
+
+export const RetryFileChangeRpc = Rpc.make('retryFileChange', {
+  payload: FileChangeTaskPayload,
+  success: FileChangeQueueResponse,
+  error: requestErrors(),
+})
+
+export const IgnoreFileChangeRpc = Rpc.make('ignoreFileChange', {
+  payload: FileChangeTaskPayload,
+  success: FileChangeQueueResponse,
+  error: requestErrors(),
+})
+
 export const EmbedPageRpc = Rpc.make('embedPage', {
   payload: EmbedPagePayload,
   success: EmbedPageResponse,
   error: mcpRequestErrors(EmbedError, TooLarge),
+})
+
+export const EmbedTextsRpc = Rpc.make('embedTexts', {
+  payload: EmbedTextsPayload,
+  success: EmbedTextsResponse,
+  error: requestErrors(EmbedError),
+})
+
+export const VectorStatsRpc = Rpc.make('vectorStats', {
+  payload: VectorProjectPayload,
+  success: VectorStatsResponse,
+  error: requestErrors(EmbedError),
+})
+
+export const VectorOptimizeRpc = Rpc.make('vectorOptimize', {
+  payload: VectorProjectPayload,
+  success: VectorOptimizeResponse,
+  error: requestErrors(EmbedError),
+})
+
+export const VectorClearRpc = Rpc.make('vectorClear', {
+  payload: VectorProjectPayload,
+  success: VectorDeletedResponse,
+  error: requestErrors(EmbedError),
+})
+
+export const VectorDeletePageRpc = Rpc.make('vectorDeletePage', {
+  payload: VectorDeletePagePayload,
+  success: VectorDeletedResponse,
+  error: requestErrors(EmbedError),
+})
+
+export const VectorDropLegacyRpc = Rpc.make('vectorDropLegacy', {
+  payload: VectorProjectPayload,
+  success: VectorDropLegacyResponse,
+  error: requestErrors(EmbedError),
 })
 
 export const ChatRpc = Rpc.make('chat', {
@@ -258,7 +341,16 @@ export const ApiProtocol = RpcGroup.make(
   SearchRpc,
   GraphRpc,
   RescanSourcesRpc,
+  FileChangesRpc,
+  RetryFileChangeRpc,
+  IgnoreFileChangeRpc,
   EmbedPageRpc,
+  EmbedTextsRpc,
+  VectorStatsRpc,
+  VectorOptimizeRpc,
+  VectorClearRpc,
+  VectorDeletePageRpc,
+  VectorDropLegacyRpc,
   ChatRpc,
   ChatStreamRpc,
   ChatCancelRpc,

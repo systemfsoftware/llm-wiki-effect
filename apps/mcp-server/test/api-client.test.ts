@@ -1,327 +1,207 @@
+import { Effect } from 'effect'
+import { Domain, Errors } from 'llm-wiki-protocol'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { LlmWikiApiClient, normalizeBaseUrl } from '../src/api-client.js'
+import {
+  BASE_URL_ENV,
+  LlmWikiApiClient,
+  LlmWikiApiError,
+  resolveTransport,
+  SOCKET_PATH_ENV,
+} from '../src/api-client.js'
+import { embedFixture, graphFixture, startStub } from './api-stub.js'
 
-function readRequestUrl(url: string | URL | Request): string {
-  if (typeof url === 'string') return url
-  if (url instanceof URL) return url.href
-  return url.url
-}
-
-function readBodyText(body: RequestInit['body']): string {
-  if (typeof body === 'string') return body
-  if (body === null || body === undefined) return ''
-  if (body instanceof URLSearchParams) return body.toString()
-  return JSON.stringify(body) ?? ''
-}
-
-void test('normalizeBaseUrl trims trailing slashes and falls back to localhost', () => {
-  assert.equal(normalizeBaseUrl('http://127.0.0.1:19828///'), 'http://127.0.0.1:19828')
-  assert.equal(normalizeBaseUrl(''), 'http://127.0.0.1:19828')
-})
-
-void test('projects sends bearer token and parses current project', async () => {
-  const calls: Array<{ url: string; init?: RequestInit }> = []
-  const fetchImpl = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    calls.push({ url: readRequestUrl(url), ...(init !== undefined ? { init } : {}) })
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        projects: [{ id: 'p1', name: 'Demo', path: '/tmp/demo', current: true }],
-        currentProject: { id: 'p1', name: 'Demo', path: '/tmp/demo', current: true },
-      }),
-      { status: 200 },
-    )
+const withEndpointEnv = async (
+  env: { readonly socketPath?: string; readonly baseUrl?: string },
+  run: () => Promise<void>,
+): Promise<void> => {
+  const savedSocket = process.env[SOCKET_PATH_ENV]
+  const savedBase = process.env[BASE_URL_ENV]
+  const restore = (name: string, value: string | undefined) => {
+    if (value === undefined) delete process.env[name]
+    else process.env[name] = value
   }
+  restore(SOCKET_PATH_ENV, env.socketPath)
+  restore(BASE_URL_ENV, env.baseUrl)
+  try {
+    await run()
+  } finally {
+    restore(SOCKET_PATH_ENV, savedSocket)
+    restore(BASE_URL_ENV, savedBase)
+  }
+}
 
-  const client = new LlmWikiApiClient({
-    baseUrl: 'http://localhost:19828/',
-    token: 'secret',
-    fetchImpl,
+const apiError = (predicate: (error: LlmWikiApiError) => void) => (error: unknown): boolean => {
+  assert.ok(error instanceof LlmWikiApiError, `expected LlmWikiApiError, got ${String(error)}`)
+  assert.ok(error instanceof Error)
+  predicate(error)
+  return true
+}
+
+void test('resolveTransport prefers the socket path, then normalizes the base URL', () => {
+  assert.equal(resolveTransport({}), null)
+  assert.equal(resolveTransport({ socketPath: '   ', baseUrl: '  ' }), null)
+  assert.deepEqual(resolveTransport({ socketPath: ' /run/llm-wiki.sock ' }), {
+    mode: 'socket',
+    path: '/run/llm-wiki.sock',
   })
-  const result = await client.projects()
-
-  assert.equal(calls[0]?.url, 'http://localhost:19828/api/v1/projects')
-  // An authenticated call always carries an init with headers.
-  const headers = new Headers(calls[0]?.init?.headers)
-  assert.equal(headers.get('Authorization'), 'Bearer secret')
-  assert.equal(result.currentProject?.id, 'p1')
-  assert.equal(result.projects[0]?.current, true)
+  assert.deepEqual(resolveTransport({ socketPath: '/run/llm-wiki.sock', baseUrl: 'http://127.0.0.1:19828' }), {
+    mode: 'socket',
+    path: '/run/llm-wiki.sock',
+  })
+  assert.deepEqual(resolveTransport({ baseUrl: 'http://127.0.0.1:19828//' }), {
+    mode: 'http',
+    url: 'http://127.0.0.1:19828/rpc',
+    token: undefined,
+  })
+  assert.deepEqual(resolveTransport({ baseUrl: 'http://127.0.0.1:19828/rpc' }), {
+    mode: 'http',
+    url: 'http://127.0.0.1:19828/rpc',
+    token: undefined,
+  })
+  assert.deepEqual(resolveTransport({ baseUrl: 'http://other-host:8080/rpc/', token: ' s3cret ' }), {
+    mode: 'http',
+    url: 'http://other-host:8080/rpc',
+    token: 's3cret',
+  })
 })
 
-void test('health does not send authorization', async () => {
-  const calls: Array<RequestInit | undefined> = []
-  const fetchImpl = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    calls.push(init)
-    return new Response(JSON.stringify({ ok: true, status: 'running' }), { status: 200 })
-  }
-
-  const client = new LlmWikiApiClient({ token: 'secret', fetchImpl })
-  await client.health()
-
-  assert.equal(new Headers(calls[0]?.headers).get('Authorization'), null)
+void test('endpoint names the transport the client will dial', () => {
+  assert.equal(new LlmWikiApiClient({ socketPath: '/tmp/llm-wiki.sock' }).endpoint, 'unix socket /tmp/llm-wiki.sock')
+  assert.equal(new LlmWikiApiClient({ baseUrl: 'http://127.0.0.1:19828' }).endpoint, 'http://127.0.0.1:19828/rpc')
+  assert.match(
+    new LlmWikiApiClient({ socketPath: '', baseUrl: '' }).endpoint,
+    /set LLM_WIKI_SOCKET_PATH or LLM_WIKI_BASE_URL/,
+  )
 })
 
-void test('search posts JSON body to current project', async () => {
-  let body = ''
-  const fetchImpl = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    body = readBodyText(init?.body)
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        mode: 'hybrid',
-        tokenHits: 2,
-        vectorHits: 1,
-        results: [{ path: 'wiki/a.md', title: 'A', snippet: 'hit', score: 0.5, vectorScore: 0.9 }],
+void test('the environment supplies the endpoint', async () => {
+  await withEndpointEnv({ socketPath: '/run/env.sock' }, async () => {
+    assert.equal(new LlmWikiApiClient().endpoint, 'unix socket /run/env.sock')
+  })
+  await withEndpointEnv({ baseUrl: 'http://127.0.0.1:19828' }, async () => {
+    assert.equal(new LlmWikiApiClient().endpoint, 'http://127.0.0.1:19828/rpc')
+  })
+})
+
+void test('a misconfigured client fails every tool with remediation', async () => {
+  await withEndpointEnv({}, async () => {
+    const client = new LlmWikiApiClient()
+    await assert.rejects(
+      () => client.health(),
+      apiError((error) => {
+        assert.equal(error.tag, null)
+        assert.match(error.message, /No LLM Wiki API endpoint is configured/)
+        assert.match(error.message, /LLM_WIKI_SOCKET_PATH/)
+        assert.match(error.message, /LLM_WIKI_BASE_URL/)
       }),
-      { status: 200 },
     )
-  }
-
-  const client = new LlmWikiApiClient({ fetchImpl })
-  const results = await client.search('current', 'query', { topK: 3, includeContent: true })
-
-  assert.deepEqual(JSON.parse(body), { query: 'query', topK: 3, includeContent: true })
-  assert.equal(results.mode, 'hybrid')
-  assert.equal(results.tokenHits, 2)
-  assert.equal(results.vectorHits, 1)
-  assert.equal(results.results[0]?.vectorScore, 0.9)
+  })
 })
 
-void test('embedPage posts a project-relative wiki path', async () => {
-  const fetchImpl: typeof fetch = async (input, init) => {
-    assert.equal(readRequestUrl(input), 'http://127.0.0.1:19828/api/v1/projects/project-a/pages/embed')
-    assert.equal(init?.method, 'POST')
-    assert.deepEqual(JSON.parse(readBodyText(init?.body)), { path: 'wiki/ideas/page.md', force: true })
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        result: {
-          path: 'wiki/ideas/page.md',
-          pageId: 'page',
-          revision: 'sha256:abc',
-          chunks: 2,
-          vectorsWritten: 2,
-          status: 'indexed',
-        },
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    )
-  }
-  const client = new LlmWikiApiClient({ fetchImpl })
-  assert.deepEqual(await client.embedPage('wiki/ideas/page.md', 'project-a', true), {
-    path: 'wiki/ideas/page.md',
+void test('protocol typed errors keep their tag and message', async () => {
+  const stub = startStub({
+    search: () => Effect.fail(new Errors.NotFound({ message: 'Project not found: nope' })),
+  })
+  const client = new LlmWikiApiClient({ api: stub.api })
+
+  await assert.rejects(
+    () => client.search('nope', 'attention'),
+    apiError((error) => {
+      assert.equal(error.tag, 'NotFound')
+      assert.equal(error.message, 'LLM Wiki API NotFound: Project not found: nope')
+    }),
+  )
+})
+
+void test('McpDisabled surfaces as a typed McpDisabled error', async () => {
+  const stub = startStub({
+    projects: () => Effect.fail(new Errors.McpDisabled({ message: 'MCP access is disabled' })),
+  })
+  const client = new LlmWikiApiClient({ api: stub.api })
+
+  await assert.rejects(
+    () => client.projects(),
+    apiError((error) => {
+      assert.equal(error.tag, 'McpDisabled')
+      assert.equal(error.message, 'LLM Wiki API McpDisabled: MCP access is disabled')
+    }),
+  )
+})
+
+void test('embed failures keep the EmbedError taxonomy in the message', async () => {
+  const stub = startStub({
+    embedPage: () => Effect.fail(new Errors.EmbedError({ kind: 'Provider', message: 'provider is not configured' })),
+  })
+  const client = new LlmWikiApiClient({ api: stub.api })
+
+  await assert.rejects(
+    () => client.embedPage('wiki/a.md'),
+    apiError((error) => {
+      assert.equal(error.tag, 'EmbedError')
+      assert.equal(error.message, 'LLM Wiki API EmbedError: provider is not configured')
+    }),
+  )
+})
+
+void test('transport failures keep the desktop-app hint', async () => {
+  const stub = startStub({
+    projects: () => Effect.die(new Error('ECONNREFUSED')),
+  })
+  const client = new LlmWikiApiClient({ api: stub.api })
+
+  await assert.rejects(
+    () => client.projects(),
+    apiError((error) => {
+      assert.equal(error.tag, null)
+      assert.match(error.message, /Is the desktop app running\? ECONNREFUSED/)
+    }),
+  )
+})
+
+void test('embedPage returns the inner page embedding result', async () => {
+  const stub = startStub({ embedPage: () => Effect.succeed(embedFixture()) })
+  const client = new LlmWikiApiClient({ api: stub.api })
+
+  const result = await client.embedPage('wiki/ideas/example.md', 'p1', true)
+
+  assert.deepEqual({
+    path: result.path,
+    pageId: result.pageId,
+    revision: result.revision,
+    chunks: result.chunks,
+    vectorsWritten: result.vectorsWritten,
+    status: result.status,
+  }, {
+    path: 'wiki/ideas/example.md',
     pageId: 'page',
     revision: 'sha256:abc',
     chunks: 2,
     vectorsWritten: 2,
     status: 'indexed',
   })
+  assert.deepEqual(stub.calls, [
+    { tag: 'embedPage', request: { projectId: 'p1', path: 'wiki/ideas/example.md', force: true } },
+  ])
 })
 
-void test('embedPage rejects malformed success payloads', async () => {
-  const fetchImpl: typeof fetch = async () =>
-    new Response(
-      JSON.stringify({
-        ok: true,
-        result: {
-          path: 'wiki/page.md',
-          pageId: 'page',
-          revision: 'sha256:abc',
-          chunks: '2',
-          vectorsWritten: 2,
-          status: 'indexed',
-        },
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    )
-  const client = new LlmWikiApiClient({ fetchImpl })
-
-  await assert.rejects(
-    () => client.embedPage('wiki/page.md'),
-    /page embedding result\.chunks: expected finite number/,
-  )
-})
-
-void test('chat posts agent request and parses references', async () => {
-  let url = ''
-  let body = ''
-  const fetchImpl = async (requestUrl: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    url = readRequestUrl(requestUrl)
-    body = readBodyText(init?.body)
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        projectId: 'p1',
-        sessionId: 's1',
-        mode: 'standard',
-        message: { role: 'assistant', content: 'answer' },
-        references: [{ title: 'A', path: 'wiki/a.md', kind: 'wiki', snippet: 'hit', score: 0.5 }],
-        toolEvents: [{ tool: 'wiki.search', status: 'completed', detail: '1 result' }],
-        events: [{ type: 'toolEnd', tool: 'wiki.search' }],
-        usage: { promptChars: 100, completionChars: 6, referenceCount: 1, toolEventCount: 1 },
-      }),
-      { status: 200 },
-    )
-  }
-
-  const client = new LlmWikiApiClient({ baseUrl: 'http://localhost:19828', fetchImpl })
-  const response = await client.chat('current', 'question', {
-    sessionId: 's1',
-    mode: 'standard',
-    topK: 4,
-    includeContent: true,
-    wiki: true,
-    web: false,
-    anytxt: true,
-    skills: ['reviewer'],
+void test('cancelChat dispatches the chatCancel operation', async () => {
+  const stub = startStub({
+    chatCancel: () => Effect.succeed(new Domain.ChatCancelResponse({ sessionId: 's1', cancelled: true })),
   })
+  const client = new LlmWikiApiClient({ api: stub.api })
 
-  assert.equal(url, 'http://localhost:19828/api/v1/projects/current/chat')
-  assert.deepEqual(JSON.parse(body), {
-    message: 'question',
-    sessionId: 's1',
-    mode: 'standard',
-    topK: 4,
-    includeContent: true,
-    tools: { wiki: true, web: false, anytxt: true },
-    skills: ['reviewer'],
-  })
-  assert.equal(response.sessionId, 's1')
-  assert.equal(response.message.content, 'answer')
-  assert.equal(response.references[0]?.path, 'wiki/a.md')
-  assert.equal(response.toolEvents[0]?.tool, 'wiki.search')
-  assert.equal(response.events[0]?.type, 'toolEnd')
-  assert.equal(response.usage?.promptChars, 100)
+  const result = await client.cancelChat('p1', 's1')
+
+  assert.equal(result.cancelled, true)
+  assert.deepEqual(stub.calls, [{ tag: 'chatCancel', request: { projectId: 'p1', sessionId: 's1' } }])
 })
 
-void test('cancelChat posts to the chat cancellation endpoint', async () => {
-  let url = ''
-  let method = ''
-  const fetchImpl = async (requestUrl: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    url = readRequestUrl(requestUrl)
-    method = init?.method ?? ''
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        sessionId: 's1',
-        cancelled: true,
-      }),
-      { status: 200 },
-    )
-  }
+void test('graph forwards only the filters that were provided', async () => {
+  const stub = startStub({ graph: () => Effect.succeed(graphFixture()) })
+  const client = new LlmWikiApiClient({ api: stub.api })
 
-  const client = new LlmWikiApiClient({ baseUrl: 'http://localhost:19828', fetchImpl })
-  const response = await client.cancelChat('current', 's1')
+  await client.graph('p1', { q: '', nodeType: 'concept', limit: 5 })
 
-  assert.equal(url, 'http://localhost:19828/api/v1/projects/current/chat/s1/cancel')
-  assert.equal(method, 'POST')
-  assert.deepEqual(response, { sessionId: 's1', cancelled: true })
-})
-
-void test('graph parses nodeType from API graph nodes', async () => {
-  const fetchImpl = async (): Promise<Response> => (
-    new Response(
-      JSON.stringify({
-        ok: true,
-        nodes: [{ id: 'n1', label: 'Node', nodeType: 'concept', path: 'wiki/concepts/n1.md', linkCount: 4 }],
-        edges: [{ source: 'n1', target: 'n2', weight: 0.75 }],
-      }),
-      { status: 200 },
-    )
-  )
-
-  const client = new LlmWikiApiClient({ fetchImpl })
-  const graph = await client.graph('current')
-
-  assert.equal(graph.nodes[0]?.type, 'concept')
-  assert.equal(graph.nodes[0]?.linkCount, 4)
-  assert.equal(graph.edges[0]?.weight, 0.75)
-})
-
-void test('files exposes truncated flag', async () => {
-  const fetchImpl = async (): Promise<Response> => (
-    new Response(
-      JSON.stringify({
-        ok: true,
-        files: [{ name: 'index.md', path: 'wiki/index.md', isDir: false }],
-        truncated: true,
-      }),
-      { status: 200 },
-    )
-  )
-
-  const client = new LlmWikiApiClient({ fetchImpl })
-  const files = await client.files('current')
-
-  assert.equal(files.truncated, true)
-  assert.equal(files.files[0]?.path, 'wiki/index.md')
-})
-
-void test('reviews requests unresolved review items with filters', async () => {
-  const calls: string[] = []
-  const fetchImpl = async (url: string | URL | Request): Promise<Response> => {
-    calls.push(readRequestUrl(url))
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        projectId: 'p1',
-        status: 'unresolved',
-        count: 1,
-        reviews: [{
-          id: 'r1',
-          type: 'missing-page',
-          title: 'Missing page: Attention',
-          description: 'Add the Attention page',
-          options: [],
-          resolved: false,
-          createdAt: 1,
-        }],
-      }),
-      { status: 200 },
-    )
-  }
-
-  const client = new LlmWikiApiClient({ baseUrl: 'http://localhost:19828', fetchImpl })
-  const result = await client.reviews('current', {
-    status: 'unresolved',
-    type: 'missing-page',
-    limit: 5,
-  })
-
-  assert.equal(
-    calls[0],
-    'http://localhost:19828/api/v1/projects/current/reviews?status=unresolved&type=missing-page&limit=5',
-  )
-  assert.equal(result.status, 'unresolved')
-  assert.equal(result.count, 1)
-  assert.equal(result.reviews[0]?.id, 'r1')
-  assert.equal(result.reviews[0]?.resolved, false)
-})
-
-void test('network failures include desktop app hint', async () => {
-  const fetchImpl = async (): Promise<Response> => {
-    throw new Error('ECONNREFUSED')
-  }
-
-  const client = new LlmWikiApiClient({ fetchImpl })
-  await assert.rejects(() => client.projects(), /Is the desktop app running\? ECONNREFUSED/)
-})
-
-void test('non-JSON responses include status and body preview', async () => {
-  const fetchImpl = async (): Promise<Response> => (
-    new Response('not json', { status: 502, statusText: 'Bad Gateway' })
-  )
-
-  const client = new LlmWikiApiClient({ fetchImpl })
-  await assert.rejects(() => client.projects(), /non-JSON response \(502\): not json/)
-})
-
-void test('API errors include status and server message', async () => {
-  const fetchImpl = async (): Promise<Response> => (
-    new Response(JSON.stringify({ ok: false, error: 'Unauthorized' }), { status: 401 })
-  )
-
-  const client = new LlmWikiApiClient({ fetchImpl })
-  await assert.rejects(() => client.projects(), /LLM Wiki API 401: Unauthorized/)
+  assert.deepEqual(stub.calls, [{ tag: 'graph', request: { projectId: 'p1', nodeType: 'concept', limit: 5 } }])
 })

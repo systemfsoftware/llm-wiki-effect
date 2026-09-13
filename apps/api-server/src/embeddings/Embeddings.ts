@@ -32,6 +32,7 @@ import {
   embeddingSpecFrom,
   isGoogleEndpoint,
   LANCEDB_DIR,
+  MAX_EMBED_TEXTS,
   MAX_PAGE_BYTES,
   MAX_PAGE_CHUNKS,
   MAX_PAGE_ID_CHARS,
@@ -54,6 +55,10 @@ export interface EmbeddingsShape {
     Domain.PageEmbeddingResult,
     Errors.EmbedError | Errors.NotFound | Errors.InvalidRequest
   >
+  readonly embedTexts: (
+    texts: ReadonlyArray<string>,
+    provider?: string,
+  ) => Effect.Effect<ReadonlyArray<ReadonlyArray<number>>, Errors.EmbedError | Errors.InvalidRequest>
 }
 
 export interface EmbeddingsDependencies {
@@ -452,6 +457,40 @@ const prepareEmbeddingRows = (
     return rows
   })
 
+const embedTextVectors = (
+  runtime: EmbeddingRuntime,
+  spec: EmbeddingSpec,
+  texts: ReadonlyArray<string>,
+): Effect.Effect<ReadonlyArray<ReadonlyArray<number>>, Errors.EmbedError> =>
+  Effect.gen(function*() {
+    const vectors: Array<ReadonlyArray<number>> = []
+    for (const batch of chunkBatches(texts, EMBEDDING_BATCH_SIZE)) {
+      if (!supportsBatch(spec)) {
+        for (const text of batch) {
+          vectors.push(yield* fetchWithRetry(runtime, spec, text, 3))
+        }
+        continue
+      }
+      const embeddings = yield* fetchBatch(runtime, spec, batch)
+      if (embeddings.length !== batch.length) {
+        return yield* Effect.fail(
+          embedError('Provider', 'Embedding provider returned an incomplete batch'),
+        )
+      }
+      vectors.push(...embeddings)
+    }
+    const first = vectors[0]
+    if (
+      first === undefined || first.length === 0 ||
+      vectors.some((vector) => vector.length !== first.length)
+    ) {
+      return yield* Effect.fail(
+        embedError('Provider', 'Embedding provider returned empty or inconsistent vector dimensions'),
+      )
+    }
+    return vectors
+  })
+
 const validateEmbeddingRows = (rows: ReadonlyArray<ChunkRow>): Errors.EmbedError | undefined => {
   const first = rows[0]
   if (first === undefined) return embedError('Provider', 'Embedding provider returned no vectors')
@@ -625,6 +664,36 @@ export class Embeddings extends Context.Service<Embeddings, EmbeddingsShape>()(
         Effect.gen(function*() {
           const projectRoot = yield* dependencies.registry.resolveRoot(projectId)
           return yield* embedPageAtRoot(runtime, projectRoot, path, force)
+        }),
+      embedTexts: (texts, provider) =>
+        Effect.gen(function*() {
+          const values = yield* runtime.config.values
+          const override = provider?.trim() ?? ''
+          const spec = override === ''
+            ? embeddingSpecFrom(values)
+            : embeddingSpecFrom({ ...values, embedding: { ...values.embedding, provider: override } })
+          if (!spec.enabled) return yield* Effect.fail(embeddingDisabled())
+          if (texts.length === 0 || texts.length > MAX_EMBED_TEXTS) {
+            return yield* Effect.fail(
+              embedError(
+                'InvalidRequest',
+                `texts must contain between 1 and ${MAX_EMBED_TEXTS} entries`,
+              ),
+            )
+          }
+          const prepared = yield* Effect.timeoutOption(
+            embedTextVectors(runtime, spec, texts),
+            runtime.timeouts.providerPhase,
+          )
+          if (Option.isNone(prepared)) {
+            return yield* Effect.fail(
+              embedError(
+                'Timeout',
+                `Embedding provider timed out after ${Duration.toSeconds(runtime.timeouts.providerPhase)} seconds`,
+              ),
+            )
+          }
+          return prepared.value
         }),
     }
   }

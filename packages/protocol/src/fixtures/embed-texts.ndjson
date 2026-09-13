@@ -1,0 +1,1 @@
+{"_tag":"Request","id":"3","tag":"embedTexts","payload":{"provider":"openai","texts":["alpha","beta"]},"headers":[]}

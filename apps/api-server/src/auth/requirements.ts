@@ -14,6 +14,15 @@ const TOKEN_REQUIRED_OPERATIONS: Partial<Record<ApiOperationName, true>> = {
   chatStream: true,
   chatCancel: true,
   embedPage: true,
+  embedTexts: true,
+  fileChanges: true,
+  retryFileChange: true,
+  ignoreFileChange: true,
+  vectorStats: true,
+  vectorOptimize: true,
+  vectorClear: true,
+  vectorDeletePage: true,
+  vectorDropLegacy: true,
 }
 
 export const isAlwaysTokenOperation = (operation: ApiOperationName): boolean =>

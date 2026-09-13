@@ -13,3 +13,7 @@ export class EmbedPageResponse extends Schema.Class<EmbedPageResponse>('EmbedPag
   projectId: Schema.String,
   result: PageEmbeddingResult,
 }) {}
+
+export class EmbedTextsResponse extends Schema.Class<EmbedTextsResponse>('EmbedTextsResponse')({
+  vectors: Schema.Array(Schema.Array(Schema.Number)),
+}) {}

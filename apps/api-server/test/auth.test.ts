@@ -57,7 +57,16 @@ const API_OPERATIONS = [
   'search',
   'graph',
   'rescanSources',
+  'fileChanges',
+  'retryFileChange',
+  'ignoreFileChange',
   'embedPage',
+  'embedTexts',
+  'vectorStats',
+  'vectorOptimize',
+  'vectorClear',
+  'vectorDeletePage',
+  'vectorDropLegacy',
   'chat',
   'chatStream',
   'chatCancel',
@@ -70,6 +79,15 @@ const TOKEN_REQUIRED_OPERATIONS: ReadonlyArray<ApiOperationName> = [
   'chatStream',
   'chatCancel',
   'embedPage',
+  'embedTexts',
+  'fileChanges',
+  'retryFileChange',
+  'ignoreFileChange',
+  'vectorStats',
+  'vectorOptimize',
+  'vectorClear',
+  'vectorDeletePage',
+  'vectorDropLegacy',
 ]
 
 const MCP_GATED_OPERATIONS: ReadonlyArray<ApiOperationName> = [
@@ -222,7 +240,7 @@ describe('auth requirement matrix', () => {
     )
   })
 
-  it('requires a token only for chat and embed when unauthenticated reads are open', () => {
+  it('requires a token only for the always-token operations when unauthenticated reads are open', () => {
     assert(
       property(
         constantFrom(...API_OPERATIONS),
@@ -555,7 +573,23 @@ describe('auth middleware', () => {
     },
   )
 
-  it.each(['chat', 'chatStream', 'chatCancel', 'embedPage'] as const)(
+  it.each(
+    [
+      'chat',
+      'chatStream',
+      'chatCancel',
+      'embedPage',
+      'embedTexts',
+      'vectorStats',
+      'vectorOptimize',
+      'vectorClear',
+      'vectorDeletePage',
+      'vectorDropLegacy',
+      'fileChanges',
+      'retryFileChange',
+      'ignoreFileChange',
+    ] as const,
+  )(
     'keeps %s token-required while reads are open',
     (operation) => {
       const values = configValues({ token: 'secret', allowUnauthenticated: true })

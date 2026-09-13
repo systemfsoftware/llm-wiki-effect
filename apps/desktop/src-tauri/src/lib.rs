@@ -61,6 +61,28 @@ fn api_server_reload_config() -> String {
     .unwrap_or_else(|e| format!("error: {e}"))
 }
 
+static API_SERVER_SOCKET_PATH: Mutex<Option<String>> = Mutex::new(None);
+
+pub fn set_api_server_socket_path(path: Option<String>) {
+    let mut slot = match API_SERVER_SOCKET_PATH.lock() {
+        Ok(slot) => slot,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    *slot = path;
+}
+
+#[tauri::command]
+fn api_server_socket_path() -> String {
+    run_guarded("api_server_socket_path", || {
+        let slot = match API_SERVER_SOCKET_PATH.lock() {
+            Ok(slot) => slot,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        Ok(slot.clone().unwrap_or_default())
+    })
+    .unwrap_or_default()
+}
+
 #[tauri::command]
 async fn agent_start_turn(
     app: tauri::AppHandle,
@@ -706,6 +728,7 @@ pub fn run() {
             clip_server_status,
             api_server_status,
             api_server_reload_config,
+            api_server_socket_path,
             agent_start_turn,
             agent_start_turn_stream,
             agent_cancel_turn,

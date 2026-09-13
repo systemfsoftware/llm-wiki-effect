@@ -34,8 +34,6 @@ export interface ChatSendOptions {
   skills: string[]
   contextFiles: string[]
   skillMode?: 'auto' | 'explicit'
-  approvedShellCommands?: string[]
-  shellCommand?: string
 }
 
 const AGENT_MODE_OPTIONS: ChatAgentMode[] = ['fast', 'standard', 'deep', 'local_first']

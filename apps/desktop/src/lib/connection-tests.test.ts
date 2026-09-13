@@ -53,7 +53,7 @@ describe('provider connection tests', () => {
 
     expect(result.ok).toBe(true)
     expect(result.message).toContain('3 dimensions')
-    expect(fetchEmbeddingMock).toHaveBeenCalledWith(expect.any(String), embeddingConfig, 0)
+    expect(fetchEmbeddingMock).toHaveBeenCalledWith(expect.any(String), embeddingConfig)
   })
 
   it('fails embedding functional test when dimensions are unstable', async () => {

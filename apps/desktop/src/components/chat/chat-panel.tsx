@@ -5,8 +5,16 @@ import { FrontmatterPanel } from '@/components/editor/frontmatter-panel'
 import { WikiReader } from '@/components/editor/wiki-reader'
 import { Button } from '@/components/ui/button'
 import { summarizeAgentFileChange } from '@/lib/agent-file-activity'
+import { type AvailableAgentSkill, listAvailableAgentSkills } from '@/lib/agent-skills'
 import { hasConfiguredAnyTxt } from '@/lib/anytxt-search'
-import type { ChatAgentEvent, ChatAgentFileChange, ChatAgentStep, ChatUserInputRequest } from '@/lib/chat-agent-types'
+import { approveShellCommands, cancelChatTurnBestEffort, relay, subscribeAgentEvents } from '@/lib/api-relay'
+import type {
+  ChatAgentEvent,
+  ChatAgentFileChange,
+  ChatAgentStep,
+  ChatUserInputFieldType,
+  ChatUserInputRequest,
+} from '@/lib/chat-agent-types'
 import { getFileCategory, getFileExtension, isTextReadable } from '@/lib/file-types'
 import { parseFrontmatter } from '@/lib/frontmatter'
 import { executeIngestWrites } from '@/lib/ingest'
@@ -18,8 +26,8 @@ import { getFileName, isAbsolutePath, normalizePath } from '@/lib/path-utils'
 import { refreshProjectFileTree } from '@/lib/project-file-tree-refresh'
 import { chatMessagesToLLM, type MessageImage, type MessageReference, useChatStore } from '@/stores/chat-store'
 import { useWikiStore } from '@/stores/wiki-store'
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { convertFileSrc } from '@tauri-apps/api/core'
+import type { Domain } from 'llm-wiki-protocol'
 import {
   BookOpen,
   ChevronDown,
@@ -38,64 +46,17 @@ import { useTranslation } from 'react-i18next'
 import { ChatInput, type ChatSendOptions } from './chat-input'
 import { ChatMessage, type ChatReferencePreview, StreamingMessage, useSourceFiles } from './chat-message'
 
+type BackendAgentReference = Domain.ChatReference
+type BackendAgentToolEvent = {
+  tool: string
+  status: string
+  detail?: string | null | undefined
+  timestamp?: number | undefined
+}
+
 type InternalChatSendOptions = ChatSendOptions & {
   suppressUserMessage?: boolean
   historyOverride?: { role: 'user' | 'assistant'; content: string }[]
-}
-
-interface BackendAgentReference {
-  title: string
-  path: string
-  kind: string
-  snippet?: string
-  score?: number
-  knowledgeContext?: {
-    relatedTo?: string[]
-    outgoingLinks?: string[]
-    backlinks?: string[]
-  }
-}
-
-interface BackendAgentToolEvent {
-  tool: string
-  status: string
-  detail?: string
-  timestamp?: number
-}
-
-interface BackendAgentEventPayload {
-  sessionId: string
-  runId?: string
-  event: {
-    type: string
-    text?: string
-    tool?: string
-    input?: string
-    output?: string
-    message?: string
-    reference?: BackendAgentReference
-    request?: ChatUserInputRequest
-    sessionId?: string
-    path?: string
-    existedBefore?: boolean
-    previousContent?: string
-  }
-}
-
-interface BackendAgentResponse {
-  sessionId: string
-  mode?: string
-  message: string | { role?: string; content?: string }
-  references?: BackendAgentReference[]
-  toolEvents?: BackendAgentToolEvent[]
-  userInputRequest?: ChatUserInputRequest
-}
-
-interface AvailableAgentSkill {
-  id: string
-  name: string
-  description?: string
-  source: string
 }
 
 type ContextDetailCategory = 'wiki' | 'graph' | 'web' | 'anytxt' | 'workspace' | 'external'
@@ -320,7 +281,7 @@ function backendReferenceToMessageReference(ref: BackendAgentReference): Message
     ...(source !== undefined ? { source } : {}),
     ...(isWeb ? { url: ref.path } : {}),
     ...(ref.snippet !== undefined ? { snippet: ref.snippet } : {}),
-    ...(relatedTo !== undefined ? { graphRelations: relatedTo } : {}),
+    ...(relatedTo !== undefined ? { graphRelations: [...relatedTo] } : {}),
   }
 }
 
@@ -450,9 +411,39 @@ function backendToolToAgentEvent(event: BackendAgentToolEvent): ChatAgentEvent {
   }
 }
 
-function backendResponseText(response: BackendAgentResponse): string {
+function backendResponseText(response: { message: string | { content?: string } }): string {
   if (typeof response.message === 'string') return response.message
-  return response.message?.content ?? ''
+  return response.message.content ?? ''
+}
+
+const USER_INPUT_FIELD_TYPES: Record<string, ChatUserInputFieldType> = {
+  single: 'single',
+  multi: 'multi',
+  text: 'text',
+  textarea: 'textarea',
+  confirm: 'confirm',
+}
+
+function toChatUserInputRequest(request: Domain.ChatUserInputRequest): ChatUserInputRequest {
+  return {
+    requestId: request.requestId,
+    title: request.title,
+    ...(request.description === undefined ? {} : { description: request.description }),
+    fields: request.fields.map((field) => ({
+      id: field.id,
+      type: USER_INPUT_FIELD_TYPES[field.type] ?? 'text',
+      label: field.label,
+      ...(field.description === undefined ? {} : { description: field.description }),
+      ...(field.placeholder === undefined ? {} : { placeholder: field.placeholder }),
+      options: field.options.map((option) => ({
+        label: option.label,
+        value: option.value,
+        ...(option.description === undefined ? {} : { description: option.description }),
+        ...(option.recommended === undefined ? {} : { recommended: option.recommended }),
+      })),
+      ...(field.defaultValue === undefined ? {} : { defaultValue: field.defaultValue }),
+    })),
+  }
 }
 
 function enabledSkillIds(skills: AvailableAgentSkill[], disabledSkills: string[]): Set<string> {
@@ -806,7 +797,7 @@ export function ChatPanel() {
         return
       }
       try {
-        const skills = await invoke<AvailableAgentSkill[]>('agent_list_skills', { projectPath })
+        const skills = await listAvailableAgentSkills(projectPath)
         if (cancelled) return
         const enabled = enabledSkillIds(skills, disabledSkills)
         const enabledSkills = skills.filter((skill) => enabled.has(skill.id))
@@ -933,8 +924,7 @@ export function ChatPanel() {
             }, streamIdleTimeoutMs)
           }
           resetStreamTimeout()
-          streamUnlisten = await listen<BackendAgentEventPayload>('agent-event', (event) => {
-            const payload = event.payload
+          streamUnlisten = await subscribeAgentEvents((payload) => {
             if (payload.sessionId !== convId || payload.runId !== backendRunId || !isCurrentRun()) return
             resetStreamTimeout()
             const agentEvent = payload.event
@@ -1045,7 +1035,7 @@ export function ChatPanel() {
               return
             }
             if (agentEvent.type === 'userInputRequired' && agentEvent.request) {
-              pendingUserInputRequest = agentEvent.request
+              pendingUserInputRequest = toChatUserInputRequest(agentEvent.request)
               if (!accumulated.trim()) {
                 const intro = agentEvent.request.description ||
                   t('chat.userInputRequiredDescription', {
@@ -1098,35 +1088,28 @@ export function ChatPanel() {
             }
           })
           try {
-            await invoke<string>('agent_start_turn_stream', {
-              projectId: project?.id ?? 'current',
-              llmConfig,
-              request: {
-                message: text,
-                sessionId: convId,
-                runId: backendRunId,
-                mode: sendOptions.agentMode,
-                retrievalMode: sendOptions.retrievalMode,
-                stream: true,
-                tools: {
-                  wiki: true,
-                  web: sendOptions.useWebSearch,
-                  anytxt: sendOptions.useAnyTxtSearch,
-                },
-                topK: sendOptions.agentMode === 'deep' ? 8 : 5,
-                includeContent: sendOptions.agentMode === 'deep',
-                history: activeConvMessages,
-                historyExplicit: true,
-                skills: requestSkills,
-                contextFiles: sendOptions.contextFiles,
-                skillMode: requestedSkillMode,
-                approvedShellCommands: sendOptions.approvedShellCommands ?? [],
-                shellCommand: sendOptions.shellCommand,
-                images: images.map((image) => ({
-                  mediaType: image.mediaType,
-                  dataBase64: image.dataBase64,
-                })),
+            await relay().chatStream({
+              message: text,
+              sessionId: convId,
+              runId: backendRunId,
+              mode: sendOptions.agentMode,
+              retrievalMode: sendOptions.retrievalMode,
+              tools: {
+                wiki: true,
+                web: sendOptions.useWebSearch,
+                anytxt: sendOptions.useAnyTxtSearch,
               },
+              topK: sendOptions.agentMode === 'deep' ? 8 : 5,
+              includeContent: sendOptions.agentMode === 'deep',
+              history: activeConvMessages,
+              historyExplicit: true,
+              skills: requestSkills,
+              contextFiles: sendOptions.contextFiles,
+              skillMode: requestedSkillMode,
+              images: images.map((image) => ({
+                mediaType: image.mediaType,
+                dataBase64: image.dataBase64,
+              })),
             })
             await streamDone
             await Promise.allSettled(fileActivityTasks)
@@ -1176,59 +1159,55 @@ export function ChatPanel() {
                 .map((block) => block.text)
                 .join('\n'),
           }))
-        const backendResponse = await invoke<BackendAgentResponse>('agent_start_turn', {
-          projectId: project?.id ?? 'current',
-          llmConfig,
-          request: {
-            message: text,
-            sessionId: convId,
-            runId: backendRunId,
-            persistSession: false,
-            mode: sendOptions.agentMode,
-            retrievalMode: sendOptions.retrievalMode,
-            tools: {
-              wiki: true,
-              web: sendOptions.useWebSearch,
-              anytxt: sendOptions.useAnyTxtSearch,
-            },
-            topK: sendOptions.agentMode === 'deep' ? 8 : 5,
-            includeContent: sendOptions.agentMode === 'deep',
-            skills: requestSkills,
-            contextFiles: sendOptions.contextFiles,
-            skillMode: requestedSkillMode,
-            historyExplicit: true,
-            approvedShellCommands: sendOptions.approvedShellCommands ?? [],
-            shellCommand: sendOptions.shellCommand,
-            history: priorWireMessages,
-            images: images.map((image) => ({
-              mediaType: image.mediaType,
-              dataBase64: image.dataBase64,
-            })),
+        const backendResponse = await relay().chat({
+          message: text,
+          sessionId: convId,
+          runId: backendRunId,
+          persistSession: false,
+          mode: sendOptions.agentMode,
+          retrievalMode: sendOptions.retrievalMode,
+          tools: {
+            wiki: true,
+            web: sendOptions.useWebSearch,
+            anytxt: sendOptions.useAnyTxtSearch,
           },
+          topK: sendOptions.agentMode === 'deep' ? 8 : 5,
+          includeContent: sendOptions.agentMode === 'deep',
+          skills: requestSkills,
+          contextFiles: sendOptions.contextFiles,
+          skillMode: requestedSkillMode,
+          historyExplicit: true,
+          history: priorWireMessages,
+          images: images.map((image) => ({
+            mediaType: image.mediaType,
+            dataBase64: image.dataBase64,
+          })),
         })
         if (!isCurrentRun()) return
 
-        const backendReferences = (backendResponse.references ?? []).map(backendReferenceToMessageReference)
-        const backendSteps = (backendResponse.toolEvents ?? []).map(backendToolToAgentStep)
-        const backendEvents = (backendResponse.toolEvents ?? []).map(backendToolToAgentEvent)
+        const pendingInput = backendResponse.events.find(
+          (event): event is Domain.AgentUserInputRequiredEvent => event.type === 'userInputRequired',
+        )
+        const userInputRequest = pendingInput === undefined
+          ? undefined
+          : toChatUserInputRequest(pendingInput.request)
+
+        const backendReferences = backendResponse.references.map(backendReferenceToMessageReference)
+        const backendSteps = backendResponse.toolEvents.map(backendToolToAgentStep)
+        const backendEvents = backendResponse.toolEvents.map(backendToolToAgentEvent)
         setAgentEvents(backendEvents.slice(-6))
         lastQueryPages = backendReferences
           .filter((ref) => ref.kind === 'wiki')
           .map((ref) => ({ title: ref.title, path: ref.path }))
 
-        if (backendResponse.userInputRequest) {
+        if (userInputRequest) {
           finalized = true
           finalizeStreamForConversation(
             convId,
-            backendResponse.message
-              ? backendResponseText(backendResponse)
-              : (backendResponse.userInputRequest.description ??
-                t('chat.userInputRequiredDescription', {
-                  defaultValue: 'Please provide the requested information to continue.',
-                })),
+            backendResponseText(backendResponse),
             backendReferences,
             backendSteps,
-            backendResponse.userInputRequest,
+            userInputRequest,
           )
           setAgentEvents([])
           setStreamingConversationId(null)
@@ -1379,13 +1358,8 @@ export function ChatPanel() {
   const handleStop = useCallback(() => {
     runIdRef.current += 1
     const sessionId = activeRunSessionIdRef.current
-    const backendRunId = activeRunIdRef.current
     if (sessionId) {
-      void invoke('agent_cancel_turn', {
-        projectId: project?.id ?? 'current',
-        sessionId,
-        runId: backendRunId ?? undefined,
-      }).catch(() => {})
+      void cancelChatTurnBestEffort(project?.id ?? 'current', sessionId)
     }
     abortRef.current?.abort()
     abortRef.current = null
@@ -1488,6 +1462,11 @@ export function ChatPanel() {
     activeRunSessionIdRef.current = null
     activeRunIdRef.current = null
     setStreaming(false)
+    await approveShellCommands({
+      projectId: project?.id ?? 'current',
+      sessionId: useChatStore.getState().activeConversationId ?? '',
+      commands: [command.trim()],
+    })
     const sendPromise = handleSend(resumeMessage, priorUser.images ?? [], {
       useWebSearch: useChatStore.getState().useWebSearch,
       useAnyTxtSearch: useChatStore.getState().useAnyTxtSearch,
@@ -1496,8 +1475,6 @@ export function ChatPanel() {
       skills: useChatStore.getState().selectedSkills,
       contextFiles: useChatStore.getState().selectedContextFiles,
       skillMode: useChatStore.getState().selectedSkills.length > 0 ? 'explicit' : 'auto',
-      approvedShellCommands: [command.trim()],
-      shellCommand: command.trim(),
       suppressUserMessage: true,
       historyOverride: resumeHistory,
     })
@@ -1506,7 +1483,7 @@ export function ChatPanel() {
     } finally {
       setApprovingShellMessageId(null)
     }
-  }, [approvingShellMessageId, handleSend, maxHistoryMessages, setApprovingShellMessageId, setStreaming])
+  }, [approvingShellMessageId, handleSend, maxHistoryMessages, project, setApprovingShellMessageId, setStreaming])
 
   const handleSubmitUserInput = useCallback((request: ChatUserInputRequest, answers: Record<string, unknown>) => {
     if (activeStreaming) return false

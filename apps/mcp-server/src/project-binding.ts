@@ -11,7 +11,7 @@ export class McpProjectBinding {
     this.pinned = null
   }
 
-  pin(requested: string, projects: ApiProject[], current: ApiProject | null): ApiProject {
+  pin(requested: string, projects: ReadonlyArray<ApiProject>, current: ApiProject | null): ApiProject {
     const candidate = requested === 'current'
       ? current
       : projects.find((project) => project.id === requested || project.path === requested) ?? null

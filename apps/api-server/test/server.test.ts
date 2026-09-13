@@ -866,7 +866,7 @@ describe('protocol surface', () => {
     for (const name of Catalog.ApiCatalogNames) {
       expect(Api.ApiProtocol.requests.has(name)).toBe(true)
     }
-    expect(Catalog.ApiCatalogNames).toHaveLength(16)
+    expect(Catalog.ApiCatalogNames).toHaveLength(25)
   })
 
   it('keeps the typed error space reachable', () => {

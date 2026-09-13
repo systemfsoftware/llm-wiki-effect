@@ -45,3 +45,10 @@ export class RescanSourcesResponse extends Schema.Class<RescanSourcesResponse>(
   projectId: Schema.String,
   result: RescanResult,
 }) {}
+
+export class FileChangeQueueResponse extends Schema.Class<FileChangeQueueResponse>(
+  'FileChangeQueueResponse',
+)({
+  projectId: Schema.String,
+  queue: FileChangeQueue,
+}) {}

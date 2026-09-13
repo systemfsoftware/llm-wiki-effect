@@ -30,16 +30,13 @@ const mocks = vi.hoisted(() => {
     ),
     emit: (event: string, payload: unknown) => listeners[event]?.({ payload }),
     stopProjectFileWatcher: vi.fn<() => Promise<void>>(async () => undefined),
-    rescanProjectFiles: vi.fn<(projectId: string) => Promise<SyncPayload>>(async (projectId) => {
-      void projectId
-      return {
-        queue: {
-          version: 1,
-          tasks: [],
-        },
-        changedTasks: [],
-      }
-    }),
+    rescanProjectFiles: vi.fn<(projectPath: string) => Promise<SyncPayload>>(async () => ({
+      queue: {
+        version: 1,
+        tasks: [],
+      },
+      changedTasks: [],
+    })),
     startProjectFileWatcher: vi.fn<() => Promise<SyncPayload>>(() =>
       new Promise((resolve) => {
         resolvers.push(resolve)
@@ -144,8 +141,7 @@ describe('project file sync', () => {
     vi.useRealTimers()
     vi.clearAllMocks()
     mocks.clearResolvers()
-    mocks.rescanProjectFiles.mockImplementation(async (projectId: string) => {
-      void projectId
+    mocks.rescanProjectFiles.mockImplementation(async () => {
       return {
         queue: {
           version: 1,
@@ -463,13 +459,13 @@ describe('project file sync', () => {
 
     const project = { id: 'A', name: 'A', path: '/tmp/a' }
     useWikiStore.getState().setProject(project)
-    mocks.rescanProjectFiles.mockImplementation(async (projectId: string) => {
+    mocks.rescanProjectFiles.mockImplementation(async () => {
       return {
         queue: { version: 1, tasks: [] },
         changedTasks: [
           {
             id: 't1',
-            projectId,
+            projectId: 'A',
             path: 'raw/sources/manual.pdf',
             kind: 'created',
             status: 'done',
@@ -484,11 +480,7 @@ describe('project file sync', () => {
 
     await rescanProjectFileSync(project)
 
-    expect(mocks.rescanProjectFiles).toHaveBeenCalledWith(
-      'A',
-      '/tmp/a',
-      expect.objectContaining({ enabled: true, autoIngest: true }),
-    )
+    expect(mocks.rescanProjectFiles).toHaveBeenCalledWith('/tmp/a')
     expect(mocks.enqueueBatch).toHaveBeenCalledWith('A', [
       { sourcePath: 'raw/sources/manual.pdf', folderContext: '' },
     ])
@@ -596,12 +588,12 @@ describe('project file sync', () => {
       expect(mocks.listen).toHaveBeenCalledTimes(2)
     })
 
-    mocks.rescanProjectFiles.mockImplementation(async (projectId: string) => ({
+    mocks.rescanProjectFiles.mockImplementation(async () => ({
       queue: { version: 1, tasks: [] },
       changedTasks: [
         {
           id: 't1',
-          projectId,
+          projectId: 'A',
           path: 'raw/sources/watcher-running.pdf',
           kind: 'created',
           status: 'done',
@@ -627,14 +619,14 @@ describe('project file sync', () => {
     const projectA = { id: 'A', name: 'A', path: '/tmp/a' }
     const projectB = { id: 'B', name: 'B', path: '/tmp/b' }
     useWikiStore.getState().setProject(projectA)
-    mocks.rescanProjectFiles.mockImplementation(async (projectId: string) => {
+    mocks.rescanProjectFiles.mockImplementation(async () => {
       useWikiStore.getState().setProject(projectB)
       return {
         queue: { version: 1, tasks: [] },
         changedTasks: [
           {
             id: 't1',
-            projectId,
+            projectId: 'A',
             path: 'raw/sources/stale.pdf',
             kind: 'created',
             status: 'done',
@@ -671,12 +663,12 @@ describe('project file sync', () => {
 
     const project = { id: 'A', name: 'A', path: '/tmp/a' }
     useWikiStore.getState().setProject(project)
-    mocks.rescanProjectFiles.mockImplementation(async (projectId: string) => ({
+    mocks.rescanProjectFiles.mockImplementation(async () => ({
       queue: { version: 1, tasks: [] },
       changedTasks: [
         {
           id: 't1',
-          projectId,
+          projectId: 'A',
           path: 'raw/sources/manual.pdf',
           kind: 'created',
           status: 'done',

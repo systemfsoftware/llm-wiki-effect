@@ -501,7 +501,87 @@ export interface RescanSourcesShape {
   readonly rescan: (
     projectId: string,
   ) => Effect.Effect<Domain.RescanResult, Errors.InvalidRequest | Errors.NotFound>
+  readonly fileChanges: (
+    projectId: string,
+  ) => Effect.Effect<Domain.FileChangeQueue, Errors.InvalidRequest | Errors.NotFound>
+  readonly retryFileChange: (
+    projectId: string,
+    taskId: string,
+  ) => Effect.Effect<Domain.FileChangeQueue, Errors.InvalidRequest | Errors.NotFound>
+  readonly ignoreFileChange: (
+    projectId: string,
+    taskId: string,
+  ) => Effect.Effect<Domain.FileChangeQueue, Errors.InvalidRequest | Errors.NotFound>
 }
+
+const queueFailure = (label: string, error: unknown): Errors.InvalidRequest =>
+  error instanceof Errors.InvalidRequest
+    ? error
+    : new Errors.InvalidRequest({ message: `${label}: ${String(error)}` })
+
+export const readFileChangeQueue = (
+  root: string,
+): Effect.Effect<Domain.FileChangeQueue, Errors.InvalidRequest> =>
+  Effect.tryPromise({
+    try: async () => {
+      const queue = await readQueue(root)
+      return new Domain.FileChangeQueue({ version: queue.version, tasks: [...queue.tasks] })
+    },
+    catch: (error) => queueFailure('File change queue read failed', error),
+  })
+
+export const retryFileChangeTask = (
+  root: string,
+  projectId: string,
+  taskId: string,
+  options: RescanOptions = {},
+): Effect.Effect<Domain.FileChangeQueue, Errors.InvalidRequest> =>
+  Effect.tryPromise({
+    try: async () => {
+      const now = (options.now ?? Date.now)()
+      const queue = await readQueue(root)
+      const tasks = queue.tasks.map((task) =>
+        task.id === taskId && task.projectId === projectId
+          ? new Domain.FileChangeTask({
+            id: task.id,
+            projectId: task.projectId,
+            path: task.path,
+            kind: task.kind,
+            status: 'pending',
+            hashBefore: task.hashBefore,
+            hashAfter: task.hashAfter,
+            size: task.size,
+            mtimeMs: task.mtimeMs,
+            createdAt: task.createdAt,
+            updatedAt: now,
+            retryCount: 0,
+            error: null,
+            needsRerun: false,
+          })
+          : task
+      )
+      await writeQueue(root, { version: queue.version, tasks })
+      return new Domain.FileChangeQueue({ version: queue.version, tasks })
+    },
+    catch: (error) => queueFailure('File change retry failed', error),
+  })
+
+export const ignoreFileChangeTask = (
+  root: string,
+  projectId: string,
+  taskId: string,
+): Effect.Effect<Domain.FileChangeQueue, Errors.InvalidRequest> =>
+  Effect.tryPromise({
+    try: async () => {
+      const queue = await readQueue(root)
+      const tasks = queue.tasks.filter(
+        (task) => !(task.id === taskId && task.projectId === projectId),
+      )
+      await writeQueue(root, { version: queue.version, tasks })
+      return new Domain.FileChangeQueue({ version: queue.version, tasks })
+    },
+    catch: (error) => queueFailure('File change ignore failed', error),
+  })
 
 export const makeRescanSources = (
   options: RescanOptions = {},
@@ -511,6 +591,17 @@ export const makeRescanSources = (
     return {
       rescan: (projectId) =>
         Effect.flatMap(registry.resolveRoot(projectId), (root) => rescanProjectSources(root, projectId, options)),
+      fileChanges: (projectId) => Effect.flatMap(registry.resolveRoot(projectId), (root) => readFileChangeQueue(root)),
+      retryFileChange: (projectId, taskId) =>
+        Effect.flatMap(
+          registry.resolveRoot(projectId),
+          (root) => retryFileChangeTask(root, projectId, taskId, options),
+        ),
+      ignoreFileChange: (projectId, taskId) =>
+        Effect.flatMap(
+          registry.resolveRoot(projectId),
+          (root) => ignoreFileChangeTask(root, projectId, taskId),
+        ),
     }
   })
 

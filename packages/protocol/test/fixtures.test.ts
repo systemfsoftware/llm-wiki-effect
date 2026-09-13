@@ -78,6 +78,14 @@ describe('golden frames agree with the declared schemas', () => {
     )
   })
 
+  it('encodes the embedTexts payload exactly as the request frame carries it', () => {
+    const frame = Fixtures.GoldenFrames.embedTexts.envelope
+    if (frame._tag !== 'Request') throw new Error('embedTexts frame is not a Request envelope')
+    expect(
+      encodeOrThrow(Api.EmbedTextsPayload, { provider: 'openai', texts: ['alpha', 'beta'] }),
+    ).toEqual(frame.payload)
+  })
+
   it('encodes the stream meta exactly as the chunk frame carries it', () => {
     const frame = Fixtures.GoldenFrames.chunk.envelope
     if (frame._tag !== 'Chunk') throw new Error('chunk frame is not a Chunk envelope')

@@ -36,7 +36,9 @@ export interface GoldenFrame {
   readonly envelope: GoldenEnvelope
 }
 
-export const GoldenFrames: Readonly<Record<'request' | 'chunk' | 'exit' | 'defect', GoldenFrame>> = {
+export const GoldenFrames: Readonly<
+  Record<'request' | 'embedTexts' | 'chunk' | 'exit' | 'defect', GoldenFrame>
+> = {
   request: {
     name: 'request',
     file: 'request.ndjson',
@@ -47,6 +49,19 @@ export const GoldenFrames: Readonly<Record<'request' | 'chunk' | 'exit' | 'defec
       id: '1',
       tag: 'search',
       payload: { projectId: 'current', query: 'attention', topK: 10 },
+      headers: [],
+    },
+  },
+  embedTexts: {
+    name: 'embedTexts',
+    file: 'embed-texts.ndjson',
+    bytes:
+      '{"_tag":"Request","id":"3","tag":"embedTexts","payload":{"provider":"openai","texts":["alpha","beta"]},"headers":[]}\n',
+    envelope: {
+      _tag: 'Request',
+      id: '3',
+      tag: 'embedTexts',
+      payload: { provider: 'openai', texts: ['alpha', 'beta'] },
       headers: [],
     },
   },
@@ -87,6 +102,7 @@ export const GoldenFrames: Readonly<Record<'request' | 'chunk' | 'exit' | 'defec
 
 export const goldenFrames: ReadonlyArray<GoldenFrame> = [
   GoldenFrames.request,
+  GoldenFrames.embedTexts,
   GoldenFrames.chunk,
   GoldenFrames.exit,
   GoldenFrames.defect,

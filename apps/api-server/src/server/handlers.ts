@@ -8,6 +8,7 @@ import { ChatService } from '../chat/ChatService.js'
 import { Config, DEFAULT_BIND_HOST } from '../config/Config.js'
 import type { ConfigShape, ConfigValues } from '../config/Config.js'
 import { Embeddings } from '../embeddings/Embeddings.js'
+import { VectorIndex } from '../embeddings/vector-store.js'
 import { Files } from '../files/Files.js'
 import { GraphBuilder } from '../graph/GraphBuilder.js'
 import { ProjectRegistry } from '../projects/Registry.js'
@@ -77,6 +78,7 @@ export const handlersLayer = (env: ServerEnv) =>
       const graph = yield* GraphBuilder
       const rescan = yield* RescanSources
       const embeddings = yield* Embeddings
+      const vectorIndex = yield* VectorIndex
       const chat = yield* ChatService
 
       const projectIdFor = (selector: string) =>
@@ -189,6 +191,24 @@ export const handlersLayer = (env: ServerEnv) =>
             (result) => new Domain.RescanSourcesResponse({ projectId: payload.projectId, result }),
           ),
 
+        fileChanges: (payload: { readonly projectId: string }) =>
+          Effect.map(
+            rescan.fileChanges(payload.projectId),
+            (queue) => new Domain.FileChangeQueueResponse({ projectId: payload.projectId, queue }),
+          ),
+
+        retryFileChange: (payload: { readonly projectId: string; readonly taskId: string }) =>
+          Effect.map(
+            rescan.retryFileChange(payload.projectId, payload.taskId),
+            (queue) => new Domain.FileChangeQueueResponse({ projectId: payload.projectId, queue }),
+          ),
+
+        ignoreFileChange: (payload: { readonly projectId: string; readonly taskId: string }) =>
+          Effect.map(
+            rescan.ignoreFileChange(payload.projectId, payload.taskId),
+            (queue) => new Domain.FileChangeQueueResponse({ projectId: payload.projectId, queue }),
+          ),
+
         embedPage: (payload: {
           readonly projectId: string
           readonly path: string
@@ -199,10 +219,58 @@ export const handlersLayer = (env: ServerEnv) =>
             (result) => new Domain.EmbedPageResponse({ projectId: payload.projectId, result }),
           ),
 
+        embedTexts: (payload: {
+          readonly provider?: string | undefined
+          readonly texts: ReadonlyArray<string>
+        }) =>
+          Effect.map(
+            embeddings.embedTexts(payload.texts, payload.provider),
+            (vectors) => new Domain.EmbedTextsResponse({ vectors }),
+          ),
+
+        vectorStats: (payload: { readonly projectId: string }) =>
+          Effect.gen(function*() {
+            const { root } = yield* projectIdFor(payload.projectId)
+            const stats = yield* vectorIndex.stats(root)
+            return new Domain.VectorStatsResponse({
+              chunks: stats.chunks,
+              legacyRows: stats.legacyRows,
+            })
+          }),
+
+        vectorOptimize: (payload: { readonly projectId: string }) =>
+          Effect.gen(function*() {
+            const { root } = yield* projectIdFor(payload.projectId)
+            yield* vectorIndex.optimize(root)
+            return new Domain.VectorOptimizeResponse({ ok: true })
+          }),
+
+        vectorClear: (payload: { readonly projectId: string }) =>
+          Effect.gen(function*() {
+            const { root } = yield* projectIdFor(payload.projectId)
+            const deleted = yield* vectorIndex.clearChunks(root)
+            return new Domain.VectorDeletedResponse({ ok: true, deleted })
+          }),
+
+        vectorDeletePage: (payload: {
+          readonly projectId: string
+          readonly pageId: string
+        }) =>
+          Effect.gen(function*() {
+            const { root } = yield* projectIdFor(payload.projectId)
+            const deleted = yield* vectorIndex.deletePage(root, payload.pageId)
+            return new Domain.VectorDeletedResponse({ ok: true, deleted })
+          }),
+
+        vectorDropLegacy: (payload: { readonly projectId: string }) =>
+          Effect.gen(function*() {
+            const { root } = yield* projectIdFor(payload.projectId)
+            const dropped = yield* vectorIndex.dropLegacy(root)
+            return new Domain.VectorDropLegacyResponse({ ok: true, dropped })
+          }),
+
         chat: (payload: Parameters<typeof chat.chat>[0]) => chat.chat(payload),
-
         chatStream: (payload: Parameters<typeof chat.chatStream>[0]) => chat.chatStream(payload),
-
         chatCancel: (payload: { readonly projectId: string; readonly sessionId: string }) => chat.chatCancel(payload),
 
         setCurrentProject: (payload: { readonly projectId: string }) =>

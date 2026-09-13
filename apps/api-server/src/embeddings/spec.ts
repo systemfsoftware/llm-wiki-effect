@@ -9,6 +9,7 @@ export const MIN_CHUNK_CHARS = 64
 export const MAX_CHUNK_CHARS = 32_000
 export const MAX_PAGE_BYTES = 2 * 1024 * 1024
 export const MAX_PAGE_CHUNKS = 512
+export const MAX_EMBED_TEXTS = 512
 export const EMBEDDING_BATCH_SIZE = 64
 export const MAX_PAGE_ID_CHARS = 256
 

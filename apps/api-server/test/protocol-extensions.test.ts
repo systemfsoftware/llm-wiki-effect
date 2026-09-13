@@ -130,7 +130,9 @@ const withSocket = <A, E>(
   body: (harness: Harness, client: ApiClient) => Effect.Effect<A, E>,
   headers?: Readonly<Record<string, string>>,
 ): Promise<A> => {
-  const path = join(tmpdir(), `llm-wiki-extensions-${randomUUID()}.sock`)
+  const path = process.platform === 'win32'
+    ? `\\\\.\\pipe\\llm-wiki-extensions-${randomUUID()}`
+    : join(tmpdir(), `llm-wiki-extensions-${randomUUID()}.sock`)
   createdPaths.push(path)
   const program = Effect.gen(function*() {
     const harness = yield* prepareHarness(spec)

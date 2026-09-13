@@ -73,7 +73,9 @@ const withSocketClient = <A, E>(
           env: TOKEN_ENV,
           agent: { provider: PROVIDER, model: MODEL },
         })
-        const path = join(tmpdir(), `llm-wiki-real-llm-${randomUUID()}.sock`)
+        const path = process.platform === 'win32'
+          ? `\\\\.\\pipe\\llm-wiki-real-llm-${randomUUID()}`
+          : join(tmpdir(), `llm-wiki-real-llm-${randomUUID()}.sock`)
         yield* serveSocket({ app, env: TOKEN_ENV, path })
         return yield* Effect.provide(
           Effect.gen(function*() {

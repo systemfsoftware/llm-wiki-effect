@@ -40,7 +40,9 @@ const createdRoots: Array<string> = []
 const createdPaths: Array<string> = []
 
 const tempPath = (prefix: string): string => {
-  const path = join(tmpdir(), `llm-wiki-${prefix}-${randomUUID()}.sock`)
+  const path = process.platform === 'win32'
+    ? `\\\\.\\pipe\\llm-wiki-${prefix}-${randomUUID()}`
+    : join(tmpdir(), `llm-wiki-${prefix}-${randomUUID()}.sock`)
   createdPaths.push(path)
   return path
 }

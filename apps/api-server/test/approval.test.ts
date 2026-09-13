@@ -31,7 +31,9 @@ const createdRoots: Array<string> = []
 const createdPaths: Array<string> = []
 
 const tempPath = (prefix: string): string => {
-  const path = join(tmpdir(), `llm-wiki-approval-${prefix}-${randomUUID()}.sock`)
+  const path = process.platform === 'win32'
+    ? `\\\\.\\pipe\\llm-wiki-approval-${prefix}-${randomUUID()}`
+    : join(tmpdir(), `llm-wiki-approval-${prefix}-${randomUUID()}.sock`)
   createdPaths.push(path)
   return path
 }
@@ -442,13 +444,15 @@ describe('supervisor approval channel', () => {
       (harness, client) =>
         Effect.gen(function*() {
           const supervisor = yield* Effect.promise(() => openSupervisor(approvalPath, () => 'approve'))
-          const mode = (yield* Effect.promise(() => stat(approvalPath))).mode & 0o777
+          const mode = process.platform === 'win32'
+            ? null
+            : (yield* Effect.promise(() => stat(approvalPath))).mode & 0o777
           const response = yield* chatTurn(client)
           return { supervisor, mode, response, root: harness.root }
         }),
     )
 
-    expect(outcome.mode).toBe(APPROVAL_SOCKET_MODE)
+    expect(outcome.mode).toBe(process.platform === 'win32' ? null : APPROVAL_SOCKET_MODE)
     expect(outcome.supervisor.malformed).toEqual([])
     expect(outcome.supervisor.frames).toHaveLength(1)
     const frame = outcome.supervisor.frames[0]

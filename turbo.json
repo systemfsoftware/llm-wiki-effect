@@ -5,39 +5,32 @@
   "tasks": {
     "llm-wiki#lint": {
       "outputLogs": "errors-only",
-      "inputs": ["$TURBO_DEFAULT$", "oxlint.config.ts", "tsconfig.json", "tsconfig.*.json", "!**/*.md"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
       "outputs": [],
       "cache": true
     },
     "typecheck": {
       "outputLogs": "errors-only",
-      "inputs": ["$TURBO_DEFAULT$", "tsconfig.json", "tsconfig.*.json", "!**/*.md"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
       "outputs": [],
       "cache": true
     },
     "build": {
       "outputLogs": "new-only",
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "index.html",
-        "vite.config.ts",
-        "rolldown.config.js",
-        "tsconfig*.json",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
       "outputs": ["dist/**"],
       "dependsOn": ["typecheck"],
       "cache": true
     },
     "llm-wiki#test:mocks": {
       "outputLogs": "errors-only",
-      "inputs": ["$TURBO_DEFAULT$", "vitest.config.ts", "!**/*.md"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**"],
       "outputs": [],
       "cache": true
     },
     "llm-wiki-mcp-server#test": {
       "outputLogs": "errors-only",
-      "inputs": ["$TURBO_DEFAULT$", "tsconfig.test.json", "!**/*.md"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": ["dist-test/**"],
       "dependsOn": ["build"],
       "cache": true

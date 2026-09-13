@@ -36,6 +36,16 @@ itself. Gate: `pnpm exec turbo run build --dry=json` lists
 `llm-wiki#build` and `llm-wiki-mcp-server#build`; a recursive script would not
 terminate at all.
 
+**`check:ci` stays a three-phase enumeration, not a turbo invocation.**
+`check:ci` is `node scripts/check-ci.mjs format:check gate:tasks gate:dist`:
+`format:check` still runs outside turbo, and the two turbo runs are its other
+phases. The script runs each named phase separately so one failure does not hide
+the rest, and it is Node rather than shell because `s=0; a || s=1; exit $s` is
+not valid `cmd.exe`. Folding the phases into one `turbo run` would trade that
+per-phase reporting for nothing — turbo already reports each task's outcome
+inside a phase. Gate: `pnpm check:ci` prints one `[check:ci] <phase> ok` line per
+phase.
+
 **A task definition may be package-qualified, and every task only one package
 implements must be.** `llm-wiki#lint`, `llm-wiki#test:mocks`, and
 `llm-wiki-mcp-server#test` carry their package; only `typecheck` and `build`
@@ -57,6 +67,38 @@ the Tauri `beforeBuildCommand` still typechecks before bundling. The MCP
 supplies it. Gate: `pnpm build:desktop` from a deleted `dist/` and
 `mcp-server/dist/` restores both.
 
+**Narrow `inputs` only to trees the task provably cannot read, and prove the
+narrowing with an A/B on a real edit.** Every root task keyed on 527 files,
+including 61 under `src-tauri/` and 41 under `repos/`; `oxlint`'s
+`ignorePatterns` and both `tsconfig` include lists exclude both trees, so the
+declared inputs over-claimed by 102 files. `llm-wiki#lint`, `typecheck`, and
+`build` now carry `!repos/**` and `!src-tauri/**`; `llm-wiki#test:mocks` carries
+`!repos/**` only. Gate: one Rust-only edit to `src-tauri/src/main.rs` left 3 of
+6 tasks cached before the change and 5 of 6 after; one `src-tauri/Cargo.toml`
+edit still invalidates `llm-wiki#test:mocks`, and one `src/` edit still
+invalidates all three root tasks.
+
+**A negation cannot be undone by naming the file back.** Turbo hoists every
+`!`-pattern ahead of the positive globs, so
+`["$TURBO_DEFAULT$", "!src-tauri/**", "src-tauri/Cargo.toml"]` resolves with the
+negation first and the file stays excluded — measured, the resolved input map
+contained zero `src-tauri` paths either way round. This is why
+`llm-wiki#test:mocks` keeps the whole `src-tauri/` tree rather than trying to
+keep two files out of it: `src/lib/changelog.test.ts` reads
+`src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, and it is the only guard
+against version skew between `package.json`, the Tauri config, and the crate
+manifest. Gate: `llm-wiki#test:mocks` re-runs after a `src-tauri/Cargo.toml`
+edit.
+
+**`dependsOn: ["^build"]` would do nothing here, so it is not written.**
+`^` expands to a package's `directDependencies`, and both packages report
+`directDependencies: ["//"]` with `packageGraph.edges.length = 0`. Adding
+`^build` to the `build` task produced an identical four-task schedule and an
+identical resolved `dependencies` list on the `build` task; only the task hash
+moved, which is a one-time full cache invalidation for no ordering gain. Gate:
+`pnpm exec turbo run build --dry=json` schedules the same four tasks with and
+without it.
+
 **`outputs` must name only artifacts the task actually writes.** `test:mocks`
 runs vitest without `--coverage`, so its `outputs` is `[]`. Listing a
 `coverage/**` directory vitest never creates makes turbo warn
@@ -64,12 +106,18 @@ runs vitest without `--coverage`, so its `outputs` is `[]`. Listing a
 artifact. Gate: `pnpm gate:tasks` produces no warning, and the MCP suite's
 `dist-test/**` is present after a cached run.
 
-**Options go after the subcommand.** The form is
-`turbo run --concurrency=${TURBO_CONCURRENCY:-100%} --continue <tasks>`. The
-template writes `turbo --concurrency=… <tasks>` because it omits `run`
-entirely; combining that prefix with an explicit subcommand fails with
-`Cannot use run arguments before 'run' subcommand`. Gate: `pnpm gate:tasks`
-exits 0 rather than exiting 1 on argument parsing.
+**Options go after the subcommand, and the flags are literal.** The form is
+`turbo run --concurrency=100% --continue <tasks>`. The template writes
+`turbo --concurrency=${TURBO_CONCURRENCY:-50%} <tasks>`, which carries both a
+missing subcommand and a POSIX-only expansion. The subcommand half fails with
+`Cannot use run arguments before 'run' subcommand`. The expansion is the worse
+half: pnpm runs package scripts through `cmd.exe` on Windows, where
+`${TURBO_CONCURRENCY:-100%}` is literal text, so the Windows leg of the matrix
+would pass `--concurrency=${TURBO_CONCURRENCY:-100%}` as a value. The repo
+already paid for this lesson once — `scripts/check-ci.mjs` exists precisely
+because `s=0; a || s=1; exit $s` is not valid `cmd.exe`. Gate: `pnpm gate:tasks`
+exits 0 on all three matrix platforms, and `pnpm exec turbo run build --dry=json`
+resolves the flag.
 
 ## Why This Matters
 
@@ -139,7 +187,49 @@ and `mcp-server/dist/` and running `pnpm build:desktop` restores both from
 cache, which is what makes the `outputs` keys load-bearing rather than
 decorative.
 
+The A/B that justifies the input narrowing. Each side was warmed to
+`FULL TURBO` with its own `turbo.json`, then given exactly one edit to a tracked
+file under `src-tauri/`:
+
+```text
+                inputs as first written          inputs narrowed
+                (527 files per root task)        (425 lint/typecheck, 486 test:mocks)
+Rust-only edit  3 cached, 6 total                5 cached, 6 total
+                lint/typecheck/test:mocks miss   test:mocks miss only
+src/ edit       3 cached, 6 total                3 cached, 6 total
+                lint/typecheck/test:mocks miss   lint/typecheck/test:mocks miss
+Cargo.toml edit (not measured)                  5 cached, 6 total
+                                                 test:mocks miss only
+```
+
+The `src-tauri/Cargo.toml` row is the one that keeps the narrowing honest: the
+task that must notice a crate-version edit still does.
+
 The graph itself, for reference:
+
+```text
+turbo query 'query { packageGraph { nodes { items { name } length } edges { items { source target } } } }'
+  2 nodes (llm-wiki, llm-wiki-mcp-server), 0 edges
+
+turbo query 'query { boundaries { items { message path } length } }'
+  10 diagnostics, all under repos/ — `@std/fs`, `@std/path`, `@std/yaml`
+  imported by vendored Deno scripts. None in src/ or mcp-server/.
+
+turbo query 'query { affectedTasks(base: "origin/main", head: "HEAD") { items { fullName reason { __typename } } length } }'
+  7 tasks, every reason TaskGlobalFileChanged — the set is all seven tasks in
+  the repo, and it is the same set over HEAD~3..HEAD. With zero edges and a
+  global file hash that any root-config edit moves, an --affected filter would
+  select the same seven tasks and change nothing.
+```
+
+One hypothesis was written down and then refuted, which is why it is recorded
+here rather than acted on: `src/components/layout/icon-sidebar.tsx` imports
+`@/assets/logo.jpg`, and `vite.config.ts` aliases `@` to `./src`. The import
+resolves to `src/assets/logo.jpg`, not to the root `assets/` directory of nine
+marketing screenshots — the built `dist/assets/logo-*.jpg` is byte-identical to
+`src/assets/logo.jpg` (same md5) and no root-`assets` file appears in `dist/`.
+Excluding `assets/**` from `build`'s inputs would therefore have been safe, not
+a regression; it was left in place only because those nine files do not churn.
 
 ```text
 turbo query 'query { packageGraph { nodes { items { name } length } edges { items { source target } } } }'
@@ -153,10 +243,27 @@ turbo query 'query { boundaries { items { message path } length } }'
 The root also appears twice in `turbo query 'query { packages { items { name path } } }'`
 — once as the synthetic `//` entry and once as `llm-wiki`, both with an empty
 path. Task keys of the form `//#task` target the synthetic entry; this repo
-targets the named package instead, so the two never contend.
+targets the named package instead, so the two never contend. The workspace has
+no `apps/` or `packages/` directories, so the template's `package#task`
+conventions apply to exactly one non-root package.
 
-Two consequences of the same toolchain are outside this repo's edit surface and
-remain open. `.github/workflows/ci.yml` does not restore `.turbo/cache`, so CI
-runs every task cold every time; and the workspace has no `apps/` or
-`packages/` directories, so the template's `package#task` conventions apply to
-exactly one non-root package.
+## Where this landed in CI
+
+`.github/workflows/ci.yml` restores `.turbo/cache` under
+`turbo-${{ runner.os }}-gate-${{ github.sha }}` with prefix `restore-keys`, so
+the six tasks run warm on all three matrix platforms instead of cold. The same
+workflow gained a merge-conflict preflight (`conflict-check.yml`, a
+`git merge-tree` against the PR base, annotated
+`::error title=merge conflicts::`) and a 45-minute job timeout. Gate: a run on
+an unchanged tree reports `FULL TURBO` and the conflict job exits 0.
+
+One legibility idea was dropped rather than shipped. `OXLINT_FORMAT=github`
+turns each lint finding into a `::error file=…,line=…,col=…` annotation, and
+oxlint does emit it — `pnpm exec oxlint … --format=github` produced
+`::error file=src/__ci-annotation-probe.ts,line=1,endLine=1,col=14,endColumn=24,title=typescript(TS2322)::…`
+on a planted type error. But the `lint` script is
+`oxlint . --type-aware --type-check` with no format hook, and adding one needs
+either a POSIX shell expansion — which breaks the Windows leg that
+`scripts/check-ci.mjs` exists to protect — or a second lint definition, which
+breaks the one-gate-definition rule. Turbo naming the failing task
+(`Failed: llm-wiki#lint`) is what carries the failure instead.

@@ -23,7 +23,8 @@
     "src-tauri/**",
     "extension/Readability.js",
     "extension/Turndown.js",
-    "llm-wiki.md"
+    "llm-wiki.md",
+    "repos/**"
   ],
   "plugins": [
     "https://plugins.dprint.dev/typescript-0.96.1.wasm",

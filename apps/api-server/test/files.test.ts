@@ -237,6 +237,10 @@ describe('path containment', () => {
     expect(isWithinRoot('/a/proj', '/a/proj')).toBe(true)
     expect(isWithinRoot('/a/proj/', '/a/proj/wiki/index.md')).toBe(true)
     expect(isWithinRoot('/a/proj/', '/a/proj-evil/secret.md')).toBe(false)
+    expect(isWithinRoot('C:\\proj', 'C:\\proj\\wiki\\a.md')).toBe(true)
+    expect(isWithinRoot('C:\\proj', 'C:/proj/wiki/a.md')).toBe(true)
+    expect(isWithinRoot('C:/proj', 'C:\\proj\\wiki\\a.md')).toBe(true)
+    expect(isWithinRoot('C:\\proj', 'C:\\proj-evil\\x.md')).toBe(false)
   })
 
   it('accepts only relative, dot-free segments', () => {

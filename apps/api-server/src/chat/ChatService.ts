@@ -24,11 +24,13 @@ import { AgentRuntime } from '../agent/runtime/AgentRuntime.js'
 import type { AgentTurnImage, AgentTurnRequest } from '../agent/runtime/AgentRuntime.js'
 import { CancelRegistry } from '../agent/sessions/CancelRegistry.js'
 import { SessionStore } from '../agent/sessions/SessionStore.js'
+import { projectPathMatches } from '../config/Config.js'
 import { ProjectRegistry } from '../projects/Registry.js'
 
 export const MAX_IN_FLIGHT_CHAT_STREAMS = 8
 export const TOO_MANY_CHAT_STREAMS = 'Too many concurrent Agent chat streams'
 export const MAX_RECENT_HISTORY = 12
+const CASE_INSENSITIVE_PATHS = process.platform === 'win32'
 
 export type ChatError =
   | Errors.InvalidRequest
@@ -262,7 +264,9 @@ const makeChatService = (): Effect.Effect<
         yield* projects.resolveRoot(request.projectId)
         const listed = yield* projects.list
         const match = listed.find(
-          (project) => project.id === request.projectId || project.path === request.projectId,
+          (project) =>
+            project.id === request.projectId ||
+            projectPathMatches(project.path, request.projectId, CASE_INSENSITIVE_PATHS),
         )
         const cancelled = registry.cancel(
           match?.id ?? request.projectId,

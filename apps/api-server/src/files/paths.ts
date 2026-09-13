@@ -102,6 +102,10 @@ export const guardRelativePath = (
 }
 
 export const isWithinRoot = (root: string, candidate: string): boolean => {
-  if (candidate === root) return true
-  return candidate.startsWith(root.endsWith('/') ? root : `${root}/`)
+  const normalizedRoot = root.replace(/\\/g, '/')
+  const normalizedCandidate = candidate.replace(/\\/g, '/')
+  if (normalizedCandidate === normalizedRoot) return true
+  return normalizedCandidate.startsWith(
+    normalizedRoot.endsWith('/') ? normalizedRoot : `${normalizedRoot}/`,
+  )
 }

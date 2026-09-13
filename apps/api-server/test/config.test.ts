@@ -13,6 +13,7 @@ import {
   DEFAULT_MAX_CHAT_TURNS,
   MAX_MAX_CHAT_TOKENS,
   MIN_MAX_CHAT_TOKENS,
+  normalizeProjectPath,
   parseStandaloneFlags,
   parseWorkerSpawnArgs,
   PUBLIC_BIND_HOST,
@@ -88,7 +89,7 @@ describe('standalone configuration', () => {
       model: 'gemini-embedding-001',
       dimensions: 768,
     })
-    expect(config.projectRoots).toEqual([join(dir, 'proj')])
+    expect(config.projectRoots).toEqual([normalizeProjectPath(join(dir, 'proj'))])
     expect(Option.getOrUndefined(config.currentProject)).toBe('proj')
     expect(config.providerCredentials['openai']).toEqual({
       apiKey: 'file-key',
@@ -192,7 +193,7 @@ describe('worker configuration', () => {
     expect(config.apiEnabled).toBe(false)
     expect(config.mcpEnabled).toBe(true)
     expect(config.allowUnauthenticated).toBe(true)
-    expect(config.projectRoots).toEqual([spawned, registered, recent])
+    expect(config.projectRoots).toEqual([spawned, registered, recent].map(normalizeProjectPath))
     expect(config.chatLimits).toEqual({ maxTokens: 8192, maxTurns: 4 })
     expect(config.embedding).toEqual({
       provider: 'google',

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Config } from '../src/config/Config.js'
+import { Config, normalizeProjectPath } from '../src/config/Config.js'
 import { ProjectRegistry } from '../src/projects/Registry.js'
 
 const tempDirs: Array<string> = []
@@ -38,8 +38,8 @@ const statePathIn = async (): Promise<string> => {
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'llm-wiki-registry-fixtures-'))
   tempDirs.push(root)
-  alphaDir = await makeProject(join(root, 'alpha-project'), 'alpha-id')
-  betaDir = await makeProject(join(root, 'beta-project'))
+  alphaDir = normalizeProjectPath(await makeProject(join(root, 'alpha-project'), 'alpha-id'))
+  betaDir = normalizeProjectPath(await makeProject(join(root, 'beta-project')))
 })
 
 afterAll(async () => {
@@ -157,7 +157,7 @@ describe('project registry', () => {
     expect(unknown.name).toBe('NotFound')
     expect(unknown.message).toBe('Unknown project: nope')
     expect(missing.name).toBe('NotFound')
-    expect(missing.message).toBe(`Project root does not exist: ${missingRoot}`)
+    expect(missing.message).toBe(`Project root does not exist: ${normalizeProjectPath(missingRoot)}`)
     expect(switched.name).toBe('NotFound')
     expect(projects.map((project) => project.path)).toEqual([alphaDir])
   })

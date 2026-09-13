@@ -49,7 +49,12 @@ const tempPath = (prefix: string): string => {
 
 afterAll(async () => {
   await Promise.all(createdRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
-  await Promise.all(createdPaths.splice(0).map((path) => rm(path, { force: true })))
+  await Promise.all(
+    createdPaths
+      .splice(0)
+      .filter((path) => !path.startsWith('\\\\.\\pipe\\'))
+      .map((path) => rm(path, { force: true })),
+  )
 })
 
 const DEFAULT_FILES: Readonly<Record<string, string>> = {
@@ -729,8 +734,10 @@ describe('socket mount', () => {
       ),
     )
     expect(conflict.tag).toBe('BindConflict')
-
-    const stalePath = tempPath('stale')
+    const stalePath = process.platform === 'win32'
+      ? join(tmpdir(), `llm-wiki-stale-${randomUUID()}.sock`)
+      : tempPath('stale')
+    if (process.platform === 'win32') createdPaths.push(stalePath)
     await writeFile(stalePath, 'stale socket placeholder', 'utf8')
     const bound = await Effect.runPromise(
       Effect.scoped(

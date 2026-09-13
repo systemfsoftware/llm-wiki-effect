@@ -144,6 +144,11 @@ export const makeHttpApp = (input: {
     })
   })
 
+export const removeSocketPath = (path: string): Promise<void> =>
+  process.platform === 'win32' && path.startsWith('\\\\.\\pipe\\')
+    ? Promise.resolve()
+    : rm(path, { force: true })
+
 export const isSocketAlive = (path: string): Promise<boolean> => {
   const { promise, resolve } = Promise.withResolvers<boolean>()
   const socket = connect({ path })
@@ -170,7 +175,7 @@ export const serveSocket = (input: {
       )
     }
     yield* Effect.promise(async () => {
-      await rm(input.path, { force: true })
+      await removeSocketPath(input.path)
       await mkdir(dirname(input.path), { recursive: true, mode: 0o700 })
     })
     const socketServer = yield* NodeSocketServer.make({ path: input.path }).pipe(
@@ -178,8 +183,8 @@ export const serveSocket = (input: {
         (error) => new Errors.BindConflict({ message: `Cannot bind ${input.path}: ${String(error)}` }),
       ),
     )
-    yield* Effect.promise(() => chmod(input.path, 0o600))
-    yield* Effect.addFinalizer(() => Effect.promise(() => rm(input.path, { force: true })))
+    if (process.platform !== 'win32') yield* Effect.promise(() => chmod(input.path, 0o600))
+    yield* Effect.addFinalizer(() => Effect.promise(() => removeSocketPath(input.path)))
     yield* Effect.forkScoped(
       Layer.launch(socketRpcLayer({ ...input, socketServer })),
     )

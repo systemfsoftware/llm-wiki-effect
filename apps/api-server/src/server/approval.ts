@@ -1,12 +1,13 @@
 import { Effect, Option, Schema, Scope } from 'effect'
 import { Errors } from 'llm-wiki-protocol'
 import { randomUUID } from 'node:crypto'
-import { chmod, mkdir, rm } from 'node:fs/promises'
+import { chmod, mkdir } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import type { Server, Socket } from 'node:net'
 import { dirname } from 'node:path'
 import type { Approver } from '../agent/tools/Approver.js'
 import { shellCommandFromCall } from '../agent/tools/permissions.js'
+import { removeSocketPath } from './mount.js'
 
 export const APPROVAL_SOCKET_MODE = 0o600
 export const DEFAULT_APPROVAL_TIMEOUT_MILLIS = 300_000
@@ -73,7 +74,7 @@ const startServer = (
 ): Effect.Effect<Server, Errors.BindConflict> =>
   Effect.tryPromise({
     try: async () => {
-      await rm(path, { force: true })
+      await removeSocketPath(path)
       await mkdir(dirname(path), { recursive: true, mode: 0o700 })
       const server = createServer(connect)
       await new Promise<void>((resolve, reject) => {
@@ -83,7 +84,7 @@ const startServer = (
           resolve()
         })
       })
-      await chmod(path, APPROVAL_SOCKET_MODE)
+      if (process.platform !== 'win32') await chmod(path, APPROVAL_SOCKET_MODE)
       return server
     },
     catch: (error) => new Errors.BindConflict({ message: `Cannot bind approval socket ${path}: ${String(error)}` }),
@@ -147,7 +148,7 @@ export const makeApprovalChannel = (
         connection?.destroy()
         connection = undefined
         running.close()
-      }).pipe(Effect.andThen(Effect.promise(() => rm(options.path, { force: true })))))
+      }).pipe(Effect.andThen(Effect.promise(() => removeSocketPath(options.path)))))
     server.on('error', () => {})
 
     const decide = (request: ApprovalRequest): Effect.Effect<boolean> =>

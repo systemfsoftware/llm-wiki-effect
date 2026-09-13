@@ -28,7 +28,12 @@ const createdPaths: Array<string> = []
 
 afterAll(async () => {
   await Promise.all(createdRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
-  await Promise.all(createdPaths.splice(0).map((path) => rm(path, { force: true })))
+  await Promise.all(
+    createdPaths
+      .splice(0)
+      .filter((path) => !path.startsWith('\\\\.\\pipe\\'))
+      .map((path) => rm(path, { force: true })),
+  )
 })
 
 const DEFAULT_FILES: Readonly<Record<string, string>> = {

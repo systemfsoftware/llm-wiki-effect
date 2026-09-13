@@ -1,40 +1,52 @@
-import { apiServerStatus, clipServerStatus } from '@/commands/fs'
+import { apiServerSocketPath, apiServerStatus, clipServerStatus } from '@/commands/fs'
 import { Button } from '@/components/ui/button'
-import { API_SERVER_HEALTH_URL, API_SERVER_PORT } from '@/lib/api-server-constants'
+import { apiRelayClient } from '@/lib/api-relay'
 import { saveUpdateCheckState } from '@/lib/project-store'
 import { checkForUpdates, toLatestReleaseUrl } from '@/lib/update-check'
 import { useAppDialog } from '@/stores/app-dialog-store'
 import { hasAvailableUpdate, useUpdateStore } from '@/stores/update-store'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type { TFunction } from 'i18next'
+import type { Domain } from 'llm-wiki-protocol'
 import { CheckCircle2, Download, RefreshCw, Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { normalizeWorkerStatus } from './api-server-section'
 
-interface ApiHealth {
-  enabled?: boolean
-  authConfigured?: boolean
-  allowUnauthenticated?: boolean
+export type ApiServerHealth = Pick<
+  Domain.Health,
+  'enabled' | 'authConfigured' | 'allowUnauthenticated'
+>
+
+export interface ApiServerRowInput {
+  readonly rawStatus: string | null
+  readonly socketPath: string
+  readonly health: ApiServerHealth | null
 }
 
-function readApiHealth(payload: unknown): ApiHealth | null {
-  if (payload === null || typeof payload !== 'object') return null
-  return {
-    ...('enabled' in payload && typeof payload.enabled === 'boolean' ? { enabled: payload.enabled } : {}),
-    ...('authConfigured' in payload && typeof payload.authConfigured === 'boolean'
-      ? { authConfigured: payload.authConfigured }
-      : {}),
-    ...('allowUnauthenticated' in payload && typeof payload.allowUnauthenticated === 'boolean'
-      ? { allowUnauthenticated: payload.allowUnauthenticated }
-      : {}),
-  }
+const runningLabel = (health: ApiServerHealth, t: TFunction): string => {
+  if (!health.enabled) return t('settings.sections.about.apiDisabled')
+  if (health.allowUnauthenticated) return t('settings.sections.about.apiOpen')
+  if (!health.authConfigured) return t('settings.sections.about.apiNoToken')
+  return 'running'
+}
+
+export const formatApiServerRow = (input: ApiServerRowInput, t: TFunction): string => {
+  if (input.rawStatus === null) return '...'
+  const status = normalizeWorkerStatus(input.rawStatus)
+  const label = status === 'running' && input.health !== null
+    ? runningLabel(input.health, t)
+    : status
+  const socketPath = input.socketPath.trim()
+  return socketPath === '' ? label : `${label}  @  ${socketPath}`
 }
 
 export function AboutSection() {
   const { t } = useTranslation()
   const [clipStatus, setClipStatus] = useState<string>('...')
-  const [apiStatus, setApiStatus] = useState<string>('...')
-  const [apiHealth, setApiHealth] = useState<ApiHealth | null>(null)
+  const [apiStatus, setApiStatus] = useState<string | null>(null)
+  const [apiSocketPath, setApiSocketPath] = useState('')
+  const [apiHealth, setApiHealth] = useState<ApiServerHealth | null>(null)
   const updateStore = useUpdateStore()
 
   useEffect(() => {
@@ -53,9 +65,14 @@ export function AboutSection() {
         if (alive) setApiStatus('unknown')
       }
       try {
-        const response = await fetch(API_SERVER_HEALTH_URL)
-        const payload: unknown = await response.json()
-        if (alive) setApiHealth(readApiHealth(payload))
+        const socketPath = await apiServerSocketPath()
+        if (alive) setApiSocketPath(socketPath)
+      } catch {
+        if (alive) setApiSocketPath('')
+      }
+      try {
+        const snapshot = await apiRelayClient.health()
+        if (alive) setApiHealth(snapshot)
       } catch {
         if (alive) setApiHealth(null)
       }
@@ -106,24 +123,15 @@ export function AboutSection() {
     })
   }, [])
 
-  const apiStatusDisplay = (() => {
-    if (apiStatus === 'running' && apiHealth?.enabled === false) {
-      return t('settings.sections.about.apiDisabled')
-    }
-    if (apiStatus === 'running' && apiHealth?.allowUnauthenticated) {
-      return t('settings.sections.about.apiOpen')
-    }
-    if (apiStatus === 'running' && apiHealth?.authConfigured === false) {
-      return t('settings.sections.about.apiNoToken')
-    }
-    return apiStatus
-  })()
   const rows: Array<{ label: string; value: string; mono?: boolean }> = [
     { label: t('settings.sections.about.version'), value: `v${APP_VERSION}`, mono: true },
     { label: t('settings.sections.about.clipServer'), value: `${clipStatus}  @  127.0.0.1:19827`, mono: true },
     {
       label: t('settings.sections.about.apiServer'),
-      value: `${apiStatusDisplay}  @  127.0.0.1:${API_SERVER_PORT}`,
+      value: formatApiServerRow(
+        { rawStatus: apiStatus, socketPath: apiSocketPath, health: apiHealth },
+        t,
+      ),
       mono: true,
     },
   ]

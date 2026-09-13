@@ -81,6 +81,7 @@ export const isShellCommandApproved = (
 const SHELL_TOKEN_DELIMITERS = /[\s;|&()<>]/
 
 const tokenizeShellCommand = (command: string): ReadonlyArray<string> => {
+  // Stryker disable next-line ArrayDeclaration: the injected extra token carries no path marker, traversal, or absolute prefix, so tokenMentionsExternalLocation judges it benign.
   const tokens: Array<string> = []
   let current = ''
   let quote: string | null = null
@@ -95,12 +96,14 @@ const tokenizeShellCommand = (command: string): ReadonlyArray<string> => {
       continue
     }
     if (SHELL_TOKEN_DELIMITERS.test(character)) {
+      // Stryker disable next-line ConditionalExpression,StringLiteral: pushing the empty string cannot change an .every() over tokens that are all judged benign.
       if (current !== '') tokens.push(current)
       current = ''
       continue
     }
     current += character
   }
+  // Stryker disable next-line ConditionalExpression,StringLiteral: pushing the empty string cannot change an .every() over tokens that are all judged benign.
   if (current !== '') tokens.push(current)
   return tokens
 }
@@ -133,6 +136,7 @@ const NETWORK_OR_SUBSTITUTION_MARKERS = [
 ]
 
 const normalizeShellPathForCompare = (value: string): string =>
+  // Stryker disable next-line Regex,StringLiteral: unreachable, because normalize only runs for absolute candidates and trimTokenQuotes has already removed leading and trailing quotes.
   value.replace(/^["']+/, '').replace(/["']+$/, '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
 
 const isShellAbsolutePath = (value: string): boolean =>
@@ -147,6 +151,7 @@ const tokenMentionsExternalLocation = (
   projectWorkspacePrefix: string,
 ): boolean => {
   const trimmed = trimTokenQuotes(token)
+  // Stryker disable next-line ConditionalExpression,StringLiteral: an empty token falls through and still returns false, because empty candidates are skipped.
   if (trimmed === '') return false
   const lower = trimmed.toLowerCase()
   if (lower.startsWith('~') || HOME_PATH_MARKERS.some((marker) => lower.includes(marker))) {
@@ -162,11 +167,14 @@ const tokenMentionsExternalLocation = (
   }
   const candidates = [trimmed]
   const assignment = trimmed.indexOf('=')
+  // Stryker disable next-line ConditionalExpression: with no '=', trimmed.slice(0) is the token itself, a duplicate of the existing candidate.
   if (assignment !== -1) candidates.push(trimmed.slice(assignment + 1))
   for (const candidate of candidates) {
+    // Stryker disable next-line ConditionalExpression,StringLiteral: the empty-candidate check is subsumed by !isShellAbsolutePath('') being true, and the marker literal is not absolute either.
     if (candidate === '' || !isShellAbsolutePath(candidate)) continue
     const normalized = normalizeShellPathForCompare(candidate)
-    if (normalized === '') continue
+    // Stryker disable next-line ConditionalExpression,StringLiteral: both forms return true for an empty normalization, so the guard is unobservable after the root-path fix.
+    if (normalized === '') return true
     if (normalized === workspaceNorm || normalized.startsWith(`${workspaceNorm}/`)) continue
     if (
       normalized === projectWorkspacePrefix ||

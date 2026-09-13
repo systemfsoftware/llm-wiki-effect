@@ -7,7 +7,19 @@ import { join, normalize } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Files, makeFiles } from '../src/files/Files.js'
 import type { FileContent, ReadError } from '../src/files/Files.js'
-import { guardRelativePath, isWithinRoot, MAX_FILE_CONTENT_BYTES } from '../src/files/paths.js'
+import {
+  clampMaxFiles,
+  DEFAULT_MAX_FILES,
+  guardRelativePath,
+  HARD_MAX_FILES,
+  isPublicProjectRel,
+  isTextContentRel,
+  isWithinRoot,
+  MAX_FILE_CONTENT_BYTES,
+  normalizeProjectRel,
+  PUBLIC_ROOTS,
+  resolveRootSelector,
+} from '../src/files/paths.js'
 
 let tempRoot: string
 let project: string
@@ -223,6 +235,8 @@ describe('path containment', () => {
     expect(isWithinRoot('/a/proj', '/a/proj/wiki/index.md')).toBe(true)
     expect(isWithinRoot('/a/proj', '/a/proj-evil/secret.md')).toBe(false)
     expect(isWithinRoot('/a/proj', '/a/proj')).toBe(true)
+    expect(isWithinRoot('/a/proj/', '/a/proj/wiki/index.md')).toBe(true)
+    expect(isWithinRoot('/a/proj/', '/a/proj-evil/secret.md')).toBe(false)
   })
 
   it('accepts only relative, dot-free segments', () => {
@@ -273,6 +287,133 @@ describe('path containment', () => {
     }
 
     expect(leaks).toEqual([])
+  })
+})
+
+describe('project path predicates', () => {
+  it('publishes the public roots and the file limits', () => {
+    expect(PUBLIC_ROOTS).toEqual(['purpose.md', 'schema.md', 'wiki', 'raw/sources'])
+    expect(DEFAULT_MAX_FILES).toBe(2000)
+    expect(HARD_MAX_FILES).toBe(10000)
+    expect(MAX_FILE_CONTENT_BYTES).toBe(2 * 1024 * 1024)
+  })
+
+  it('normalizes windows separators in project paths', () => {
+    expect(normalizeProjectRel('wiki\\concepts\\attention.md')).toBe('wiki/concepts/attention.md')
+  })
+
+  it('accepts only the public project surface', () => {
+    for (
+      const rel of [
+        'purpose.md',
+        'schema.md',
+        'WIKI/index.md',
+        'wiki/index.md',
+        'wiki/concepts/attention.md',
+        'raw/sources/a.md',
+        '//wiki/index.md',
+      ]
+    ) {
+      expect(isPublicProjectRel(rel)).toBe(true)
+    }
+
+    for (
+      const rel of [
+        '',
+        'wiki',
+        'raw',
+        'secret.md',
+        'notes/index.md',
+        'wiki//index.md',
+        'wiki/.hidden.md',
+        'raw/sources/.keep',
+      ]
+    ) {
+      expect(isPublicProjectRel(rel)).toBe(false)
+    }
+  })
+
+  it('recognizes text content by the extension of the file name', () => {
+    for (const extension of ['md', 'mdx', 'txt', 'csv', 'json', 'yaml', 'yml', 'xml', 'html', 'htm', 'log']) {
+      expect(isTextContentRel(`wiki/file.${extension}`)).toBe(true)
+      expect(isTextContentRel(`wiki/nested/FILE.${extension.toUpperCase()}`)).toBe(true)
+    }
+
+    for (
+      const rel of [
+        'wiki/md',
+        'wiki/README',
+        'wiki/image.png',
+        'wiki/archive.tar.gz',
+        'wiki/file.',
+        'wiki/trailing/',
+      ]
+    ) {
+      expect(isTextContentRel(rel)).toBe(false)
+    }
+  })
+
+  it('clamps the listing budget into the supported range', () => {
+    expect(clampMaxFiles(undefined)).toBe(DEFAULT_MAX_FILES)
+    expect(clampMaxFiles(Number.NaN)).toBe(DEFAULT_MAX_FILES)
+    expect(clampMaxFiles(Number.POSITIVE_INFINITY)).toBe(DEFAULT_MAX_FILES)
+    expect(clampMaxFiles(-5)).toBe(1)
+    expect(clampMaxFiles(0)).toBe(1)
+    expect(clampMaxFiles(1.9)).toBe(1)
+    expect(clampMaxFiles(5.9)).toBe(5)
+    expect(clampMaxFiles(DEFAULT_MAX_FILES)).toBe(DEFAULT_MAX_FILES)
+    expect(clampMaxFiles(HARD_MAX_FILES)).toBe(HARD_MAX_FILES)
+    expect(clampMaxFiles(HARD_MAX_FILES + 1)).toBe(HARD_MAX_FILES)
+  })
+
+  it('maps the accepted root selectors and rejects the rest by name', () => {
+    const selectorOf = (rel: string | undefined): string => {
+      const outcome = resolveRootSelector(rel)
+      if (Result.isFailure(outcome)) {
+        throw new Error(`unexpected rejection: ${outcome.failure.message}`)
+      }
+      return outcome.success
+    }
+
+    expect(selectorOf(undefined)).toBe('')
+    expect(selectorOf('')).toBe('')
+    expect(selectorOf('all')).toBe('')
+    expect(selectorOf('wiki')).toBe('wiki')
+    expect(selectorOf('sources')).toBe('raw/sources')
+    expect(selectorOf('raw')).toBe('raw/sources')
+    expect(selectorOf('raw/sources')).toBe('raw/sources')
+
+    for (const rel of ['WIKI', 'everything', 'raw/source']) {
+      const outcome = resolveRootSelector(rel)
+      expect(Result.isFailure(outcome) && outcome.failure.message).toBe(
+        'root must be wiki, sources, or all',
+      )
+    }
+  })
+
+  it('echoes the guarded path with separators and leading slashes normalized', () => {
+    expect(guardRelativePath('wiki/index.md')).toEqual(Result.succeed('wiki/index.md'))
+    expect(guardRelativePath('/wiki/index.md')).toEqual(Result.succeed('wiki/index.md'))
+    expect(guardRelativePath('wiki\\index.md')).toEqual(Result.succeed('wiki/index.md'))
+    expect(guardRelativePath('a/..b/c.md')).toEqual(Result.succeed('a/..b/c.md'))
+    expect(guardRelativePath('notes/b:c.md')).toEqual(Result.succeed('notes/b:c.md'))
+  })
+
+  it('rejects NUL, UNC, drive prefixes, and traversal with named messages', () => {
+    const cases: Array<[string, string]> = [
+      ['wiki\u0000.md', 'Path contains a NUL byte'],
+      ['//server/share/x.md', 'Paths outside the project are not allowed'],
+      ['C:/x.md', 'Paths outside the project are not allowed'],
+      ['c:\\x.md', 'Paths outside the project are not allowed'],
+      ['../x.md', 'Path traversal is not allowed'],
+      ['a/../../b.md', 'Path traversal is not allowed'],
+      ['a\\..\\b.md', 'Path traversal is not allowed'],
+    ]
+
+    for (const [rel, message] of cases) {
+      const outcome = guardRelativePath(rel)
+      expect(Result.isFailure(outcome) && outcome.failure.message).toBe(message)
+    }
   })
 })
 

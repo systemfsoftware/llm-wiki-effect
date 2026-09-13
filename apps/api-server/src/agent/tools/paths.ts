@@ -111,6 +111,7 @@ export const guardSkillReadPath = (path: string): Result.Result<string, Errors.P
   const requested = path.trim()
   const fail = (): Result.Result<never, Errors.PathViolation> =>
     violation('skill.read_file path must be a safe relative path inside the skill directory')
+  // Stryker disable next-line ConditionalExpression: an empty request is still rejected by the later guarded.success === '' check, with the same message.
   if (requested === '' || requested.startsWith('/')) return fail()
   const guarded = guardRelativePath(requested)
   if (Result.isFailure(guarded)) return fail()

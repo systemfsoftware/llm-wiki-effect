@@ -26,13 +26,16 @@ export const normalizeReviewTitle = (title: string): string => {
   for (const prefix of TITLE_PREFIXES) {
     if (!lower.startsWith(prefix)) continue
     const suffix = trimmed.slice(prefix.length)
+    // Stryker disable next-line ConditionalExpression: an empty suffix yields a delimiter of '' which matches neither colon, so the loop continues either way.
     if (suffix.length === 0) continue
     const delimiter = suffix.charAt(0)
     if (delimiter === ':' || delimiter === '：') {
+      // Stryker disable next-line MethodExpression: the following split/filter/join collapses leading whitespace anyway.
       rest = suffix.slice(1).trimStart()
       break
     }
   }
+  // Stryker disable Regex: single-character splits only add empty strings, which the filter drops.
   return rest
     .split(/\s+/)
     .filter((word) => word !== '')

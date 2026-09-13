@@ -19,6 +19,7 @@
     },
     "typecheck": {
       "outputLogs": "errors-only",
+      "dependsOn": ["^build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tsconfig*.json",

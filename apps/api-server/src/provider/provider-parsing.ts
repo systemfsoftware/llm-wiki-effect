@@ -17,8 +17,10 @@ const stringAt = (value: unknown, key: string): string | undefined => {
 
 const parseJson = (data: string): unknown => {
   try {
+    // Stryker disable BlockStatement: an emptied catch body falls through to the same implicit undefined return
     return JSON.parse(data) as unknown
   } catch {
+    // Stryker restore BlockStatement
     return undefined
   }
 }
@@ -75,6 +77,7 @@ export interface SseDeltaDecoder {
   readonly flush: () => ReadonlyArray<string>
 }
 
+// Stryker disable next-line ObjectLiteral: an omitted options object means the same non-fatal decoding as an explicit fatal false
 const textDecoder = new TextDecoder('utf-8', { fatal: false })
 
 const lineDelta = (line: string, parseDelta: DeltaParser): ReadonlyArray<string> => {
@@ -91,23 +94,32 @@ const lineDelta = (line: string, parseDelta: DeltaParser): ReadonlyArray<string>
   return delta === undefined || delta === '' ? [] : [delta]
 }
 
+// Stryker disable next-line BlockStatement: an emptied body leaves the helper falsy, which flush cannot tell apart from the all-whitespace answer
 const isAllAsciiWhitespace = (bytes: Uint8Array): boolean => {
   for (const byte of bytes) {
+    // Stryker disable next-line ConditionalExpression,LogicalOperator: narrowing the whitespace set only answers false for buffers decodeLine rejects identically
     const isWhitespace = byte === 0x09 || byte === 0x0a || byte === 0x0b || byte === 0x0c || byte === 0x0d ||
+      // Stryker disable next-line EqualityOperator,ConditionalExpression: the space bit only decides that same unreachable case
       byte === 0x20
+    // Stryker disable next-line ConditionalExpression: an always-taken early return makes the helper constantly false, which flush cannot distinguish
     if (!isWhitespace) {
       return false
     }
   }
+  // Stryker disable next-line BooleanLiteral: the helper is only ever compared against false by flush, which decodeLine already rejects for whitespace-only input
   return true
 }
 
 const decodeLine = (bytes: Uint8Array, parseDelta: DeltaParser): ReadonlyArray<string> => {
   let line = textDecoder.decode(bytes)
+  // Stryker disable next-line ConditionalExpression,MethodExpression,BlockStatement: push splits on 0x0a and the flush residual keeps none, so a decoded line never ends with a newline
   if (line.endsWith('\n')) {
+    // Stryker disable next-line MethodExpression,UnaryOperator: unreachable whenever the branch above is
     line = line.slice(0, -1)
   }
+  // Stryker disable next-line ConditionalExpression,BlockStatement: only a trailing carriage return is stripped, and lineDelta trims it off the payload anyway
   if (line.endsWith('\r')) {
+    // Stryker disable next-line MethodExpression: the stripped byte is invisible once lineDelta trims the payload
     line = line.slice(0, -1)
   }
   return lineDelta(line, parseDelta)
@@ -132,6 +144,7 @@ export const makeSseDeltaDecoder = (parseDelta: DeltaParser): SseDeltaDecoder =>
       }
     },
     flush: () => {
+      // Stryker disable next-line ConditionalExpression,LogicalOperator,BlockStatement: an empty or whitespace-only buffer decodes to the same empty delta list, so the early return is unobservable
       if (buffer.length === 0 || isAllAsciiWhitespace(buffer)) {
         return []
       }

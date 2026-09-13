@@ -18,8 +18,13 @@ Both entries are no-export program entries: running one _is_ the declaration.
 ```bash
 pnpm install
 pnpm api:build                          # bundles dist/src/entries/{worker,standalone}.js
-node apps/api-server/scripts/smoke.mjs  # boots both built entries and checks their version output
+node apps/api-server/scripts/smoke.mjs  # process-level smoke: boots the worker socket
+                                        # mount and the standalone HTTP mount, one
+                                        # roundtrip each, then SIGTERMs both
 ```
+
+That smoke is the process-level proof CI runs on the non-Windows legs, after the
+repository gates (`node apps/api-server/scripts/smoke.mjs`).
 
 ## Checks
 

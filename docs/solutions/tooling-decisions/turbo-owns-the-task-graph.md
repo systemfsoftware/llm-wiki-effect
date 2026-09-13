@@ -17,9 +17,10 @@ tags: [turbo, task-graph, monorepo, caching, pnpm-workspace]
 
 ## Context
 
-This repo is a pnpm workspace of four projects: the desktop app under
-`apps/desktop`, the MCP server under `apps/mcp-server`, the shared lint config
-under `packages/oxlint-config`, and the root package, which is a pure
+This repo is a pnpm workspace of five packages: the desktop app under
+`apps/desktop`, the API server under `apps/api-server`, the MCP server under
+`apps/mcp-server`, the wire contract under `packages/protocol`, the shared lint
+config under `packages/oxlint-config`, and the root package, which is a pure
 orchestrator (no runtime dependencies, no version). `turbo` routes the gates,
 matching the template the repo's toolchain was drawn from.
 
@@ -36,8 +37,9 @@ so the root's wrapper scripts can never be selected by their own run.
 `gate:dist`, and `check:ci` are the entry points, and none of them is a task
 name. A root script named `build` that invoked `turbo run build` would re-enter
 itself. Gate: `pnpm exec turbo run build --dry=json` lists
-`llm-wiki#build` and `llm-wiki-mcp-server#build` and never selects the root; a
-recursive script would not terminate at all.
+`llm-wiki#build`, `llm-wiki-api-server#build`, `llm-wiki-mcp-server#build`, and
+`llm-wiki-protocol#build` (plus the typechecks they depend on) and never selects
+the root; a recursive script would not terminate at all.
 
 **`check:ci` stays a three-phase enumeration, not a turbo invocation.**
 `check:ci` is `node scripts/check-ci.mjs format:check gate:tasks gate:dist`:
@@ -58,12 +60,19 @@ run; the qualified name picks one package without giving `test` a
 package-specific definition. A package-qualified key in `turbo.json` would
 instead make the task's `inputs`, `outputs`, and `dependsOn` apply to that
 package alone. Gate: `pnpm exec turbo run lint typecheck test:mocks
-llm-wiki-mcp-server#test --dry=json` lists exactly the nine tasks that execute
-(`llm-wiki#lint`, `llm-wiki-mcp-server#lint`, `llm-wiki-oxlint-config#lint`,
-`llm-wiki#typecheck`, `llm-wiki-mcp-server#typecheck`,
-`llm-wiki-oxlint-config#typecheck`, `llm-wiki#test:mocks`,
-`llm-wiki-mcp-server#build`, `llm-wiki-mcp-server#test`), with no phantom
-entries and no root task.
+llm-wiki-mcp-server#test llm-wiki-protocol#test llm-wiki-api-server#test
+--dry=json` returns 21 task entries: the 17 that execute (`llm-wiki#lint`,
+`llm-wiki#typecheck`, `llm-wiki#test:mocks`, `llm-wiki-oxlint-config#lint`,
+`llm-wiki-oxlint-config#typecheck`, `llm-wiki-mcp-server#build`,
+`llm-wiki-mcp-server#lint`, `llm-wiki-mcp-server#typecheck`,
+`llm-wiki-mcp-server#test`, `llm-wiki-protocol#build`, `llm-wiki-protocol#lint`,
+`llm-wiki-protocol#typecheck`, `llm-wiki-protocol#test`,
+`llm-wiki-api-server#build`, `llm-wiki-api-server#lint`,
+`llm-wiki-api-server#typecheck`, `llm-wiki-api-server#test`) plus four
+`test:mocks` selections that carry no command (`<NONEXISTENT>` in the API server,
+MCP server, protocol, and lint-config packages, none of which defines the
+script), and no root task. Those four are exactly why the census must be read
+per command and not per entry.
 
 **`dependsOn` replaces an inline chained command, and the release path restates
 it.** The app's `build` script is `vite build`; the ordering that used to be
@@ -105,15 +114,28 @@ and it is the only guard against version skew between the app manifest, the
 Tauri config, and the crate manifest. Gate: `llm-wiki#test:mocks` re-runs after
 an `apps/desktop/src-tauri/Cargo.toml` edit.
 
-**`dependsOn: ["^build"]` would do nothing here, so it is not written.**
-`^` expands to a package's `directDependencies`, and both packages report
-`directDependencies: ["//"]` with `packageGraph.edges.length = 0`. Adding
-`^build` to the `build` task produced an identical schedule and an
-identical resolved `dependencies` list on the `build` task; only the task hash
-moved, which is a one-time full cache invalidation for no ordering gain. Gate:
-`pnpm exec turbo run build --dry=json` schedules the same five tasks with and
-without it (`gate:dist` runs five: both packages' `build` and `typecheck`, plus
-the config package's `typecheck`, which `build`'s `dependsOn` pulls in).
+**`dependsOn: ["^build"]` is not written, and the ordering it would add is not
+declared anywhere.** `^` expands to a package's `directDependencies`, and the
+graph now has edges — 7 of them, because every workspace package depends on
+`llm-wiki-protocol` and `llm-wiki-oxlint-config` — so `^build` would change the
+schedule today (it was a no-op when the graph had zero edges). What the graph as
+written does _not_ declare is that `packages/protocol/dist` must exist before a
+package that typechecks or bundles against it: `llm-wiki-api-server#typecheck`
+resolves the dependency through `llm-wiki-protocol`'s
+`exports.types -> ./dist/src/index.d.ts`, and its `dependencies` list is empty.
+Measured with the TypeScript resolver against the API server's own entry import of
+`llm-wiki-protocol`: the module resolves to
+`packages/protocol/dist/src/index.d.ts`, and is `UNRESOLVED` when that file is
+hidden — while `gate:tasks` schedules `llm-wiki-api-server#typecheck` with no
+dependency on `llm-wiki-protocol#build`.
+On a worktree that already has `packages/protocol/dist` this is invisible; from
+a clean checkout nothing in the graph builds the protocol first. Gate:
+`pnpm exec turbo run build --dry=json` shows `llm-wiki-api-server#build`
+depending only on `llm-wiki-api-server#typecheck`, and schedules 10 entries (9
+executing: the four `build`s and the five `typecheck`s that `build`'s
+`dependsOn` pulls in; the tenth is `llm-wiki-oxlint-config#build`, which has no
+script). This is recorded as an **open divergence** for the unit that owns
+`turbo.json`, not as a settled decision.
 
 **`outputs` must name only artifacts the task actually writes.** `test:mocks`
 runs vitest without `--coverage`, so its `outputs` is `[]`. Listing a
@@ -141,12 +163,17 @@ A cached task that cannot miss is worse than no cache: it reports a green run
 for code the task never looked at. The failure is silent in exactly the way that
 makes CI untrustworthy, because the output line reads `FULL TURBO` either way.
 
-The graph here is small — two packages and **zero** dependency edges between
-them, since the app does not depend on the MCP server as a package but bundles
-it as a Tauri resource. So the whole value is content-addressed caching and
-`--continue`, not fan-out. With no edges to derive order from, every ordering
-that matters has to be declared, and every declaration is a place the gate can
-silently stop covering something.
+The graph is small but no longer edgeless: five packages and 7 dependency edges,
+because each package depends on `llm-wiki-protocol` for the wire contract and on
+`llm-wiki-oxlint-config` for the shared lint base. The app still does not depend
+on the MCP server as a package — it bundles it as a Tauri resource — so most of
+the value is content-addressed caching and `--continue` rather than fan-out, and
+the edges are _not_ automatically cache keys: no task declares a `^`-prefixed
+dependency, so a task hashes its own package's inputs rather than its
+dependency's task results. Editing protocol source re-runs
+`llm-wiki-protocol#build` and, without `^build`, nothing downstream — and a task
+whose only reading of a dependency is that dependency's built `dist` can go green
+on a stale one.
 
 ## Architectural Invariants
 
@@ -179,7 +206,8 @@ only evidence that separates them is an injected defect and a cache miss.
 
 ## Examples
 
-The anti-vacuity probe, which is the check this document exists for:
+The anti-vacuity probe, which is the check this document exists for (totals as
+recorded pre-move; today's task list is the 17-task gate block above):
 
 ```text
 write src/__turbo-cache-probe.ts:  const probe: number = 'not a number'
@@ -199,8 +227,8 @@ pnpm gate:tasks
 ```
 
 The cold-gate measurement this doc was founded on: `pnpm gate:tasks` ran six
-tasks in about 13 seconds pre-move (it schedules seven today); the same command
-on an unchanged tree finishes in under a tenth of a second. Deleting
+tasks in about 13 seconds pre-move (it schedules 17 executing tasks today); the
+same command on an unchanged tree finishes in under a tenth of a second. Deleting
 `apps/desktop/dist/` and `apps/mcp-server/dist/` and running
 `pnpm build:desktop` restores both from cache, which is what makes the
 `outputs` keys load-bearing rather than decorative.
@@ -224,16 +252,19 @@ The `apps/desktop/src-tauri/Cargo.toml` row is the one that keeps the narrowing
 honest: the task that must notice a crate-version edit still does, while `lint`,
 `typecheck` and `build` correctly do not re-run for it.
 
-The graph itself. First query block measured pre-move; re-measure after any
-workspace change:
+The graph itself. The counts below were re-measured after the API-server
+extraction; re-measure after any workspace change:
 
 ```text
-turbo query 'query { packageGraph { nodes { items { name } length } edges { items { source target } } } }'
-  2 nodes (llm-wiki, llm-wiki-mcp-server), 0 edges
+turbo query 'query { packageGraph { nodes { items { name } length } edges { items { source target } length } } }'
+  5 nodes (llm-wiki, llm-wiki-api-server, llm-wiki-mcp-server,
+           llm-wiki-oxlint-config, llm-wiki-protocol), 7 edges
+  each package -> llm-wiki-protocol and -> llm-wiki-oxlint-config;
+  llm-wiki-protocol -> llm-wiki-oxlint-config
 
 turbo query 'query { boundaries { items { message path } length } }'
-  10 diagnostics, all under repos/ — `@std/fs`, `@std/path`, `@std/yaml`
-  imported by vendored Deno scripts. None in src/ or mcp-server/.
+  0 diagnostics today. The pre-move run reported 10, all under `repos/` —
+  `@std/fs`, `@std/path`, `@std/yaml` imported by vendored Deno scripts.
 ```
 
 One hypothesis was written down and then refuted, which is why it is recorded
@@ -247,17 +278,17 @@ root-`assets` file appears in `dist/`. Excluding `assets/**` from `build`'s
 inputs would therefore have been safe, not a regression; it was left in place
 only because those nine files do not churn.
 
-Today the graph is four projects — the root orchestrator, the two members under
-`apps/`, and the shared lint config under `packages/` — still with zero package
-edges. The root appears as the synthetic `//` entry and owns no task; every
-task key is `package#task`.
+Today the graph is five packages plus the root orchestrator, with 7 edges among
+them — `llm-wiki-protocol` and `llm-wiki-oxlint-config` are dependencies of every
+other package, and the protocol depends on the lint config. The root owns no
+task: a dry run lists no `//#` entry, and every task key is `package#task`.
 
 ## Where this landed in CI
 
 `.github/workflows/ci.yml` restores `.turbo/cache` under
 `turbo-${{ runner.os }}-gate-${{ github.event.pull_request.head.sha || github.sha }}`
-with prefix `restore-keys`, so the nine tasks run warm on all three matrix
-platforms instead of cold. The key names the pull request's head commit rather
+with prefix `restore-keys`, so the gate's 17 executing tasks run warm on all
+three matrix platforms instead of cold. The key names the pull request's head commit rather
 than `github.sha`, because on a `pull_request` event `github.sha` is the merge
 commit GitHub synthesizes for the run: it moves every time the base branch does,
 so the exact key would miss on every PR and only the prefix fallback would

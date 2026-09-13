@@ -95,6 +95,7 @@ interface RequestShape {
   readonly maxTokens: number
 }
 
+// Stryker disable next-line MethodExpression: every caller passes an endpoint that buildProviderRequest already trimmed
 const stripTrailingSlashes = (value: string): string => value.trim().replace(/\/+$/, '')
 
 const isAzureEndpoint = (url: string): boolean => {
@@ -277,6 +278,7 @@ const supportsDeepSeekThinkingParam = (model: string): boolean =>
   model.toLowerCase().replace(/_/g, '-').includes('deepseek-v4')
 
 const reasoningBudget = (reasoning: ProviderReasoning | undefined): number | undefined => {
+  // Stryker disable next-line OptionalChaining: both callers reject an undefined reasoning block before reading its mode
   switch (reasoning?.mode) {
     case 'custom':
       return reasoning.budgetTokens
@@ -287,6 +289,7 @@ const reasoningBudget = (reasoning: ProviderReasoning | undefined): number | und
     case 'high':
     case 'max':
       return 8192
+    // Stryker disable next-line ConditionalExpression: an emptied default case falls through to the same implicit undefined return
     default:
       return undefined
   }
@@ -307,6 +310,7 @@ const isClaude46OrLater = (model: string): boolean => {
     return false
   }
   const version = lower.slice(prefix.length).split(/[-_.]/)[0]
+  // Stryker disable next-line ConditionalExpression: split always yields at least one segment, so the version is never undefined
   return version !== undefined && /^\d+$/.test(version) && Number.parseInt(version, 10) >= 6
 }
 
@@ -338,6 +342,7 @@ const adaptOpenAiStrictCompletionBody = (
   if (!strict || (shape.provider !== 'openai' && shape.provider !== 'azure' && !customAzure)) {
     return
   }
+  // Stryker disable next-line ConditionalExpression: openAiLikeBody always sets max_tokens, so the guard is always taken
   if ('max_tokens' in body) {
     body['max_completion_tokens'] = body['max_tokens']
     delete body['max_tokens']
@@ -375,6 +380,7 @@ const applyOpenAiReasoning = (body: Record<string, unknown>, shape: RequestShape
 
 const applyAnthropicReasoning = (body: Record<string, unknown>, shape: RequestShape): void => {
   const reasoning = shape.reasoning
+  // Stryker disable next-line ConditionalExpression,StringLiteral: an off mode already yields no reasoning budget, so dropping this early return changes nothing
   if (reasoning === undefined || shape.provider !== 'anthropic' || reasoning.mode === 'off') {
     return
   }

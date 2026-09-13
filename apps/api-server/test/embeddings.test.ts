@@ -7,18 +7,27 @@ import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { Config } from '../src/config/Config.js'
 import type { ConfigShape } from '../src/config/Config.js'
-import { charCount, chunkMarkdown, enrichChunk, extractTitle } from '../src/embeddings/chunker.js'
+import { charCount, chunkMarkdown, enrichChunk, extractTitle, stripFrontmatter } from '../src/embeddings/chunker.js'
 import { chunkBatches, Embeddings } from '../src/embeddings/Embeddings.js'
 import type { EmbeddingsShape, EmbeddingTransport } from '../src/embeddings/Embeddings.js'
-import { contentRevision, embeddingFingerprint } from '../src/embeddings/fingerprint.js'
+import { contentRevision, embeddingFingerprint, sha256Hex } from '../src/embeddings/fingerprint.js'
 import {
+  appendEndpointPath,
   batchEmbeddingRequest,
+  googleEmbeddingEndpoint,
+  halveText,
+  isDoubaoMultimodal,
   isLocalOrPrivateHttpEndpoint,
+  isReservedExtraHeaderName,
+  isSafeExtraHeaderName,
+  isVolcengineEndpoint,
   looksLikeOversizeError,
   parseEmbeddingBatchValues,
   parseEmbeddingValues,
   singleEmbeddingRequest,
+  stripGoogleApiKeyQuery,
   supportsBatch,
+  volcengineEmbeddingEndpoint,
 } from '../src/embeddings/request.js'
 import type { EmbeddingHttpRequest, EmbeddingHttpResponse } from '../src/embeddings/request.js'
 import { invalidateRevision, loadRevision, saveRevision } from '../src/embeddings/revision.js'
@@ -947,6 +956,543 @@ describe('embedding batch chunking', () => {
         expect(batches).toHaveLength(Math.ceil(texts.length / 64))
       }),
       { numRuns: 200 },
+    )
+  })
+})
+
+const failureOf = <A>(result: Result.Result<A, unknown>): string =>
+  Result.isFailure(result) ? String(result.failure) : 'unexpected success'
+
+describe('chunker core: blocks, headings and frontmatter', () => {
+  it('returns no chunks for empty or whitespace-only content', () => {
+    expect(chunkMarkdown('', 64, 8)).toEqual([])
+    expect(chunkMarkdown('   \n \n', 64, 8)).toEqual([])
+  })
+
+  it('drops a single trailing newline before splitting lines', () => {
+    expect(chunkMarkdown('alpha\n', 64, 8)).toEqual([{ text: 'alpha', headingPath: '' }])
+    expect(chunkMarkdown('alpha\n\n', 64, 8)).toEqual([{ text: 'alpha', headingPath: '' }])
+  })
+
+  it('builds the heading breadcrumb from nested headings', () => {
+    expect(
+      chunkMarkdown('# One\n\nbody one\n\n## Two\n\nbody two\n\n### Three\n\nbody three', 64, 8),
+    ).toEqual([
+      { text: '# One\n\nbody one', headingPath: '# One' },
+      { text: '## Two\n\nbody two', headingPath: '# One > ## Two' },
+      { text: '### Three\n\nbody three', headingPath: '# One > ## Two > ### Three' },
+    ])
+  })
+
+  it('ignores heading-like lines that are not level one to six with a space', () => {
+    expect(chunkMarkdown('#NoSpace\n\nbody', 64, 8)).toEqual([
+      { text: '#NoSpace\n\nbody', headingPath: '' },
+    ])
+    expect(chunkMarkdown('####### Seven\n\nbody', 64, 8)).toEqual([
+      { text: '####### Seven\n\nbody', headingPath: '' },
+    ])
+    expect(chunkMarkdown('# \n\nbody', 64, 8)).toEqual([{ text: '# \n\nbody', headingPath: '' }])
+  })
+
+  it('keeps a fenced block atomic and closes it on a matching fence', () => {
+    expect(chunkMarkdown('before\n\n```\ncode\n```\n\nafter', 64, 8).map((chunk) => chunk.text)).toEqual([
+      'before\n',
+      '```\ncode\n```',
+      '\nafter',
+    ])
+  })
+
+  it('runs an unclosed fence to the end of the section and hides its headings', () => {
+    expect(chunkMarkdown('before\n\n```\ncode\nmore code', 64, 8).map((chunk) => chunk.text)).toEqual([
+      'before\n',
+      '```\ncode\nmore code',
+    ])
+    expect(chunkMarkdown('```\n# hidden\n```', 64, 8)).toEqual([
+      { text: '```\n# hidden\n```', headingPath: '' },
+    ])
+  })
+
+  it('accepts a tilde fence and requires a matching marker', () => {
+    expect(chunkMarkdown('~~~\ncode\n~~~', 64, 8)).toEqual([{ text: '~~~\ncode\n~~~', headingPath: '' }])
+    expect(chunkMarkdown('```\ncode\n~~~\n```', 64, 8)).toEqual([
+      { text: '```\ncode\n~~~\n```', headingPath: '' },
+    ])
+  })
+
+  it('treats two markers as prose, not a fence', () => {
+    expect(chunkMarkdown('``\ncode\n``', 64, 8)).toEqual([{ text: '``\ncode\n``', headingPath: '' }])
+  })
+
+  it('keeps a table atomic', () => {
+    expect(chunkMarkdown('intro\n\n| a | b |\n| - | - |\n\noutro', 64, 8).map((chunk) => chunk.text)).toEqual([
+      'intro\n',
+      '| a | b |\n| - | - |',
+      '\noutro',
+    ])
+  })
+
+  it('strips the frontmatter block and keeps the body', () => {
+    expect(stripFrontmatter('---\ntitle: T\n---\nbody')).toBe('body')
+    expect(stripFrontmatter('---\ntitle: T\n---\n\nbody')).toBe('body')
+    expect(stripFrontmatter('---\ntitle: T\n---')).toBe('')
+    expect(stripFrontmatter('no frontmatter')).toBe('no frontmatter')
+    expect(stripFrontmatter('---\nunclosed\n')).toBe('---\nunclosed\n')
+    expect(chunkMarkdown('---\ntitle: T\n---\nbody', 64, 8)).toEqual([
+      { text: 'body', headingPath: '' },
+    ])
+  })
+
+  it('reads the frontmatter title and trims surrounding quotes', () => {
+    expect(extractTitle('---\ntitle: "Quoted"\n---\n# Heading', 'fb')).toBe('Quoted')
+    expect(extractTitle("---\ntitle: 'Single'\n---\n", 'fb')).toBe('Single')
+    expect(extractTitle('---\ntitle:\n---\n# Heading', 'fb')).toBe('Heading')
+    expect(extractTitle('---\ntitle: T\n---\n', 'fb')).toBe('T')
+  })
+
+  it('falls back to the h1 and then to the caller fallback', () => {
+    expect(extractTitle('# Real\n\nbody', 'fb')).toBe('Real')
+    expect(extractTitle('## Not h1\n\nbody', 'fb')).toBe('fb')
+    expect(extractTitle('# \n\nbody', 'fb')).toBe('fb')
+    expect(extractTitle('', 'fb')).toBe('fb')
+  })
+
+  it('splits prose on the boundary nearest the target and keeps the overlap', () => {
+    const chunks = chunkMarkdown('aaaa bbbb cccc dddd eeee ffff gggg', 12, 4)
+
+    expect(chunks.map((chunk) => chunk.text)).toEqual([
+      'aaaa bbbb',
+      'bbb cccc',
+      'ccc dddd',
+      'ddd eeee',
+      'eee ffff',
+      'fff gggg',
+    ])
+  })
+
+  it('retries the split when the boundary search cannot move forward', () => {
+    const chunks = chunkMarkdown('aaaaaaaaaaaaaaaaaaaa', 8, 8)
+
+    expect(chunks.every((chunk) => charCount(chunk.text) <= 8)).toBe(true)
+    expect(chunks.length).toBeGreaterThan(1)
+  })
+
+  it('pairs a fence only with a matching marker and width', () => {
+    expect(chunkMarkdown('```\n# x\n~~~\n# real', 64, 8)).toEqual([
+      { text: '```\n# x\n~~~\n# real', headingPath: '' },
+    ])
+    expect(chunkMarkdown('````\n# x\n```\n# real', 64, 8)).toEqual([
+      { text: '````\n# x\n```\n# real', headingPath: '' },
+    ])
+    expect(chunkMarkdown('```\n# x\n```\n# real', 64, 8)).toEqual([
+      { text: '```\n# x\n```', headingPath: '' },
+      { text: '# real', headingPath: '# real' },
+    ])
+  })
+
+  it('drops deeper headings from the breadcrumb when the level returns', () => {
+    expect(chunkMarkdown('# One\n\n## Two\n\n# Again\n\nbody', 64, 8)).toEqual([
+      { text: '# One', headingPath: '# One' },
+      { text: '## Two', headingPath: '# One > ## Two' },
+      { text: '# Again\n\nbody', headingPath: '# Again' },
+    ])
+  })
+
+  it('accepts a level six heading and rejects a level seven one', () => {
+    expect(chunkMarkdown('###### Six\n\nbody', 64, 8)).toEqual([
+      { text: '###### Six\n\nbody', headingPath: '###### Six' },
+    ])
+    expect(chunkMarkdown('####### Seven\n\nbody', 64, 8)).toEqual([
+      { text: '####### Seven\n\nbody', headingPath: '' },
+    ])
+  })
+
+  it('rejects an indented hash line and keeps inner spaces in a heading title', () => {
+    expect(chunkMarkdown(' abc\n\nbody', 64, 8)).toEqual([
+      { text: 'abc\n\nbody', headingPath: '' },
+    ])
+    expect(chunkMarkdown('#  Extra  Spaces\n\nbody', 64, 8)).toEqual([
+      { text: '#  Extra  Spaces\n\nbody', headingPath: '# Extra  Spaces' },
+    ])
+  })
+
+  it('splits a long prose block that merely looks like a fence', () => {
+    const body = 'x'.repeat(200)
+    const chunks = chunkMarkdown(`xxxx\n${body}\nxxxx`, 32, 8)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.every((chunk) => charCount(chunk.text) <= 32)).toBe(true)
+  })
+
+  it('keeps a long tilde fence atomic', () => {
+    const body = 'y'.repeat(200)
+    const chunks = chunkMarkdown(`~~~\n${body}\n~~~`, 32, 8)
+
+    expect(chunks).toEqual([{ text: `~~~\n${body}\n~~~`, headingPath: '' }])
+  })
+
+  it('requires the frontmatter close line to be exactly three dashes', () => {
+    expect(stripFrontmatter('---\ntitle: T\n--- \nbody')).toBe('body')
+    expect(stripFrontmatter('---\ntitle: T\n---\nbody')).toBe('body')
+    expect(stripFrontmatter('# Title\n\n---\n\nmore')).toBe('# Title\n\n---\n\nmore')
+    expect(extractTitle('xxxx\ntitle: Injected\n---\nbody', 'fb')).toBe('fb')
+  })
+
+  it('strips quote runs only at the edges of a frontmatter title', () => {
+    expect(extractTitle('---\ntitle: a"b\n---\n', 'fb')).toBe('a"b')
+    expect(extractTitle('---\ntitle: ""x""\n---\n', 'fb')).toBe('x')
+    expect(extractTitle("---\ntitle: 'y'\n---\n", 'fb')).toBe('y')
+  })
+
+  it('drops blank parts when enriching a chunk', () => {
+    expect(enrichChunk('  ', { text: 'body', headingPath: '' })).toBe('body')
+    expect(enrichChunk('', { text: ' body ', headingPath: ' ' })).toBe('body')
+    expect(enrichChunk('T', { text: '', headingPath: 'H' })).toBe('T\n\nH')
+    expect(enrichChunk('', { text: '', headingPath: '' })).toBe('')
+  })
+})
+
+describe('request core: hosts, endpoints and headers', () => {
+  it('detects volcengine hosts across url and bare forms', () => {
+    expect(isVolcengineEndpoint('https://ark.cn-beijing.volces.com/api/v3')).toBe(true)
+    expect(isVolcengineEndpoint('https://volces.com/api/v3')).toBe(true)
+    expect(isVolcengineEndpoint('https://my-volcengine.internal/v1')).toBe(true)
+    expect(isVolcengineEndpoint('volces.com/api/v3')).toBe(true)
+    expect(isVolcengineEndpoint('volces.com?x=1')).toBe(true)
+    expect(isVolcengineEndpoint('volces.com#frag')).toBe(true)
+    expect(isVolcengineEndpoint('https://volces.com.evil.example/v1')).toBe(false)
+    expect(isVolcengineEndpoint('https://example.com/v1')).toBe(false)
+    expect(isVolcengineEndpoint('')).toBe(false)
+  })
+
+  it('matches the doubao multimodal model exactly and case-insensitively', () => {
+    expect(isDoubaoMultimodal(spec({ model: 'DOUBAO-Embedding-Vision' }))).toBe(true)
+    expect(isDoubaoMultimodal(spec({ model: 'doubt-embedding-vision' }))).toBe(false)
+    expect(isDoubaoMultimodal(spec())).toBe(false)
+    expect(supportsBatch(spec({ model: 'DOUBAO-Embedding-Vision' }))).toBe(false)
+  })
+
+  it.each(
+    [
+      ['http://localhost:11434/v1/embeddings', true],
+      ['http://127.0.0.1:1234/v1/embeddings', true],
+      ['http://[::1]:1234/v1/embeddings', true],
+      ['http://10.1.2.3/v1', true],
+      ['http://172.16.0.1/v1', true],
+      ['http://172.31.255.255/v1', true],
+      ['http://172.32.0.1/v1', false],
+      ['http://192.168.1.1/v1', true],
+      ['http://192.169.1.1/v1', false],
+      ['http://10.0.0.999/v1', false],
+      ['http://10.0.0/v1', true],
+      ['http://10.0.0.x/v1', false],
+      ['ftp://10.0.0.1/v1', false],
+      ['https://api.openai.com/v1/embeddings', false],
+      ['https://localhost.example.com/v1', false],
+      ['not a url', false],
+    ] as const,
+  )('classifies %s as private=%s', (endpoint, expected) => {
+    expect(isLocalOrPrivateHttpEndpoint(endpoint)).toBe(expected)
+  })
+
+  it('appends endpoint paths without duplicating or losing the suffix', () => {
+    expect(appendEndpointPath('https://x/api/v3', '/embeddings')).toBe('https://x/api/v3/embeddings')
+    expect(appendEndpointPath('https://x/api/v3/', 'embeddings')).toBe('https://x/api/v3/embeddings')
+    expect(appendEndpointPath('https://x/v1/embeddings', '/embeddings')).toBe('https://x/v1/embeddings')
+    expect(appendEndpointPath('https://x/v1/embeddings/multimodal', '/embeddings')).toBe(
+      'https://x/v1/embeddings',
+    )
+    expect(appendEndpointPath('https://x/v1/embeddings', '/embeddings/multimodal')).toBe(
+      'https://x/v1/embeddings/multimodal',
+    )
+    expect(appendEndpointPath('https://x', '/embeddings')).toBe('https://x/embeddings')
+    expect(appendEndpointPath('https://x/', '/embeddings')).toBe('https://x/embeddings')
+    expect(appendEndpointPath('not a url', '/embeddings')).toBe('not a url/embeddings')
+    expect(appendEndpointPath('not a url?v=1', '/embeddings')).toBe('not a url/embeddings?v=1')
+    expect(appendEndpointPath('not a url/embeddings', '/embeddings')).toBe('not a url/embeddings')
+    expect(appendEndpointPath('not a url/embeddings/multimodal', '/embeddings')).toBe(
+      'not a url/embeddings',
+    )
+    expect(appendEndpointPath('not a url/embeddings/multimodal', '/other')).toBe(
+      'not a url/embeddings/multimodal/other',
+    )
+    expect(appendEndpointPath('not a url/multimodal/embeddings/multimodal', '/embeddings')).toBe(
+      'not a url/multimodal/embeddings',
+    )
+    expect(appendEndpointPath('not a url/embeddings', '/other')).toBe('not a url/embeddings/other')
+    expect(appendEndpointPath('not a url/embeddings', '/embeddings/multimodal')).toBe(
+      'not a url/embeddings/multimodal',
+    )
+    expect(appendEndpointPath('/embeddings/x', '/embeddings/multimodal')).toBe(
+      '/embeddings/x/embeddings/multimodal',
+    )
+  })
+
+  it('rewrites volcengine endpoints for the model family', () => {
+    expect(
+      volcengineEmbeddingEndpoint(
+        spec({ endpoint: 'https://ark.cn-beijing.volces.com/api/v3', model: 'doubao-embedding' }),
+      ),
+    ).toBe('https://ark.cn-beijing.volces.com/api/v3/embeddings')
+    expect(
+      volcengineEmbeddingEndpoint(
+        spec({
+          endpoint: 'https://ark.cn-beijing.volces.com/api/v3/',
+          model: 'doubao-embedding-vision',
+        }),
+      ),
+    ).toBe('https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal')
+    expect(volcengineEmbeddingEndpoint(spec({ endpoint: 'https://api.openai.com/v1/embeddings' }))).toBe(
+      'https://api.openai.com/v1/embeddings',
+    )
+  })
+
+  it('strips only the google api key query parameter', () => {
+    expect(stripGoogleApiKeyQuery('https://g/v1?key=K&other=1')).toBe('https://g/v1?other=1')
+    expect(stripGoogleApiKeyQuery('https://g/v1?KEY=K')).toBe('https://g/v1')
+    expect(stripGoogleApiKeyQuery('https://g/v1?other=1')).toBe('https://g/v1?other=1')
+    expect(stripGoogleApiKeyQuery('https://g/v1')).toBe('https://g/v1')
+    expect(stripGoogleApiKeyQuery('not a url?key=K&b=2')).toBe('not a url?b=2')
+    expect(stripGoogleApiKeyQuery('not a url?key=K')).toBe('not a url')
+    expect(stripGoogleApiKeyQuery('not a url')).toBe('not a url')
+  })
+
+  it('normalizes google embedding endpoints', () => {
+    expect(
+      googleEmbeddingEndpoint(spec({ endpoint: 'https://g/v1/models/x:batchEmbedContents?key=K', model: 'x' })),
+    ).toBe('https://g/v1/models/x:embedContent')
+    expect(
+      googleEmbeddingEndpoint(spec({ endpoint: 'https://g/v1/models/x:batchembedcontents', model: 'x' })),
+    ).toBe('https://g/v1/models/x:embedContent')
+    expect(
+      googleEmbeddingEndpoint(spec({ endpoint: 'https://g/v1/models/x:embedContent', model: 'x' })),
+    ).toBe('https://g/v1/models/x:embedContent')
+    expect(googleEmbeddingEndpoint(spec({ endpoint: 'https://g/v1beta', model: 'models/gemini-001' }))).toBe(
+      'https://g/v1beta/models/gemini-001:embedContent',
+    )
+    expect(googleEmbeddingEndpoint(spec({ endpoint: 'https://g/v1beta/models/', model: 'gemini-001' }))).toBe(
+      'https://g/v1beta/models/models/gemini-001:embedContent',
+    )
+  })
+
+  it('omits the authorization header for a blank key and trims extra header names', () => {
+    expect(singleEmbeddingRequest(spec({ apiKey: '   ' }), 'x').headers['Authorization']).toBeUndefined()
+
+    const trimmed = singleEmbeddingRequest(spec({ extraHeaders: { ' X-Route ': ' v ' } }), 'x')
+    expect(trimmed.headers['X-Route']).toBe('v')
+    expect(trimmed.headers[' X-Route ']).toBeUndefined()
+  })
+
+  it('classifies header names as safe and reserved', () => {
+    expect(isSafeExtraHeaderName('X-Route')).toBe(true)
+    expect(isSafeExtraHeaderName('bad header')).toBe(false)
+    expect(isSafeExtraHeaderName('')).toBe(false)
+    expect(isReservedExtraHeaderName(' AUTHORIZATION ')).toBe(true)
+    expect(isReservedExtraHeaderName('Content-Type')).toBe(true)
+    expect(isReservedExtraHeaderName('Host')).toBe(true)
+    expect(isReservedExtraHeaderName('Content-Length')).toBe(true)
+    expect(isReservedExtraHeaderName('Origin')).toBe(true)
+    expect(isReservedExtraHeaderName('X-Goog-Api-Key')).toBe(true)
+    expect(isReservedExtraHeaderName('X-Route')).toBe(false)
+  })
+
+  it('reports the exact vector parse failures', () => {
+    expect(failureOf(parseEmbeddingValues({ data: [] }, false, false))).toBe(
+      'Embedding response missing vector',
+    )
+    expect(failureOf(parseEmbeddingValues({ data: [{ embedding: [1, 'x'] }] }, false, false))).toBe(
+      'Embedding response contains non-number values',
+    )
+    expect(failureOf(parseEmbeddingValues({ data: [{ embedding: [1, Number.NaN] }] }, false, false))).toBe(
+      'Embedding response contains non-number values',
+    )
+    expect(failureOf(parseEmbeddingValues({ data: [{ embedding: [] }] }, false, false))).toBe(
+      'Embedding response vector is empty',
+    )
+  })
+
+  it('reports the exact batch parse failures', () => {
+    expect(failureOf(parseEmbeddingBatchValues({}, 2))).toBe('Embedding batch response missing data array')
+    expect(failureOf(parseEmbeddingBatchValues({ data: [] }, 2))).toBe(
+      'Embedding batch returned 0 vectors for 2 inputs',
+    )
+    expect(failureOf(parseEmbeddingBatchValues({ data: [1, 2] }, 2))).toBe(
+      'Embedding batch response missing vector',
+    )
+    expect(
+      failureOf(
+        parseEmbeddingBatchValues(
+          { data: [{ index: 5, embedding: [1] }, { index: 0, embedding: [1] }] },
+          2,
+        ),
+      ),
+    ).toBe('Embedding batch response contains an out-of-range index')
+    expect(
+      failureOf(
+        parseEmbeddingBatchValues({ data: [{ index: 0, embedding: [1] }, { index: 0, embedding: [1] }] }, 2),
+      ),
+    ).toBe('Embedding batch response contains duplicate indexes')
+    expect(
+      failureOf(
+        parseEmbeddingBatchValues({ data: [{ index: 0, embedding: [1, 2] }, { index: 1, embedding: [1] }] }, 2),
+      ),
+    ).toBe('Embedding batch response contains inconsistent vector dimensions')
+  })
+
+  it('indexes batch vectors by position when the provider omits an index', () => {
+    expect(succeed(parseEmbeddingBatchValues({ data: [{ embedding: [1] }, { embedding: [2] }] }, 2))).toEqual([
+      [1],
+      [2],
+    ])
+    expect(
+      succeed(
+        parseEmbeddingBatchValues({ data: [{ index: null, embedding: [1] }, { embedding: [2] }] }, 2),
+      ),
+    ).toEqual([[1], [2]])
+    expect(succeed(parseEmbeddingBatchValues({ data: [] }, 0))).toEqual([])
+  })
+
+  it('halves text on character boundaries', () => {
+    expect(halveText('abcdef')).toBe('abc')
+    expect(halveText('abcde')).toBe('ab')
+    expect(halveText('ab')).toBe('a')
+    expect(halveText('中文')).toBe('中')
+    expect(halveText('a')).toBeUndefined()
+    expect(halveText('')).toBeUndefined()
+  })
+
+  it('trims surrounding whitespace before classifying and rewriting endpoints', () => {
+    expect(isVolcengineEndpoint('  volces.com  ')).toBe(true)
+    expect(googleEmbeddingEndpoint(spec({ endpoint: ' https://g/v1beta ', model: 'm' }))).toBe(
+      'https://g/v1beta/models/m:embedContent',
+    )
+    expect(
+      googleEmbeddingEndpoint(spec({ endpoint: 'https://g/v1beta', model: ' models/models/gemini ' })),
+    ).toBe('https://g/v1beta/models/gemini:embedContent')
+  })
+
+  it('strips every models prefix from the google model path', () => {
+    expect(googleEmbeddingEndpoint(spec({ endpoint: 'https://g/v1beta', model: 'models/gemini' }))).toBe(
+      'https://g/v1beta/models/gemini:embedContent',
+    )
+    expect(googleEmbeddingEndpoint(spec({ endpoint: 'https://g/v1beta/models/x', model: 'gemini' }))).toBe(
+      'https://g/v1beta/models/x:embedContent',
+    )
+  })
+
+  it('prefixes the models segment once in the google body', () => {
+    const bare = recordOf(
+      singleEmbeddingRequest(
+        spec({ provider: 'google', endpoint: 'https://generativelanguage.googleapis.com/v1beta', model: 'm' }),
+        'x',
+      ).body,
+    )['model']
+    const prefixed = recordOf(
+      singleEmbeddingRequest(
+        spec({
+          provider: 'google',
+          endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+          model: 'models/m',
+        }),
+        'x',
+      ).body,
+    )['model']
+
+    expect(bare).toBe('models/m')
+    expect(prefixed).toBe('models/m')
+  })
+
+  it('sends bearer authorization on the batch request', () => {
+    expect(batchEmbeddingRequest(spec(), ['a']).headers['Authorization']).toBe('Bearer sk-test')
+    expect(batchEmbeddingRequest(spec(), ['a']).headers['x-goog-api-key']).toBeUndefined()
+  })
+
+  it('gates the google output dimensionality on a finite positive value', () => {
+    const body = (dimension: number | undefined): unknown =>
+      recordOf(
+        singleEmbeddingRequest(
+          spec({
+            provider: 'google',
+            endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+            model: 'm',
+            outputDimensionality: dimension,
+          }),
+          'x',
+        ).body,
+      )['output_dimensionality']
+
+    expect(body(undefined)).toBeUndefined()
+    expect(body(0)).toBeUndefined()
+    expect(body(Number.NaN)).toBeUndefined()
+    expect(body(Number.POSITIVE_INFINITY)).toBeUndefined()
+    expect(body(1)).toBe(1)
+    expect(body(1.9)).toBe(1)
+    expect(body(768)).toBe(768)
+  })
+
+  it('rejects negative and overflowing batch indexes', () => {
+    expect(
+      failureOf(
+        parseEmbeddingBatchValues({ data: [{ index: -1, embedding: [1] }, { index: 0, embedding: [2] }] }, 2),
+      ),
+    ).toBe('Embedding batch response contains an out-of-range index')
+    expect(
+      failureOf(
+        parseEmbeddingBatchValues({ data: [{ index: 2, embedding: [1] }, { index: 0, embedding: [2] }] }, 2),
+      ),
+    ).toBe('Embedding batch response contains an out-of-range index')
+  })
+
+  it('rejects a batch envelope whose data field is not an array', () => {
+    expect(failureOf(parseEmbeddingBatchValues({ data: 'x' }, 2))).toBe(
+      'Embedding batch response missing data array',
+    )
+  })
+})
+
+describe('fingerprint core: digests', () => {
+  it('hashes utf8 text with sha256', () => {
+    expect(sha256Hex('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+    expect(sha256Hex('abc')).toBe(
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    )
+    expect(contentRevision('abc')).toBe(
+      'sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    )
+  })
+
+  it('canonicalizes the fingerprint input deterministically', () => {
+    const base = spec({ endpoint: ' https://api.openai.com/v1/embeddings ', model: ' text-embedding-3-small ' })
+    const padded = spec({ endpoint: 'https://api.openai.com/v1/embeddings', model: 'text-embedding-3-small' })
+
+    expect(embeddingFingerprint('sha256:content', base)).toBe(
+      embeddingFingerprint('sha256:content', padded),
+    )
+    expect(embeddingFingerprint('sha256:content', padded)).toBe(
+      'sha256:fbc3a94a1930edc3ed496befb18e64eb8a0572428d04ab27173627d5db3934b2',
+    )
+  })
+
+  it('sorts extra header keys and includes their values', () => {
+    expect(embeddingFingerprint('sha256:content', spec({ extraHeaders: { a: '1', b: '2' } }))).toBe(
+      embeddingFingerprint('sha256:content', spec({ extraHeaders: { b: '2', a: '1' } })),
+    )
+    expect(embeddingFingerprint('sha256:content', spec({ extraHeaders: { b: '2', a: '1' } }))).not.toBe(
+      embeddingFingerprint('sha256:content', spec({ extraHeaders: { b: '2', a: '9' } })),
+    )
+    expect(embeddingFingerprint('sha256:content', spec({ extraHeaders: { a: '1' } }))).not.toBe(
+      embeddingFingerprint('sha256:content', spec()),
+    )
+  })
+
+  it('includes the dimensionality and chunk window in the digest', () => {
+    expect(embeddingFingerprint('sha256:content', spec({ outputDimensionality: 3 }))).not.toBe(
+      embeddingFingerprint('sha256:content', spec()),
+    )
+    expect(embeddingFingerprint('sha256:content', spec({ maxChunkChars: 64 }))).not.toBe(
+      embeddingFingerprint('sha256:content', spec()),
+    )
+    expect(embeddingFingerprint('sha256:content', spec({ overlapChunkChars: 8 }))).not.toBe(
+      embeddingFingerprint('sha256:content', spec()),
     )
   })
 })

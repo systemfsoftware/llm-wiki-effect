@@ -1,12 +1,18 @@
-import { apiServerStatus, mcpServerEntryPath } from '@/commands/fs'
+import { apiServerSocketPath, apiServerStatus, mcpServerEntryPath } from '@/commands/fs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { API_SERVER_BASE_URL, API_SERVER_HEALTH_URL } from '@/lib/api-server-constants'
+import { apiRelayClient } from '@/lib/api-relay'
+import {
+  API_RPC_STREAM_URL,
+  API_RPC_URL,
+  API_SERVER_BASE_URL,
+  API_SERVER_REMOTE_BASE_URL,
+} from '@/lib/api-server-constants'
 import { generateApiToken } from '@/lib/api-token'
 import { useWikiStore } from '@/stores/wiki-store'
-import { openUrl } from '@tauri-apps/plugin-opener'
-import { Copy, ExternalLink, Eye, EyeOff, RefreshCw, Server, ShieldAlert } from 'lucide-react'
+import { Domain } from 'llm-wiki-protocol'
+import { Copy, Eye, EyeOff, RefreshCw, Server, ShieldAlert } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DraftSetter, SettingsDraft } from '../settings-types'
@@ -16,46 +22,92 @@ interface Props {
   setDraft: DraftSetter
 }
 
-interface ApiHealth {
-  ok?: boolean
-  status?: string
-  enabled?: boolean
-  mcpEnabled?: boolean
-  authRequired?: boolean
-  authConfigured?: boolean
-  allowUnauthenticated?: boolean
-  allowLanAccess?: boolean
-  tokenSource?: 'env' | 'store' | 'none'
+export const WORKER_STATUSES = ['starting', 'running', 'restarting', 'failed', 'missing-runtime'] as const
+
+export type WorkerStatus = (typeof WORKER_STATUSES)[number] | 'unknown'
+
+const WORKER_STATUS_LOOKUP: Record<string, true> = {
+  starting: true,
+  running: true,
+  restarting: true,
+  failed: true,
+  'missing-runtime': true,
 }
 
-/**
- * Documented endpoint surface. Kept in lock-step with
- * `src-tauri/src/api_server.rs::handle_request`. When you add or remove
- * a route there, update this list — it's the only place users discover
- * the API contract until we ship a proper OpenAPI doc.
- */
-export const API_ENDPOINTS: Array<{ method: 'GET' | 'POST' | 'PATCH'; path: string; noteKey: string }> = [
-  { method: 'GET', path: '/api/v1/health', noteKey: 'endpointHealthNote' },
-  { method: 'GET', path: '/api/v1/projects', noteKey: 'endpointProjectsNote' },
-  { method: 'GET', path: '/api/v1/projects/{id}/files', noteKey: 'endpointFilesNote' },
-  { method: 'GET', path: '/api/v1/projects/{id}/files/content', noteKey: 'endpointContentNote' },
-  { method: 'GET', path: '/api/v1/projects/{id}/reviews', noteKey: 'endpointReviewsNote' },
-  { method: 'PATCH', path: '/api/v1/projects/{id}/reviews/{reviewId}', noteKey: 'endpointPatchReviewNote' },
-  { method: 'POST', path: '/api/v1/projects/{id}/reviews/resolve', noteKey: 'endpointBulkResolveNote' },
-  { method: 'POST', path: '/api/v1/projects/{id}/search', noteKey: 'endpointSearchNote' },
-  { method: 'GET', path: '/api/v1/projects/{id}/graph', noteKey: 'endpointGraphNote' },
-  { method: 'POST', path: '/api/v1/projects/{id}/sources/rescan', noteKey: 'endpointRescanNote' },
-  { method: 'POST', path: '/api/v1/projects/{id}/pages/embed', noteKey: 'endpointEmbedPageNote' },
-  { method: 'POST', path: '/api/v1/projects/{id}/chat', noteKey: 'endpointChatNote' },
-  { method: 'POST', path: '/api/v1/projects/{id}/chat/{sessionId}/cancel', noteKey: 'endpointChatCancelNote' },
-]
+export const normalizeWorkerStatus = (raw: string): WorkerStatus =>
+  WORKER_STATUS_LOOKUP[raw] === true ? (raw as WorkerStatus) : 'unknown'
+
+const rpcFrame = (op: string, payload: unknown): string =>
+  JSON.stringify({ _tag: 'Request', id: '1', tag: op, payload, headers: [] })
+
+export interface RpcCurlInput {
+  readonly url: string
+  readonly op: string
+  readonly payload: unknown
+  readonly token: string | null
+}
+
+export const buildRpcCurl = (input: RpcCurlInput): string => {
+  const lines = ['curl -X POST']
+  if (input.token !== null && input.token !== '') {
+    lines.push(`  -H "Authorization: Bearer ${input.token}"`)
+  }
+  lines.push(`  -H 'Content-Type: application/ndjson'`)
+  lines.push(`  ${input.url}`)
+  lines.push(`  --data-binary $'${rpcFrame(input.op, input.payload)}\\n'`)
+  return lines.join(' \\\n')
+}
+
+export interface StreamSampleInput {
+  readonly url: string
+  readonly token: string | null
+  readonly payload: Record<string, unknown>
+}
+
+export const buildStreamSample = (input: StreamSampleInput): string => {
+  const target = input.token === null || input.token === ''
+    ? `websocat ${input.url}`
+    : `websocat -H "Authorization: Bearer ${input.token}" ${input.url}`
+  return `echo '${rpcFrame('chatStream', input.payload)}' \\\n  | ${target}`
+}
+
+export const MCP_SOCKET_PATH_PLACEHOLDER = '<socket path>'
+
+export interface McpConfigInput {
+  readonly mode: 'local' | 'remote'
+  readonly entryPath: string
+  readonly socketPath: string
+  readonly baseUrl: string
+  readonly token: string
+}
+
+export const buildMcpConfig = (input: McpConfigInput): string => {
+  const env = input.mode === 'local'
+    ? { LLM_WIKI_SOCKET_PATH: input.socketPath || MCP_SOCKET_PATH_PLACEHOLDER }
+    : { LLM_WIKI_API_TOKEN: input.token, LLM_WIKI_BASE_URL: input.baseUrl }
+  return JSON.stringify(
+    {
+      mcpServers: {
+        'llm-wiki': {
+          command: 'node',
+          args: [input.entryPath],
+          env,
+        },
+      },
+    },
+    null,
+    2,
+  )
+}
 
 export function ApiServerSection({ draft, setDraft }: Props) {
   const { t } = useTranslation()
   const [showToken, setShowToken] = useState(false)
   const [copiedField, setCopiedField] = useState<'token' | 'curl' | 'chat' | 'mcp' | null>(null)
-  const [serverStatus, setServerStatus] = useState<string>('...')
-  const [health, setHealth] = useState<ApiHealth | null>(null)
+  const [serverStatus, setServerStatus] = useState<WorkerStatus>('unknown')
+  const [health, setHealth] = useState<Domain.Health | null>(null)
+  const [healthError, setHealthError] = useState<string | null>(null)
+  const [socketPath, setSocketPath] = useState('')
   const [mcpEntryPath, setMcpEntryPath] = useState<string | null>(null)
   const [mcpPathError, setMcpPathError] = useState<string | null>(null)
   const persistedApiConfig = useWikiStore((s) => s.apiConfig)
@@ -65,18 +117,29 @@ export function ApiServerSection({ draft, setDraft }: Props) {
     const loadStatus = async () => {
       try {
         const status = await apiServerStatus()
-        if (alive) setServerStatus(status)
+        if (alive) setServerStatus(normalizeWorkerStatus(status))
       } catch {
         if (alive) setServerStatus('unknown')
       }
     }
     const loadHealth = async () => {
       try {
-        const response = await fetch(API_SERVER_HEALTH_URL)
-        const value: ApiHealth = await response.json()
-        if (alive) setHealth(value)
+        const snapshot = await apiRelayClient.health()
+        if (!alive) return
+        setHealth(snapshot)
+        setHealthError(null)
+      } catch (err) {
+        if (!alive) return
+        setHealth(null)
+        setHealthError(err instanceof Error ? err.message : String(err))
+      }
+    }
+    const loadSocketPath = async () => {
+      try {
+        const path = await apiServerSocketPath()
+        if (alive) setSocketPath(path)
       } catch {
-        if (alive) setHealth(null)
+        if (alive) setSocketPath('')
       }
     }
     const loadMcpPath = async () => {
@@ -93,6 +156,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
     }
     void loadStatus()
     void loadHealth()
+    void loadSocketPath()
     void loadMcpPath()
     return () => {
       alive = false
@@ -115,52 +179,43 @@ export function ApiServerSection({ draft, setDraft }: Props) {
     }
   }, [draft.apiToken])
 
-  const sampleCurl = useMemo(() => {
-    if (draft.apiAllowUnauthenticated) {
-      return `curl ${API_SERVER_BASE_URL}/api/v1/projects`
-    }
-    // Show the user a complete, paste-runnable example. The Bearer
-    // header is the recommended auth (never put the token in URL
-    // query — it leaks into logs / shell history / Referer).
-    const tokenForExample = draft.apiToken || '<your-token>'
-    return `curl -H "Authorization: Bearer ${tokenForExample}" ${API_SERVER_BASE_URL}/api/v1/projects`
-  }, [draft.apiAllowUnauthenticated, draft.apiToken])
+  const sampleCurl = useMemo(
+    () =>
+      buildRpcCurl({
+        url: API_RPC_URL,
+        op: 'projects',
+        payload: null,
+        token: draft.apiAllowUnauthenticated ? null : draft.apiToken || '<your-token>',
+      }),
+    [draft.apiAllowUnauthenticated, draft.apiToken],
+  )
 
   const sampleChatCurl = useMemo(() => {
     const tokenForExample = health?.tokenSource === 'env'
       ? '$LLM_WIKI_API_TOKEN'
       : draft.apiToken || '<your-token>'
-    return `curl -N -X POST \\
-  -H "Authorization: Bearer ${tokenForExample}" \\
-  -H 'Content-Type: application/json' \\
-  -H 'Accept: text/event-stream' \\
-  ${API_SERVER_BASE_URL}/api/v1/projects/current/chat \\
-  -d '{"message":"Summarize this knowledge base.","stream":true}'`
+    const payload = { message: 'Summarize this knowledge base.' }
+    return [
+      '# One aggregate agent turn (single JSON response)',
+      buildRpcCurl({ url: API_RPC_URL, op: 'chat', payload, token: tokenForExample }),
+      '',
+      '# The same turn, streamed as ndjson frames over WebSocket',
+      buildStreamSample({ url: API_RPC_STREAM_URL, token: tokenForExample, payload }),
+    ].join('\n')
   }, [draft.apiToken, health?.tokenSource])
 
   const sampleMcpConfig = useMemo(() => {
     if (!mcpEntryPath) return ''
-    const env = health?.tokenSource === 'env'
-      ? { LLM_WIKI_API_TOKEN: '<same value as the LLM Wiki process environment>' }
-      : draft.apiToken
-      ? { LLM_WIKI_API_TOKEN: draft.apiToken }
-      : draft.apiAllowUnauthenticated
-      ? {}
-      : { LLM_WIKI_API_TOKEN: '<your-token>' }
-    return JSON.stringify(
-      {
-        mcpServers: {
-          'llm-wiki': {
-            command: 'node',
-            args: [mcpEntryPath],
-            ...(Object.keys(env).length > 0 ? { env } : {}),
-          },
-        },
-      },
-      null,
-      2,
-    )
-  }, [draft.apiAllowUnauthenticated, draft.apiToken, health?.tokenSource, mcpEntryPath])
+    return buildMcpConfig({
+      mode: draft.apiAllowLanAccess ? 'remote' : 'local',
+      entryPath: mcpEntryPath,
+      socketPath,
+      baseUrl: API_SERVER_REMOTE_BASE_URL,
+      token: health?.tokenSource === 'env'
+        ? '<same value as the LLM Wiki process environment>'
+        : draft.apiToken || '<your-token>',
+    })
+  }, [draft.apiAllowLanAccess, draft.apiToken, health?.tokenSource, mcpEntryPath, socketPath])
 
   const hasUnsavedApiConfig = persistedApiConfig.enabled !== draft.apiEnabled ||
     persistedApiConfig.allowUnauthenticated !== draft.apiAllowUnauthenticated ||
@@ -199,12 +254,6 @@ export function ApiServerSection({ draft, setDraft }: Props) {
     }
   }, [mcpEntryPath, sampleMcpConfig])
 
-  const handleOpenHealth = useCallback(() => {
-    void openUrl(API_SERVER_HEALTH_URL).catch((err) => {
-      console.error('[api-settings] open health failed:', err)
-    })
-  }, [])
-
   const statusLabel = useMemo(() => {
     if (!draft.apiEnabled) {
       return t('settings.sections.apiServer.statusDisabled', { defaultValue: 'Disabled' })
@@ -220,16 +269,16 @@ export function ApiServerSection({ draft, setDraft }: Props) {
         return t('settings.sections.apiServer.statusRunning', { defaultValue: 'Running' })
       case 'starting':
         return t('settings.sections.apiServer.statusStarting', { defaultValue: 'Starting…' })
-      case 'port_conflict':
-        return t('settings.sections.apiServer.statusPortConflict', {
-          defaultValue: 'Port 19828 in use',
+      case 'restarting':
+        return t('settings.sections.apiServer.statusRestarting', { defaultValue: 'Restarting…' })
+      case 'failed':
+        return t('settings.sections.apiServer.statusFailed', { defaultValue: 'Failed' })
+      case 'missing-runtime':
+        return t('settings.sections.apiServer.statusMissingRuntime', {
+          defaultValue: 'Node runtime missing',
         })
-      case 'error':
-        return t('settings.sections.apiServer.statusError', { defaultValue: 'Error' })
-      case 'unknown':
-        return t('settings.sections.apiServer.statusUnknown', { defaultValue: 'Unknown' })
       default:
-        return serverStatus
+        return t('settings.sections.apiServer.statusUnknown', { defaultValue: 'Unknown' })
     }
   }, [draft.apiAllowUnauthenticated, draft.apiEnabled, draft.apiToken, health, serverStatus, t])
 
@@ -239,9 +288,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
     ? 'text-amber-700 dark:text-amber-400'
     : serverStatus === 'running'
     ? 'text-emerald-600 dark:text-emerald-400'
-    : serverStatus === 'starting'
-    ? 'text-muted-foreground'
-    : serverStatus === 'unknown'
+    : serverStatus === 'starting' || serverStatus === 'restarting' || serverStatus === 'unknown'
     ? 'text-muted-foreground'
     : 'text-destructive'
 
@@ -262,7 +309,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
         <p className='mt-1 text-sm text-muted-foreground'>
           {t('settings.sections.apiServer.description', {
             defaultValue:
-              'Expose LLM Wiki to your own tools through the local HTTP API, and optionally through the bundled MCP server for agent clients.',
+              'Expose LLM Wiki to your own tools through the local RPC server, and optionally through the bundled MCP server for agent clients.',
           })}
         </p>
       </div>
@@ -271,7 +318,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
       <div className='space-y-4 rounded-lg border border-border/60 bg-muted/20 p-4'>
         <label
           htmlFor='api-server-enabled'
-          aria-label={t('settings.sections.apiServer.enable', { defaultValue: 'Enable local HTTP API' })}
+          aria-label={t('settings.sections.apiServer.enable', { defaultValue: 'Enable the local API' })}
           className='flex items-start gap-3'
         >
           <input
@@ -285,13 +332,13 @@ export function ApiServerSection({ draft, setDraft }: Props) {
             <div className='flex items-center gap-2 text-sm font-semibold'>
               <Server className='h-4 w-4 text-muted-foreground' />
               {t('settings.sections.apiServer.enable', {
-                defaultValue: 'Enable local HTTP API',
+                defaultValue: 'Enable the local API',
               })}
             </div>
             <p className='text-xs leading-relaxed text-muted-foreground'>
               {t('settings.sections.apiServer.enableHint', {
                 defaultValue:
-                  'Disable to make every non-/health endpoint return 503 even if a token is configured. Useful as a kill-switch without unsetting the token.',
+                  'Disable to make every operation except health fail, even if a token is configured. Useful as a kill-switch without unsetting the token.',
               })}
             </p>
           </div>
@@ -370,18 +417,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
           </div>
         </div>
 
-        <div className='flex items-center gap-2'>
-          <Button variant='outline' size='sm' onClick={handleOpenHealth} className='gap-1.5'>
-            <ExternalLink className='h-3.5 w-3.5' />
-            {t('settings.sections.apiServer.openHealth', { defaultValue: 'Open /health' })}
-          </Button>
-          <span className='text-[11px] text-muted-foreground'>
-            {t('settings.sections.apiServer.openHealthHint', {
-              defaultValue:
-                '/health never requires authentication. Other endpoints follow the access mode below, except Agent chat, which always requires a token.',
-            })}
-          </span>
-        </div>
+        {healthError && <p className='text-[11px] leading-relaxed text-amber-700 dark:text-amber-400'>{healthError}</p>}
       </div>
 
       {/* ── Token ─────────────────────────────────────────────────── */}
@@ -393,7 +429,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
           <p className='mt-1 text-xs leading-relaxed text-muted-foreground'>
             {t('settings.sections.apiServer.tokenHint', {
               defaultValue:
-                'Send as `Authorization: Bearer <token>` or `X-LLM-Wiki-Token: <token>`. Read-oriented endpoints may omit it when unauthenticated access is enabled, but Agent chat and cancellation always require it. The environment variable LLM_WIKI_API_TOKEN overrides this field if set.',
+                'Send as `Authorization: Bearer <token>` or `X-LLM-Wiki-Token: <token>`. Read operations may omit it when unauthenticated access is enabled, but Agent chat and cancellation always require it. The environment variable LLM_WIKI_API_TOKEN overrides this field if set.',
             })}
           </p>
         </div>
@@ -454,14 +490,14 @@ export function ApiServerSection({ draft, setDraft }: Props) {
           {tokenStrength === 'missing' && (
             <span className='text-xs text-amber-700 dark:text-amber-400'>
               {t('settings.sections.apiServer.tokenMissing', {
-                defaultValue: 'No token — Agent chat is unavailable and protected endpoints return 401',
+                defaultValue: 'No token — Agent chat is unavailable and protected operations are unauthorized',
               })}
             </span>
           )}
           {tokenStrength === 'unused' && health?.tokenSource !== 'env' && (
             <span className='text-xs text-amber-700 dark:text-amber-400'>
               {t('settings.sections.apiServer.tokenUnused', {
-                defaultValue: 'Read endpoints are open, but Agent chat still uses this token',
+                defaultValue: 'Read operations are open, but Agent chat still uses this token',
               })}
             </span>
           )}
@@ -536,7 +572,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
         </pre>
       </div>
 
-      {/* ── Endpoint catalog ──────────────────────────────────────── */}
+      {/* ── Agent chat and streaming ──────────────────────────────── */}
       <div className='space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4'>
         <div className='flex items-start justify-between gap-3'>
           <div>
@@ -546,7 +582,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
             <p className='mt-1 text-xs leading-relaxed text-muted-foreground'>
               {t('settings.sections.apiServer.chatHint', {
                 defaultValue:
-                  'POST a message to /chat. The default response is one JSON document. Set stream: true or send Accept: text/event-stream to receive SSE frames while the Agent works.',
+                  'The aggregate chat operation returns one JSON document after the Agent turn completes. chatStream emits ndjson frames over the WebSocket transport while the Agent works.',
               })}
             </p>
           </div>
@@ -571,18 +607,18 @@ export function ApiServerSection({ draft, setDraft }: Props) {
             </div>
             <p className='mt-1 leading-relaxed text-muted-foreground'>
               {t('settings.sections.apiServer.chatJsonHint', {
-                defaultValue: 'Omit stream or set it to false. The request returns after the complete Agent turn.',
+                defaultValue: 'The request returns after the complete Agent turn.',
               })}
             </p>
           </div>
           <div className='rounded-md border border-border/60 bg-background/40 px-3 py-2'>
             <div className='font-medium'>
-              {t('settings.sections.apiServer.chatSseTitle', { defaultValue: 'SSE mode' })}
+              {t('settings.sections.apiServer.chatStreamTitle', { defaultValue: 'Streaming (WebSocket)' })}
             </div>
             <p className='mt-1 leading-relaxed text-muted-foreground'>
-              {t('settings.sections.apiServer.chatSseHint', {
+              {t('settings.sections.apiServer.chatStreamHint', {
                 defaultValue:
-                  'Frames: meta, incremental agent events, then done, cancelled, or error. done contains the complete aggregate response.',
+                  'Frames: meta, incremental agent events, then done. done carries the complete aggregate response.',
               })}
             </p>
           </div>
@@ -592,7 +628,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
           <span>
             {t('settings.sections.apiServer.chatTokenRequired', {
               defaultValue:
-                'Agent chat and its cancellation endpoint always require a token, even when read endpoints allow unauthenticated access.',
+                'Agent chat and cancellation always require a token, even when read operations allow unauthenticated access.',
             })}
           </span>
         </div>
@@ -601,43 +637,6 @@ export function ApiServerSection({ draft, setDraft }: Props) {
             ? t("settings.sections.apiServer.saveFirstExample", { defaultValue: "Save settings first, then copy an example request." })
             : sampleChatCurl}
         </pre>
-      </div>
-
-      <div className='space-y-2 rounded-lg border border-border/60 bg-muted/20 p-4'>
-        <h3 className='text-sm font-semibold'>
-          {t('settings.sections.apiServer.endpoints', { defaultValue: 'Endpoints' })}
-        </h3>
-        <p className='text-xs leading-relaxed text-muted-foreground'>
-          {t('settings.sections.apiServer.endpointsHint', {
-            defaultValue: "Replace {id} with a project UUID, a project filesystem path, or the literal 'current'.",
-          })}
-        </p>
-        <div className='space-y-1 text-xs'>
-          {API_ENDPOINTS.map((endpoint) => {
-            const note = t(`settings.sections.apiServer.${endpoint.noteKey}`, {
-              defaultValue: '',
-            })
-            const methodClass = endpoint.method === 'GET'
-              ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400'
-              : endpoint.method === 'PATCH'
-              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-              : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-            return (
-              <div
-                key={`${endpoint.method} ${endpoint.path}`}
-                className='flex flex-wrap items-baseline gap-2 rounded border border-border/40 bg-background/50 px-2 py-1'
-              >
-                <span
-                  className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${methodClass}`}
-                >
-                  {endpoint.method}
-                </span>
-                <span className='font-mono'>{endpoint.path}</span>
-                {note && <span className='text-muted-foreground'>— {note}</span>}
-              </div>
-            )
-          })}
-        </div>
       </div>
 
       {/* ── MCP ──────────────────────────────────────────────────── */}
@@ -691,7 +690,7 @@ export function ApiServerSection({ draft, setDraft }: Props) {
           <p className='mt-2 text-xs leading-relaxed text-muted-foreground'>
             {t('settings.sections.apiServer.mcpUsageHint', {
               defaultValue:
-                'Build once with `pnpm mcp:build`, then configure your MCP client to run the server below. Use LLM_WIKI_API_TOKEN unless unauthenticated access is enabled.',
+                'Build once with `pnpm mcp:build`, then configure your MCP client to run the server below. Local mode connects over LLM_WIKI_SOCKET_PATH; remote mode needs LLM_WIKI_BASE_URL and LLM_WIKI_API_TOKEN.',
             })}
           </p>
           {mcpPathError && (

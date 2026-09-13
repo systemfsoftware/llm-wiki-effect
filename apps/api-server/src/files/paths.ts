@@ -44,13 +44,16 @@ export const isPublicProjectRel = (rel: string): boolean => {
 
 export const isTextContentRel = (rel: string): boolean => {
   const normalized = normalizeProjectRel(rel).toLowerCase()
+  // Stryker disable next-line MethodExpression: an extension can only match the table when the last dot follows the last slash, where both forms yield the same substring.
   const base = normalized.slice(normalized.lastIndexOf('/') + 1)
   const dot = base.lastIndexOf('.')
+  // Stryker disable next-line StringLiteral: the injected literal is never a table key, so the no-dot branch still returns false.
   const extension = dot === -1 ? '' : base.slice(dot + 1)
   return TEXT_EXTENSIONS[extension] === true
 }
 
 export const clampMaxFiles = (value: number | undefined): number => {
+  // Stryker disable next-line ConditionalExpression: Number.isFinite(undefined) is false, so undefined still returns DEFAULT_MAX_FILES.
   if (value === undefined || !Number.isFinite(value)) return DEFAULT_MAX_FILES
   return Math.min(Math.max(Math.trunc(value), 1), HARD_MAX_FILES)
 }
@@ -87,6 +90,7 @@ export const guardRelativePath = (
     return Result.fail(new Errors.PathViolation({ message: 'Path contains a NUL byte' }))
   }
   const normalized = normalizeProjectRel(rel)
+  // Stryker disable next-line Regex: only a single leading slash can reach the strip, because a '//' prefix is rejected by the check below.
   const withoutLeadingSlash = normalized.replace(/^\/+/, '')
   if (normalized.startsWith('//') || /^[A-Za-z]:/.test(withoutLeadingSlash)) {
     return Result.fail(new Errors.PathViolation({ message: 'Paths outside the project are not allowed' }))

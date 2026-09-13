@@ -44,13 +44,13 @@
 - **フォルダインポート** — ディレクトリ構造を保持した再帰インポート。フォルダパスを LLM の分類ヒントとして利用
 - **ソースフォルダの自動監視** — `raw/sources/` の外部変更を検出し、インジェスト・削除クリーンアップを同期
 - **Deep Research** — LLM が検索トピックを最適化生成し、Tavily / SerpApi / SearXNG によるマルチクエリ Web 検索結果を自動で Wiki 化
-- **Rust バックエンド Chat Agent** — Wiki / Source / Graph / Web 検索、workspace ファイル生成、shell 承認、キャンセル、ストリーミング tool event に対応するツール実行型チャット runtime
+- **サーバー側 Chat Agent** — Wiki / Source / Graph / Web 検索、workspace ファイル生成、shell 承認、キャンセル、ストリーミング tool event に対応するツール実行型チャット runtime
 - **Agent Skills** — ローカル `SKILL.md` フォルダをスキャンして有効化し、チャット内の `/skill` で選択。Agent が必要に応じて Skill 指示を読み込みます
 - **生成物プレビュー** — Agent が作成した Markdown、HTML、画像などの workspace ファイルを生成物として表示し、プレビューとフォルダをすばやく開く操作に対応
 - **Mermaid 図表レンダリング** — チャットとプレビューで Mermaid コードブロックを直接描画し、構文エラーはコンパクトなエラーカードで表示
-- **非同期レビューシステム** — LLM が人間の判断を要する項目を作成し、定義済みアクションと事前生成された検索クエリを付与
+- **非同期レビューシステム** — LLM が人間の判断が必要な項目をフラグし、定義済みアクションと事前生成された検索クエリを添付
 - **Chrome Web Clipper** — Web ページをワンクリックで取り込み、知識ベースへ自動インジェスト
-- **ローカル HTTP API + MCP Server + AI Agent Skill** — `127.0.0.1:19828` の JSON API と同梱 MCP Server でハイブリッド検索、ファイル読み取り、グラフ探索、ソース再スキャンを提供。専用の [agent skill](https://github.com/nashsu/llm_wiki_skill) はワンコマンドで Claude Code / Codex に追加可能（`npx skills add …`）
+- **ローカル API Server + MCP Server + AI Agent Skill** — API は独立したプロセスとして動作します（デスクトップがローカル socket 経由で監督し、同じ server はスタンドアロンでも `127.0.0.1:19828` で HTTP/WebSocket の RPC を提供）。同梱 MCP Server でハイブリッド検索、ファイル読み取り、グラフ探索、ソース再スキャンを提供。専用の [agent skill](https://github.com/nashsu/llm_wiki_skill) はワンコマンドで Claude Code / Codex に追加可能（`npx skills add …`）
 
 ## これは何ですか？
 
@@ -217,7 +217,7 @@ LLM Wiki は、手元の文書を整理された相互リンク付きの知識�
 
 フェーズ 1.5: ベクトル意味検索（オプション）
   - 任意の OpenAI 互換 /v1/embeddings エンドポイントで埋め込みを生成
-  - LanceDB（Rust バックエンド）に保存し、高速な ANN 検索を実行
+  - LanceDB（組み込み）に保存し、高速な ANN 検索を実行
   - コサイン類似度により、キーワードが一致しなくても意味的に関連するページを発見
   - 結果をマージ: 既存ヒットをブースト + 新規発見を追加
 
@@ -252,9 +252,9 @@ LLM Wiki は、手元の文書を整理された相互リンク付きの知識�
 - **再生成** — 最後の回答をワンクリックで再生成（直近の assistant + user メッセージ対を削除して再送信）
 - **Wiki に保存** — 価値のある回答を `wiki/queries/` に保管し、自動インジェストでエンティティ／概念を知識ネットワークに抽出
 
-### 9. Rust バックエンド Chat Agent と Skills
+### 9. サーバー側 Chat Agent と Skills
 
-元の設計にはありません。チャットはブラウザ内だけの TypeScript ループではなく、Rust バックエンドの Agent runtime で実行されます。
+元の設計にはありません。チャットは API server の Agent runtime（`apps/api-server` にある TypeScript のツールループ）で実行されます。ブラウザ内だけの TypeScript ループではありません。検索・ツール・provider の接続点は server 側が持ち、デスクトップはストリーミングイベントをチャットパネルへ中継するだけです。
 
 - **ツール実行型 Agent** — Wiki 検索、Source 検索、Graph 検索、Web 検索、AnyTXT、workspace ファイルツール、承認済み shell コマンド、Skill ファイル読み取りを選択可能
 - **Skill 管理** — プロジェクト単位・ユーザー単位の Skill フォルダをスキャンし、有効／無効を切り替え、会話ごとに `/skill` 補完で Skill を選択
@@ -329,16 +329,16 @@ LLM Wiki は、手元の文書を整理された相互リンク付きの知識�
 
 元の設計はテキスト／Markdown が中心です。本プロジェクトではドキュメントの意味構造を保持した構造化抽出に対応しています。
 
-| フォーマット | 抽出方法                                                                                                                |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| PDF          | 内蔵 pdf-extract（Rust）+ ファイルキャッシュ。複雑なレイアウト向けに MinerU Cloud、Local API、Pipeline を任意で利用可能 |
-| DOCX         | docx-rs — 見出し、太字／斜体、リスト、テーブルを構造化 Markdown へ                                                      |
-| PPTX         | ZIP + XML — スライド単位で抽出し、見出し／リスト構造を保持                                                              |
-| XLSX/XLS/ODS | calamine — 正しいセル型、複数シート対応、Markdown テーブルに変換                                                        |
-| EPUB/MOBI    | 電子書籍のメタデータ、章、本文を抽出し、インジェスト可能なコンテンツへ変換                                              |
-| 画像         | ネイティブプレビュー（png, jpg, gif, webp, svg など）                                                                   |
-| 動画／音声   | 内蔵プレイヤー                                                                                                          |
-| Web クリップ | Readability.js + Turndown.js → クリーンな Markdown                                                                      |
+| フォーマット | 抽出方法                                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| PDF          | 内蔵 pdfium（Rust）+ ファイルキャッシュ。複雑なレイアウト向けに MinerU Cloud、Local API、Pipeline を任意で利用可能 |
+| DOCX         | docx-rs — 見出し、太字／斜体、リスト、テーブルを構造化 Markdown へ                                                 |
+| PPTX         | ZIP + XML — スライド単位で抽出し、見出し／リスト構造を保持                                                         |
+| XLSX/XLS/ODS | calamine — 正しいセル型、複数シート対応、Markdown テーブルに変換                                                   |
+| EPUB/MOBI    | 電子書籍のメタデータ、章、本文を抽出し、インジェスト可能なコンテンツへ変換                                         |
+| 画像         | ネイティブプレビュー（png, jpg, gif, webp, svg など）                                                              |
+| 動画／音声   | 内蔵プレイヤー                                                                                                     |
+| Web クリップ | Readability.js + Turndown.js → クリーンな Markdown                                                                 |
 
 > MinerU は任意機能です。複雑な PDF には MinerU Cloud、公式 Local API、またはローカル Pipeline モードを利用できます。ローカルモードではファイルを外部へ送信せず、抽出画像はプロジェクト管理下の `wiki/media` に保存されます。失敗時は内蔵解析へフォールバックします。
 
@@ -386,20 +386,22 @@ LLM Wiki は、手元の文書を整理された相互リンク付きの知識�
 
 ## 技術スタック
 
-| レイヤー       | 技術                                                                   |
-| -------------- | ---------------------------------------------------------------------- |
-| デスクトップ   | Tauri v2（Rust バックエンド）                                          |
-| フロントエンド | React 19 + TypeScript + Vite                                           |
-| UI             | shadcn/ui + Tailwind CSS v4                                            |
-| エディタ       | Milkdown（ProseMirror ベースの WYSIWYG）                               |
-| グラフ         | sigma.js + graphology + ForceAtlas2                                    |
-| 検索           | トークン化検索 + グラフ関連度 + 任意のベクトル検索（LanceDB）          |
-| ベクトル DB    | LanceDB（Rust、組み込み、オプション）                                  |
-| 文書解析       | pdf-extract + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI 抽出 |
-| 多言語対応     | react-i18next                                                          |
-| 状態管理       | Zustand                                                                |
-| LLM            | ストリーミング fetch（OpenAI、Anthropic、Google、Ollama、カスタム）    |
-| Web 検索       | Tavily、SerpApi、SearXNG JSON API                                      |
+| レイヤー       | 技術                                                                                               |
+| -------------- | -------------------------------------------------------------------------------------------------- |
+| デスクトップ   | Tauri v2（Rust シェル: ウィンドウ、19827 のクリップサーバー、API worker の監督）                   |
+| API Server     | Node 20+ · Effect RPC（`apps/api-server`）: worker はローカル IPC、スタンドアロンは HTTP/WebSocket |
+| 通信契約       | Effect Schema + RPC（`packages/protocol`）、ndjson フレーム                                        |
+| フロントエンド | React 19 + TypeScript + Vite                                                                       |
+| UI             | shadcn/ui + Tailwind CSS v4                                                                        |
+| エディタ       | Milkdown（ProseMirror ベースの WYSIWYG）                                                           |
+| グラフ         | sigma.js + graphology + ForceAtlas2                                                                |
+| 検索           | トークン化検索 + グラフ関連度 + 任意のベクトル検索（LanceDB）                                      |
+| ベクトル DB    | LanceDB（組み込み、オプション）                                                                    |
+| 文書解析       | pdfium + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI 抽出                                  |
+| 多言語対応     | react-i18next                                                                                      |
+| 状態管理       | Zustand                                                                                            |
+| LLM            | ストリーミング fetch（OpenAI、Anthropic、Google、Ollama、カスタム）                                |
+| Web 検索       | Tavily、SerpApi、SearXNG JSON API                                                                  |
 
 ## インストール
 
@@ -422,6 +424,7 @@ git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
 pnpm install
 pnpm mcp:build         # apps/mcp-server/dist は Tauri リソースとして同梱されます
+pnpm api:build         # apps/api-server/dist も同梱されます — アプリが spawn する worker エントリはここにあります
 pnpm tauri dev         # 開発モード
 pnpm tauri build       # 本番ビルド
 ```
@@ -446,22 +449,34 @@ pnpm tauri build       # 本番ビルド
 8. **レビュー** で対応が必要な項目を確認
 9. **Lint** を定期的に実行し、Wiki の健全性を維持
 
-## ローカル HTTP API + MCP Server + AI Agent Skill
+## ローカル API Server + MCP Server + AI Agent Skill
 
-LLM Wiki は組み込みのローカル HTTP API（`http://127.0.0.1:19828` でリッスン、Token 認証、ローカルホストのみ）を提供します。**Claude Code** や **Codex** などの AI エージェント、または HTTP リクエストを発行できる任意のスクリプトから、直接知識ベースを問い合わせることができます。
+LLM Wiki の API は独立したプロセスです。デスクトップアプリはそれを監督対象の worker として起動し、ローカル socket 経由で通信するため、デスクトップがネットワークポートを開くことはありません。同じ server はスタンドアロンでも動作し、`http://127.0.0.1:19828` で HTTP の RPC（Token 認証）を提供し、ストリームは WebSocket アップグレードで扱います。デスクトップアプリがなくても外部ツールから知識ベースを問い合わせられます。
 
-- `GET /api/v1/health` — サーバー状態（認証不要）
-- `GET /api/v1/projects` — プロジェクト一覧
-- `GET /api/v1/projects/{id}/files` / `files/content` — ファイルツリーと本文の取得
-- `POST /api/v1/projects/{id}/search` — **ハイブリッド検索**（キーワード + ベクトル）。`mode`、`tokenHits`、`vectorHits` を返し、各結果に `vectorScore` を付与
-- `POST /api/v1/projects/{id}/chat` — 非ストリーミングの Rust バックエンド Agent chat エンドポイント。assistant message、references、usage、tool events を返し、Wiki / Source / Web / AnyTXT 検索に対応します。`mode: "deep"` では証拠収集範囲を広げます
-- `GET /api/v1/projects/{id}/graph` — wikilinks の知識グラフ
-- `POST /api/v1/projects/{id}/sources/rescan` — バックエンドの再スキャンをトリガー
-- `POST /api/v1/projects/{id}/pages/embed` — 外部で作成・更新された単一の `wiki/*.md` ページを、ベクトル DB 全体を再構築せずにインデックス化
+```bash
+pnpm api:build        # dist/src/entries/{worker,standalone}.js をバンドル
+LLM_WIKI_API_TOKEN=dev-token node apps/api-server/dist/src/entries/standalone.js
+```
+
+`chatStream` が RPC ストリームである以外は、各操作は 1 回のリクエスト／レスポンスフレームです。`health` は Token も API/MCP のゲートも不要な唯一の操作で、スタンドアロン server ではフレーム化された `POST /rpc` になります。
+
+```bash
+printf '%s\n' '{"_tag":"Request","id":"1","tag":"health","payload":null,"headers":[]}' \
+  | curl -sS --data-binary @- -H 'content-type: application/ndjson' http://127.0.0.1:19828/rpc
+```
 
 **設定 → API + MCP** から API を有効化し、Token を発行できます。必要に応じて、ローカルからの認証なしアクセスも切り替えられます。
 
-MCP 互換クライアント向けに、LLM Wiki には `apps/mcp-server/` も同梱されています。`pnpm mcp:build` でビルドしたあと、**設定 → API + MCP** に現在のマシンに合ったパス入りの MCP クライアント設定が表示され、そのままコピーできます。MCP ツールは同じ API を利用するため、エージェントはプロジェクト一覧、ファイル読み取り、ハイブリッド検索、グラフ参照、ソース再スキャン、同じ Rust バックエンドの Agent チャットエンドポイントの呼び出しを、専用の HTTP 接続コードなしで実行できます。
+MCP 互換クライアント向けに、LLM Wiki には `apps/mcp-server/` も同梱されています。`pnpm mcp:build` でビルドしたあと、**設定 → API + MCP** に現在のマシンに合ったパス入りの MCP クライアント設定が表示され、そのままコピーできます。ローカルモードでは worker の socket パス（`LLM_WIKI_SOCKET_PATH`）、リモートモードでは base URL（`LLM_WIKI_BASE_URL`、必要なら `LLM_WIKI_API_TOKEN`）を使います。MCP ツールは同じ server を呼び出すため、エージェントはプロジェクト一覧、ファイル読み取り、未処理レビュー項目のエクスポート、ハイブリッド検索、グラフ参照、ソース再スキャン、Agent チャット 1 ターンの実行を、専用の接続コードなしで行えます。
+
+### REST API からの移行
+
+`/api/v1` の HTTP サーフェス、その SSE フレーミング、`?token=` クエリ認証は**削除されました**。互換シムはありません。この workspace のどのパッケージも npm へ公開しないため、利用側はリポジトリに同梱の次の 2 つのいずれかへ移行します。
+
+- **MCP Server** — 11 個の `llm_wiki_*` ツール。名前、入力スキーマ、結果テキストは変更されていません。
+- **プロトコルパッケージ**（`packages/protocol`）— リポジトリのチェックアウトから利用: 操作スキーマ、RPC group、socket/HTTP クライアントファクトリ。
+
+1 対 1 に対応せず意味を読み替える点が 2 つあります。旧 HTTP ステータスは**フレーム内の typed error** になり（「ステータス → エラー」の全対応表は `packages/protocol/src/errors/ledger.ts`、そこで参照されるエラークラスは `packages/protocol/src/errors/errors.ts`）、ストリーミングチャットは `Accept: text/event-stream` レスポンスではなく RPC ストリームです。
 
 ### ワンコマンドで AI エージェントを接続
 

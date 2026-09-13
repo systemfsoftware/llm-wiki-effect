@@ -1,6 +1,7 @@
 import { NodeHttpClient } from '@effect/platform-node'
-import { Effect, Exit, Option, Stream } from 'effect'
+import { Effect, Exit, Layer, Option, Stream } from 'effect'
 import { Headers, HttpServerRequest } from 'effect/unstable/http'
+import * as NetAddress from 'effect/unstable/net/NetAddress'
 import { RpcClient } from 'effect/unstable/rpc'
 import { assert as fcAssert, constantFrom, integer, property as fcProperty, string as fcString } from 'fast-check'
 import { Api, Catalog, Client, Domain, Errors, PROTOCOL_VERSION } from 'llm-wiki-protocol'
@@ -248,6 +249,81 @@ const withHttp = <A>(
     const app = yield* buildHarnessApp(spec, harness)
     yield* serveHttp({ app, env: harness.env, listen: { path } })
     return yield* Effect.promise(() => body(harness, path, send))
+  })
+  return Effect.runPromise(Effect.scoped(program))
+}
+
+interface TcpRequestOptions {
+  readonly method?: string | undefined
+  readonly headers?: Readonly<Record<string, string>> | undefined
+  readonly body?: string | undefined
+}
+
+const sendTcp = (port: number, path: string, options: TcpRequestOptions = {}): Promise<HttpResponse> =>
+  new Promise<HttpResponse>((resolve, reject) => {
+    const call = httpRequest(
+      { host: '127.0.0.1', port, path, method: options.method ?? 'POST', headers: options.headers },
+      (response) => {
+        const chunks: Array<string> = []
+        response.setEncoding('utf8')
+        response.on('data', (chunk: string) => chunks.push(chunk))
+        response.on('end', () =>
+          resolve({
+            status: response.statusCode ?? 0,
+            headers: response.headers,
+            body: chunks.join(''),
+          }))
+      },
+    )
+    call.on('error', reject)
+    if (options.body !== undefined) call.write(options.body)
+    call.end()
+  })
+
+const upgradeTcp = (
+  port: number,
+  path: string,
+  headers: Readonly<Record<string, string>>,
+): Promise<string> =>
+  new Promise<string>((resolve) => {
+    const call = httpRequest(
+      { host: '127.0.0.1', port, path, method: 'GET', headers },
+      (response) => resolve(`response:${response.statusCode ?? 0}`),
+    )
+    call.on('upgrade', () => resolve('upgraded'))
+    call.on('error', () => resolve('closed'))
+    call.on('close', () => resolve('closed'))
+    call.end()
+  })
+
+type SendTcp = (path: string, options?: TcpRequestOptions) => Promise<HttpResponse>
+
+const websocketOutcome = (port: number, path: string): Promise<string> =>
+  new Promise<string>((resolve) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${path}`)
+    socket.addEventListener('open', () => {
+      socket.close()
+      resolve('open')
+    })
+    socket.addEventListener('error', () => resolve('error'))
+    socket.addEventListener('close', () => resolve('closed'))
+  })
+
+const withHttpPort = <A>(
+  spec: HarnessSpec,
+  body: (harness: Harness, port: number, send: SendTcp) => Promise<A>,
+): Promise<A> => {
+  const program = Effect.gen(function*() {
+    const harness = yield* prepareHarness(spec)
+    const app = yield* buildHarnessApp(spec, harness)
+    const address = yield* serveHttp({
+      app,
+      env: harness.env,
+      listen: { host: '127.0.0.1', port: 0 },
+    })
+    if (!NetAddress.isInetAddress(address)) throw new Error('expected an inet address')
+    const port = address.port
+    return yield* Effect.promise(() => body(harness, port, (path, options) => sendTcp(port, path, options)))
   })
   return Effect.runPromise(Effect.scoped(program))
 }
@@ -873,5 +949,70 @@ describe('protocol surface', () => {
     expect(new Errors.Unauthorized({ message: 'x' })._tag).toBe('Unauthorized')
     expect(new Errors.BindConflict({ message: 'x' })._tag).toBe('BindConflict')
     expect(new Errors.TooLarge({ message: 'x' })._tag).toBe('TooLarge')
+  })
+})
+
+const healthOverHttpApi = (url: string): Promise<Domain.Health> =>
+  Effect.runPromise(
+    Effect.gen(function*() {
+      const client = yield* Client.HttpApiClient
+      return yield* client.health()
+    }).pipe(
+      Effect.provide(
+        Client.HttpApiClient.layer({ url }).pipe(Layer.provide(NodeHttpClient.layerNodeHttp)),
+      ),
+    ),
+  )
+
+describe('standalone HTTP mount trailing slash', () => {
+  it('round-trips health through the protocol HttpApiClient against /rpc/', async () => {
+    const healths = await withHttpPort({}, async (_harness, port) => ({
+      slashed: await healthOverHttpApi(`http://127.0.0.1:${port}${RPC_PATH}/`),
+      plain: await healthOverHttpApi(`http://127.0.0.1:${port}${RPC_PATH}`),
+    }))
+    expect(healths.slashed).toBeInstanceOf(Domain.Health)
+    expect(healths.slashed.ok).toBe(true)
+    expect(healths.slashed.status).toBe('running')
+    expect(healths.plain.status).toBe('running')
+  })
+
+  it('accepts POST /rpc/ while still rejecting near-miss routes', async () => {
+    const seen = await withHttpPort({}, async (_harness, _port, call) => {
+      const frame = {
+        headers: { 'content-type': Api.ApiSerialization.contentType },
+        body: rpcFrame('health'),
+      }
+      return {
+        slashed: await call(`${RPC_PATH}/`, frame),
+        doubled: await call(`${RPC_PATH}//`, frame),
+        suffixed: await call(`${RPC_PATH}x`, frame),
+        wrongMethod: await call(`${RPC_PATH}/`, { method: 'GET' }),
+      }
+    })
+    expect(seen.slashed.status).toBe(200)
+    expect(seen.slashed.body).toContain('"ok":true')
+    expect(seen.doubled.status).toBe(404)
+    expect(seen.suffixed.status).toBe(404)
+    expect(seen.wrongMethod.status).toBe(405)
+  })
+
+  it('treats /rpc/stream/ as the websocket stream path', async () => {
+    const handshake = (origin: string): Readonly<Record<string, string>> => ({
+      upgrade: 'websocket',
+      connection: 'Upgrade',
+      origin,
+      'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
+      'sec-websocket-version': '13',
+    })
+    const outcomes = await withHttpPort({}, async (_harness, port) => ({
+      foreignSlashed: await upgradeTcp(port, `${RPC_STREAM_PATH}/`, handshake('https://evil.com')),
+      foreignPlain: await upgradeTcp(port, RPC_STREAM_PATH, handshake('https://evil.com')),
+      allowedSlashed: await websocketOutcome(port, `${RPC_STREAM_PATH}/`),
+      allowedPlain: await websocketOutcome(port, RPC_STREAM_PATH),
+    }))
+    expect(outcomes.foreignSlashed).toBe('response:403')
+    expect(outcomes.foreignPlain).toBe('response:403')
+    expect(outcomes.allowedSlashed).toBe('open')
+    expect(outcomes.allowedPlain).toBe('open')
   })
 })

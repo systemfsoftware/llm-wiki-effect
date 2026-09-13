@@ -16,10 +16,13 @@ import {
   guardWikiReadPath,
   guardWikiWritePath,
   guardWorkspaceWritePath,
+  isShellCommandAllowedWithoutPrompt,
   isShellCommandApproved,
   isShellCommandScopedToAgentWorkspace,
   makeToolRegistry,
+  requireCapability,
   requiresApproval,
+  shellCommandFromCall,
   specFor,
   TOOL_SPECS,
 } from '../src/agent/tools/index.js'
@@ -226,6 +229,46 @@ describe('capability policy', () => {
     expect(failureName(shell)).toBe('AgentError')
     expect(stub.calls).toHaveLength(0)
   })
+
+  it('reports no capability at all for a tool outside the table', () => {
+    expect(capabilitiesFor('wiki.search.v2')).toEqual([])
+    expect(capabilitiesFor('')).toEqual([])
+  })
+
+  it('succeeds with true when the policy allows the capability and names the one it refuses', () => {
+    const granted = requireCapability(apiDefaultPolicy(), 'process')
+    expect(Result.isSuccess(granted) && granted.success).toBe(true)
+
+    const refused = requireCapability(apiDefaultPolicy(), 'run_deep_research')
+    expect(Result.isFailure(refused) && refused.failure.message).toBe(
+      "Agent capability 'run_deep_research' is not allowed",
+    )
+  })
+})
+
+describe('shell command extraction', () => {
+  it('takes the first present of command, query, then content', () => {
+    expect(shellCommandFromCall(call('shell.exec', { command: 'echo one' }))).toBe('echo one')
+    expect(shellCommandFromCall(call('shell.exec', { query: 'echo two' }))).toBe('echo two')
+    expect(shellCommandFromCall(call('shell.exec', { content: 'echo three' }))).toBe('echo three')
+    expect(
+      shellCommandFromCall(
+        call('shell.exec', { command: 'echo one', query: 'echo two', content: 'echo three' }),
+      ),
+    ).toBe('echo one')
+    expect(shellCommandFromCall(call('shell.exec', { query: 'echo two', content: 'echo three' }))).toBe(
+      'echo two',
+    )
+  })
+
+  it('trims the extracted command and reports blank or non-string input as absent', () => {
+    expect(shellCommandFromCall(call('shell.exec', { command: '  echo hi  ' }))).toBe('echo hi')
+    expect(shellCommandFromCall(call('shell.exec', { command: '   ' }))).toBeUndefined()
+    expect(shellCommandFromCall(call('shell.exec', { query: '' }))).toBeUndefined()
+    expect(shellCommandFromCall(call('shell.exec', { content: null }))).toBeUndefined()
+    expect(shellCommandFromCall(call('shell.exec', { command: 7 }))).toBeUndefined()
+    expect(shellCommandFromCall(call('shell.exec', {}))).toBeUndefined()
+  })
 })
 
 describe('shell approval gate', () => {
@@ -324,6 +367,15 @@ describe('shell approval gate', () => {
       { numRuns: 200 },
     )
   })
+
+  it('rejects only the blank command and compares every other spelling literally', () => {
+    expect(isShellCommandApproved('', [''])).toBe(false)
+    expect(isShellCommandApproved('   ', ['  '])).toBe(false)
+    expect(isShellCommandApproved('echo hi', ['echo hi'])).toBe(true)
+    for (const listed of ['Stryker was here!', 'echo hi', '\t']) {
+      expect(isShellCommandApproved(listed, [listed])).toBe(listed.trim() !== '')
+    }
+  })
 })
 
 describe('shell command workspace policy', () => {
@@ -343,10 +395,18 @@ describe('shell command workspace policy', () => {
     ['parent traversal', 'cat ../secret.md'],
     ['embedded traversal', 'cat out/../../secret.md'],
     ['absolute outside the workspace', 'cat /etc/passwd'],
+    ['the filesystem root', 'cat /'],
+    ['a doubled root separator', 'cat //'],
+    ['a tripled root separator', 'cat ///'],
     ['absolute elsewhere in the project', `cat ${PROJECT_ROOT}/schema.md`],
     ['absolute windows path', 'type C:/Windows/win.ini'],
     ['unc path', 'cat \\\\server\\share\\x'],
     ['assignment to an absolute path', 'OUT=/etc/passwd python3 gen.py'],
+    ['one-character assignment to an absolute path', 'a=/etc/passwd python3 gen.py'],
+    ['a quoted argument that closes before the path', 'cat "a b" /etc/passwd'],
+    ['a comma run before a root path', 'cat ,,/etc/passwd'],
+    ['a trailing parent segment', 'cat secret/..'],
+    ['a parent segment followed by a comma run', 'cat secret/..,,'],
   ]
 
   const allowed: Array<[string, string]> = [
@@ -358,6 +418,13 @@ describe('shell command workspace policy', () => {
     ['the workspace itself', `ls ${WORKSPACE}`],
     ['relative path with a dash', './out/chart.svg -o x'],
     ['assignment to a relative path', 'OUT=out/chart.svg python3 gen.py'],
+    ['a quoted delimiter before a path', 'cat "x>/etc/passwd"'],
+    ['a singly quoted delimiter before a path', "cat 'x>/etc/passwd'"],
+    ['a comma run inside a path segment', 'cat out/x/,../b.svg'],
+    ['a token that trims down to nothing', 'cat ,'],
+    ['a doubled separator inside the workspace', `cat ${WORKSPACE}//out/chart.svg`],
+    ['the workspace path with a trailing separator', `cat ${WORKSPACE}/`],
+    ['a backslash path inside the workspace', `cat ${WORKSPACE}\\out\\chart.svg`],
   ]
 
   it.each(denied)('denies %s', (_label, command) => {
@@ -440,6 +507,37 @@ describe('shell command workspace policy', () => {
       await Effect.runPromise(workspace.approve(call('shell.exec', { command: 'cat ../secret.md' }))),
     ).toBe(false)
   })
+
+  it('runs approved and workspace-scoped commands without a prompt, and nothing else', () => {
+    expect(isShellCommandAllowedWithoutPrompt('echo hi', ['echo hi'], PROJECT_ROOT)).toBe(true)
+    expect(isShellCommandAllowedWithoutPrompt('python3 gen.py', [], PROJECT_ROOT)).toBe(true)
+    expect(isShellCommandAllowedWithoutPrompt('cat /etc/passwd', [], PROJECT_ROOT)).toBe(false)
+    expect(
+      isShellCommandAllowedWithoutPrompt('cat /etc/passwd', ['cat /etc/passwd'], PROJECT_ROOT),
+    ).toBe(true)
+  })
+})
+
+describe('windows project roots', () => {
+  const WINDOWS_ROOT = 'C:\\proj\\'
+  const WINDOWS_WORKSPACE = 'C:\\proj\\agent-workspace'
+
+  const workspacePaths: Array<[string, string]> = [
+    ['a backslash path inside the workspace', `cat ${WINDOWS_WORKSPACE}\\out\\chart.svg`],
+    ['a doubled separator inside the workspace', 'cat C:/proj//agent-workspace/out/a.svg'],
+    ['the workspace root itself', 'cat C:/proj//agent-workspace'],
+    ['the workspace below a single separator', 'cat C:/proj/agent-workspace'],
+    ['a path below the single-separator workspace', 'cat C:/proj/agent-workspace/out/a.svg'],
+  ]
+
+  it.each(workspacePaths)('allows %s', (_label, command) => {
+    expect(isShellCommandScopedToAgentWorkspace(command, WINDOWS_ROOT)).toBe(true)
+  })
+
+  it('keeps denying absolute paths outside the windows workspace', () => {
+    expect(isShellCommandScopedToAgentWorkspace('type C:/Windows/win.ini', WINDOWS_ROOT)).toBe(false)
+    expect(isShellCommandScopedToAgentWorkspace('type C:/proj/notes.txt', WINDOWS_ROOT)).toBe(false)
+  })
 })
 
 describe('file tool path guards', () => {
@@ -521,6 +619,153 @@ describe('file tool path guards', () => {
     expect(filePathGuard('skill.read_file')).toBeDefined()
     expect(filePathGuard('wiki.search')).toBeUndefined()
     expect(filePathGuard('shell.exec')).toBeUndefined()
+  })
+
+  const RESERVED_STEMS = [
+    'CON',
+    'PRN',
+    'AUX',
+    'NUL',
+    'COM1',
+    'COM2',
+    'COM3',
+    'COM4',
+    'COM5',
+    'COM6',
+    'COM7',
+    'COM8',
+    'COM9',
+    'LPT1',
+    'LPT2',
+    'LPT3',
+    'LPT4',
+    'LPT5',
+    'LPT6',
+    'LPT7',
+    'LPT8',
+    'LPT9',
+  ]
+
+  it.each(RESERVED_STEMS)('rejects the windows device name %s in both write guards', (stem) => {
+    const wiki = guardWikiWritePath(`wiki/${stem.toLowerCase()}.md`)
+    const workspace = guardWorkspaceWritePath(`out/${stem}.txt`)
+    expect(Result.isFailure(wiki) && wiki.failure.message).toBe(
+      'wiki.write_page path uses a Windows reserved device name',
+    )
+    expect(Result.isFailure(workspace) && workspace.failure.message).toBe(
+      'workspace.write_file path uses a Windows reserved device name',
+    )
+  })
+
+  it('matches reserved stems after trailing spaces but not after interior spaces', () => {
+    const spaced = guardWikiWritePath('wiki/con  .md')
+    expect(Result.isFailure(spaced) && spaced.failure.message).toBe(
+      'wiki.write_page path uses a Windows reserved device name',
+    )
+    expect(Result.isSuccess(guardWikiWritePath('wiki/co n.md'))).toBe(true)
+  })
+
+  it('names the read rejection reason for every non-public or non-wiki path', () => {
+    const message = 'wiki.read_page path must stay under wiki/'
+    for (
+      const path of [
+        '',
+        'purpose.md',
+        'raw/sources/a.md',
+        'wiki/../secret.md',
+        'wiki/.hidden.md',
+        'C:/wiki/a.md',
+        '/etc/passwd',
+      ]
+    ) {
+      const outcome = guardWikiReadPath(path)
+      expect(Result.isFailure(outcome) && outcome.failure.message).toBe(message)
+    }
+  })
+
+  it('names the branch and the tool in every wiki write rejection', () => {
+    const cases: Array<[string, string]> = [
+      ['wiki/page.txt', 'wiki.write_page path must be a Markdown file under wiki/'],
+      ['raw/page.md', 'wiki.write_page path must be a Markdown file under wiki/'],
+      ['wiki/.hidden/page.md', 'wiki.write_page cannot write hidden paths'],
+      ['wiki/a\u0000.md', 'wiki.write_page path must stay inside the project'],
+      ['wiki//page.md', 'wiki.write_page path contains an empty segment'],
+      [
+        'wiki/page /x.md',
+        'wiki.write_page path contains a segment ending with a space or dot, which is not portable to Windows',
+      ],
+      [
+        'wiki/page?x.md',
+        'wiki.write_page path contains characters that are invalid on Windows',
+      ],
+      [
+        'wiki/\u001fpage.md',
+        'wiki.write_page path contains characters that are invalid on Windows',
+      ],
+      ['wiki/con.md', 'wiki.write_page path uses a Windows reserved device name'],
+    ]
+    for (const [path, message] of cases) {
+      const outcome = guardWikiWritePath(path)
+      expect(Result.isFailure(outcome) && outcome.failure.message).toBe(message)
+    }
+  })
+
+  it('names the branch and the tool in every workspace write rejection', () => {
+    const cases: Array<[string, string]> = [
+      ['', 'workspace.write_file path must be a relative file under agent-workspace'],
+      ['wiki/a.md', 'workspace.write_file path must be a relative file under agent-workspace'],
+      ['raw/a.md', 'workspace.write_file path must be a relative file under agent-workspace'],
+      ['.hidden/a.md', 'workspace.write_file path must be a relative file under agent-workspace'],
+      ['a\u0000b.txt', 'workspace.write_file path must stay inside agent-workspace'],
+      ['out//a.txt', 'workspace.write_file path contains an empty segment'],
+      [
+        'out/name /a.txt',
+        'workspace.write_file path contains a segment ending with a space or dot, which is not portable to Windows',
+      ],
+      [
+        'out/a<b.txt',
+        'workspace.write_file path contains characters that are invalid on Windows',
+      ],
+      ['out/PRN.txt', 'workspace.write_file path uses a Windows reserved device name'],
+    ]
+    for (const [path, message] of cases) {
+      const outcome = guardWorkspaceWritePath(path)
+      expect(Result.isFailure(outcome) && outcome.failure.message).toBe(message)
+    }
+
+    const marker = guardWorkspaceWritePath('Stryker was here!')
+    expect(Result.isSuccess(marker) && marker.success).toBe('Stryker was here!')
+  })
+
+  it('names the single skill read rejection reason', () => {
+    const message = 'skill.read_file path must be a safe relative path inside the skill directory'
+    for (const path of ['', '   ', '/etc/passwd', '../SKILL.md', 'a/../../b.md', '\\']) {
+      const outcome = guardSkillReadPath(path)
+      expect(Result.isFailure(outcome) && outcome.failure.message).toBe(message)
+    }
+
+    const trimmed = guardSkillReadPath('  references/types.md  ')
+    expect(Result.isSuccess(trimmed) && trimmed.success).toBe('references/types.md')
+
+    for (const path of ['SKILL.md', 'references/types.md', 'Stryker was here!']) {
+      const outcome = guardSkillReadPath(path)
+      expect(Result.isSuccess(outcome) && outcome.success).toBe(path)
+    }
+  })
+
+  it('labels workspace.append_file rejections from the tool table', () => {
+    const outcome = filePathGuard('workspace.append_file')?.('wiki/a.md')
+    expect(outcome !== undefined && Result.isFailure(outcome) && outcome.failure.message).toBe(
+      'workspace.append_file path must be a relative file under agent-workspace',
+    )
+  })
+
+  it('normalizes separators, leading slashes, and surrounding whitespace before guarding', () => {
+    const backs = guardWikiReadPath('  \\wiki\\concepts\\attention.md  ')
+    expect(Result.isSuccess(backs) && backs.success).toBe('wiki/concepts/attention.md')
+
+    const slashes = guardWikiReadPath('//wiki/index.md')
+    expect(Result.isSuccess(slashes) && slashes.success).toBe('wiki/index.md')
   })
 
   const PATH_PARTS = [

@@ -76,9 +76,11 @@ version equals
 `package.json`'s, and rewriting that assertion to accept a path would trade a
 checked invariant for an unchecked one to save one line in a script.
 
-**The MCP server is outside the plan.** `"ignore": ["llm-wiki-mcp-server"]`
-keeps it out. It carries an independent version, is not a dependency of the app,
-and publishes nowhere.
+**The other workspace packages are outside the plan.** `"ignore":
+["llm-wiki-mcp-server", "llm-wiki-protocol", "llm-wiki-api-server"]` keeps them
+out. The app does depend on `llm-wiki-protocol` as a workspace dependency, but
+the plan still versions only the app's own manifest; the other three carry
+independent versions and publish nowhere.
 
 ## Why This Matters
 

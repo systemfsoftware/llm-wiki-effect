@@ -78,6 +78,10 @@ jobs:
         shell: bash
         run: corepack pnpm check:ci
 
+      - name: Smoke test api-server bundle (unix socket mounts)
+        if: matrix.platform != 'windows-latest'
+        run: node apps/api-server/scripts/smoke.mjs
+
       - name: Check Rust build
         working-directory: apps/desktop/src-tauri
         run: cargo build

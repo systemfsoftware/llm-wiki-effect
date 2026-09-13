@@ -261,6 +261,10 @@ export async function apiServerStatus(): Promise<string> {
   return invoke<string>('api_server_status')
 }
 
+export async function apiServerSocketPath(): Promise<string> {
+  return invoke<string>('api_server_socket_path')
+}
+
 export async function apiServerReloadConfig(): Promise<string> {
   return invoke<string>('api_server_reload_config')
 }

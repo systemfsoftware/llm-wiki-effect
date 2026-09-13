@@ -17,7 +17,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ProjectRegistry, type ProjectRegistryShape } from '../src/projects/Registry.js'
-import { reviewIdFor, ReviewsStore, type ReviewsStoreShape, stableReviewId } from '../src/reviews/index.js'
+import {
+  normalizeReviewTitle,
+  reviewIdFor,
+  ReviewsStore,
+  type ReviewsStoreShape,
+  stableReviewId,
+} from '../src/reviews/index.js'
 
 const PROJECT_ID = 'project-1'
 
@@ -141,6 +147,26 @@ describe('review ids', () => {
     expect(reviewIdFor('missing-page', 'Missing page Attention')).not.toBe(
       reviewIdFor('missing-page', 'Attention'),
     )
+  })
+
+  it('collapses case and whitespace differences onto one id', () => {
+    expect(reviewIdFor('missing-page', 'Attention ')).toBe(reviewIdFor('missing-page', 'Attention'))
+    expect(reviewIdFor('missing-page', 'Attention  Notes')).toBe(
+      reviewIdFor('missing-page', 'attention notes'),
+    )
+    expect(normalizeReviewTitle('  Attention   Notes  ')).toBe('attention notes')
+    expect(normalizeReviewTitle('Missing page:  Attention  Notes ')).toBe('attention notes')
+  })
+
+  it('requires both the type and the title to be strings', () => {
+    expect(stableReviewId({ type: 'missing-page', title: 'Attention' })).toBe(
+      reviewIdFor('missing-page', 'Attention'),
+    )
+    expect(stableReviewId({ type: 42, title: 'Attention' })).toBeUndefined()
+    expect(stableReviewId({ type: 'missing-page', title: 42 })).toBeUndefined()
+    expect(stableReviewId({ type: 'missing-page' })).toBeUndefined()
+    expect(stableReviewId({ title: 'Attention' })).toBeUndefined()
+    expect(stableReviewId({ type: null, title: null })).toBeUndefined()
   })
 })
 

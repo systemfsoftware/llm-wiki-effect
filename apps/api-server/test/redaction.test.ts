@@ -158,6 +158,14 @@ describe('agent event redaction', () => {
     expect(redactEvent(delta)).toBe(delta)
   })
 
+  it('leaves another event type alone even when it carries a rollback field', () => {
+    const delta = new Domain.AgentMessageDeltaEvent({ type: 'messageDelta', text: 'hi' })
+    const forged = Object.assign(delta, { previousContent: 'leaked' })
+
+    expect(redactEvent(forged)).toBe(forged)
+    expect(encode(forged)).toHaveProperty('previousContent', 'leaked')
+  })
+
   it('serves redaction through the Redactor layer', async () => {
     const redacted = await Effect.runPromise(
       Effect.provide(

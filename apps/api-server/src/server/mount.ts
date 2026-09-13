@@ -104,6 +104,8 @@ const requestPath = (url: string): string => {
   return withoutQuery
 }
 
+const withoutTrailingSlash = (path: string): string => path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path
+
 export const makeHttpApp = (input: {
   readonly app: AppContext
   readonly env: ServerEnv
@@ -117,7 +119,7 @@ export const makeHttpApp = (input: {
     const scope = yield* Effect.scope
     return Effect.gen(function*() {
       const request = yield* HttpServerRequest.HttpServerRequest
-      const path = requestPath(request.url)
+      const path = withoutTrailingSlash(requestPath(request.url))
       const upgrade = headerValue(request.headers, 'upgrade')
       if (path === RPC_STREAM_PATH && upgrade !== undefined) {
         if (!isUpgradeOriginAllowed(request.headers)) {

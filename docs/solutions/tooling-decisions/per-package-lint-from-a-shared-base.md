@@ -59,16 +59,17 @@ one. Gate: `pnpm lint` reports `0 warnings and 0 errors` in every package.
 `lint` task lists `$TURBO_ROOT$/packages/oxlint-config/src/**` alongside its own
 `oxlint.config.ts` and `tsconfig*.json`, so one rule edit in the base re-runs
 every package's lint instead of serving stale cached verdicts. Gate: adding a
-rule to the base turns all three `llm-wiki*#lint` tasks to `cache MISS` in
+rule to the base turns all five `llm-wiki*#lint` tasks to `cache MISS` in
 `pnpm exec turbo run lint --dry=json`.
 
 **TypeScript configs come from the published preset, not from hand-written
 compiler options.** Every package extends `@systemfsoftware/tsconfig` — the app
 `bundler/dom` plus `jsx: react-jsx` and the `@/*` alias; the config projects
-`schema`-free `node`; the MCP server and the config package
-`tsc/no-dom/library`. The preset's strictness is the point: adopting it surfaced
-1048 type errors in the app and 168 in the MCP server, all of which had to be
-fixed rather than suppressed. Gate: `pnpm typecheck` is green with no
+`schema`-free `node`; the API server, MCP server, protocol, and config packages
+`tsc/no-dom/library` (each with `"types": ["node"]`). The preset's strictness is
+the point: adopting it surfaced 1048 type errors in the app and 168 in the MCP
+server, all of which had to be fixed rather than suppressed. Gate:
+`pnpm typecheck` is green with no
 `@ts-ignore`, `@ts-expect-error`, or `!` assertion added — the last is enforced
 by `typescript/no-non-null-assertion: error`.
 
@@ -93,7 +94,8 @@ task names, and a bare `turbo run lint` selects member packages only. The root's
 own tooling (`scripts/`, `bin/`, `commitlint.config.ts`, `.lintstagedrc.js`) is
 formatted by `dprint` and read by neither oxlint nor a tsconfig. Gate:
 `pnpm exec turbo run lint --dry=json` lists `llm-wiki#lint`,
-`llm-wiki-mcp-server#lint`, and `llm-wiki-oxlint-config#lint` and no `//#` entry.
+`llm-wiki-api-server#lint`, `llm-wiki-mcp-server#lint`,
+`llm-wiki-oxlint-config#lint`, and `llm-wiki-protocol#lint`, and no `//#` entry.
 
 **`lint-staged` grades a staged file with its owning package's config.**
 `.lintstagedrc.js` walks up from each file to the nearest `oxlint.config.ts` and
@@ -143,12 +145,14 @@ a lint change means reading the base, not N package configs that drift.
 ```text
 packages/oxlint-config/src/oxlint-config.base.ts   the ruleset, one copy
 apps/desktop/oxlint.config.ts                      spread + app tsconfig
+apps/api-server/oxlint.config.ts                   spread + node types
 apps/mcp-server/oxlint.config.ts                   spread + node types
+packages/protocol/oxlint.config.ts                 spread + node types
 packages/oxlint-config/oxlint.config.ts            spread + own tsconfig
 
-pnpm lint                                          turbo run lint -> 3 package tasks
-pnpm typecheck                                     turbo run typecheck -> 3 package tasks
-pnpm exec turbo run lint --dry=json                no //# task, 3 cache entries
+pnpm lint                                          turbo run lint -> 5 package tasks
+pnpm typecheck                                     turbo run typecheck -> 5 package tasks
+pnpm exec turbo run lint --dry=json                no //# task, 5 cache entries
 ```
 
 The measured failing form, for contrast: `extends: [base]` on the app, then

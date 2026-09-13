@@ -16,7 +16,7 @@ The server picks its transport from the environment:
 
 `LLM_WIKI_SOCKET_PATH` wins when both are set. When neither is set, every tool fails with an instruction naming both variables.
 
-The desktop app generates the correct config for local mode: **Settings → API + MCP → MCP usage**.
+The desktop app generates the correct config for local mode: **Settings → API + MCP** shows a copyable MCP client configuration with the local entry path and the worker's socket path injected as `LLM_WIKI_SOCKET_PATH`.
 
 ## Requirements
 

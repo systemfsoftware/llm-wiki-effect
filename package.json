@@ -26,7 +26,7 @@
     "typecheck": "turbo run typecheck",
     "precommit": "pnpm exec lint-staged --no-revert --config .lintstagedrc.js",
     "prepare": "husky",
-    "gate:tasks": "turbo run --continue --concurrency=100% lint typecheck test:mocks llm-wiki-mcp-server#test llm-wiki-protocol#test llm-wiki-api-server#test",
+    "gate:tasks": "turbo run --continue --concurrency=100% lint typecheck llm-wiki#test:mocks llm-wiki-mcp-server#test llm-wiki-protocol#test llm-wiki-api-server#test",
     "gate:dist": "turbo run --concurrency=100% --continue build",
     "check:ci": "node scripts/check-ci.mjs format:check gate:tasks gate:dist"
   },

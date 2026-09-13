@@ -16,6 +16,7 @@
   "license": "MIT",
   "dependencies": {
     "@effect/platform-node": "catalog:",
+    "@lancedb/lancedb": "0.27.2",
     "effect": "catalog:",
     "llm-wiki-protocol": "workspace:*"
   },

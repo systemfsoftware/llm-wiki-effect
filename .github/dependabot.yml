@@ -91,3 +91,12 @@ updates:
       cargo-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+
+  # The flake's `comment-checker` input carries `nix/release-hashes.json`, so a
+  # bump of it moves the pinned version and the four release digests together —
+  # no sum in `nix/comment-checker.nix` is edited by hand.
+  - package-ecosystem: "nix"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"

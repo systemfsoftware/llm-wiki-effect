@@ -54,9 +54,10 @@ sufficient:
 3. Upstream owns that gate. Grading the tree from here makes the consumer the
    authority over code it does not maintain.
 
-Gate: `review` — the change touched no path under `repos/`, which `WT-S3` in
-the vendored `worktrunk-scripts` doctrine and this repo's own vendoring
-procedure both require be read-only.
+Gate: `review` — the change edits no file under `repos/`, which `WT-S3` in the
+vendored `worktrunk-scripts` doctrine and this repo's own vendoring procedure
+both require be read-only. The same branch adds those trees wholesale from
+upstream, which is an import, not an edit.
 
 **Do not turn the rules off.** Every rule that fired is load-bearing for `src/`,
 `mcp-server/`, `extension/`, and `scripts/` — the same rules were clearing this

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://v2-10-1.turborepo.dev/schema.json",
+  "globalEnv": ["CI", "NODE_ENV"],
+  "globalPassThroughEnv": ["XDG_CACHE_HOME", "GITHUB_ACTIONS", "AGENT"],
+  "tasks": {
+    "llm-wiki#lint": {
+      "outputLogs": "errors-only",
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
+      "outputs": [],
+      "cache": true
+    },
+    "typecheck": {
+      "outputLogs": "errors-only",
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
+      "outputs": [],
+      "cache": true
+    },
+    "build": {
+      "outputLogs": "new-only",
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**", "!src-tauri/**"],
+      "outputs": ["dist/**"],
+      "dependsOn": ["typecheck"],
+      "cache": true
+    },
+    "llm-wiki#test:mocks": {
+      "outputLogs": "errors-only",
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!repos/**"],
+      "outputs": [],
+      "cache": true
+    },
+    "llm-wiki-mcp-server#test": {
+      "outputLogs": "errors-only",
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "outputs": ["dist-test/**"],
+      "dependsOn": ["build"],
+      "cache": true
+    }
+  }
+}

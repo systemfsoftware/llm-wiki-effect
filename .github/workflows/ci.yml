@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,7 +15,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  conflicts:
+    name: no merge conflicts
+    uses: ./.github/workflows/conflict-check.yml
+    with:
+      base_ref: ${{ github.event.pull_request.base.ref }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+
   check:
+    name: gate · lint · typecheck · test · build (${{ matrix.platform }})
+    needs: conflicts
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      NODE_OPTIONS: "--max-old-space-size=4096"
     strategy:
       fail-fast: false
       matrix:
@@ -24,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -50,6 +64,15 @@ jobs:
 
       - name: Install workspace dependencies
         uses: ./.github/actions/install-deps
+
+      - name: Turbo cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-gate-${{ github.event.pull_request.head.sha || github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-gate-
+            turbo-${{ runner.os }}-
 
       - name: Gate
         shell: bash

@@ -461,7 +461,7 @@ LLM Wiki에는 `http://127.0.0.1:19828`의 내장 로컬 HTTP API가 포함되�
 
 **Settings → API + MCP**에서 API를 활성화하고 token을 생성할 수 있습니다. 필요하면 로컬 unauthenticated access도 켜거나 끌 수 있습니다.
 
-MCP 호환 클라이언트를 위해 LLM Wiki는 `mcp-server/`도 함께 제공합니다. `pnpm mcp:build`로 빌드한 뒤 **Settings → API + MCP**에서 현재 머신의 실제 경로가 들어간 MCP client configuration을 복사할 수 있습니다. MCP tools는 같은 API surface를 사용하므로 에이전트는 별도 HTTP glue code 없이 project list, file read, hybrid search, graph inspect, source rescan, 같은 Rust 백엔드 Agent chat endpoint 호출을 실행할 수 있습니다.
+MCP 호환 클라이언트를 위해 LLM Wiki는 `apps/mcp-server/`도 함께 제공합니다. `pnpm mcp:build`로 빌드한 뒤 **Settings → API + MCP**에서 현재 머신의 실제 경로가 들어간 MCP client configuration을 복사할 수 있습니다. MCP tools는 같은 API surface를 사용하므로 에이전트는 별도 HTTP glue code 없이 project list, file read, hybrid search, graph inspect, source rescan, 같은 Rust 백엔드 Agent chat endpoint 호출을 실행할 수 있습니다.
 
 ### 한 줄 명령으로 AI 에이전트 연결하기
 

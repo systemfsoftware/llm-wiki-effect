@@ -461,7 +461,7 @@ LLM Wiki 内置一个本地 HTTP API（监听 `http://127.0.0.1:19828`，Token �
 
 在 **设置 → API + MCP** 中开启 API、生成 Token，并按需选择是否允许本机无鉴权访问。
 
-对于兼容 MCP 的客户端，LLM Wiki 还内置了 `mcp-server/`。执行 `pnpm mcp:build` 构建后，**设置 → API + MCP** 会展示一份可复制的 MCP 客户端配置，并自动填入当前机器上的真实入口路径。MCP 工具复用同一套 API 能力，因此 Agent 可以直接列出项目、读取文件、执行 Hybrid 检索、查看图谱、触发资料源重新扫描，并调用同一套 Rust 后端 Agent 聊天接口，不需要再手写 HTTP 调用。
+对于兼容 MCP 的客户端，LLM Wiki 还内置了 `apps/mcp-server/`。执行 `pnpm mcp:build` 构建后，**设置 → API + MCP** 会展示一份可复制的 MCP 客户端配置，并自动填入当前机器上的真实入口路径。MCP 工具复用同一套 API 能力，因此 Agent 可以直接列出项目、读取文件、执行 Hybrid 检索、查看图谱、触发资料源重新扫描，并调用同一套 Rust 后端 Agent 聊天接口，不需要再手写 HTTP 调用。
 
 ### 一条命令把 AI Agent 接进你的知识库
 

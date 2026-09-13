@@ -8,7 +8,7 @@ component: tooling
 severity: medium
 applies_when:
   - Adding or renaming a task in turbo.json
-  - Adding a script to the root package.json or to mcp-server
+  - Adding a script to the root package.json or to an app package under apps/
   - A task reports FULL TURBO when it should have re-run
 tags: [turbo, task-graph, monorepo, caching, pnpm-workspace]
 ---
@@ -17,15 +17,20 @@ tags: [turbo, task-graph, monorepo, caching, pnpm-workspace]
 
 ## Context
 
-This repo is a pnpm workspace of exactly two projects: the desktop app, which
-lives at the repository root, and the MCP server under `mcp-server`. `turbo`
-was installed and the gates were routed through it, matching the template the
-repo's toolchain was drawn from.
+This repo is a pnpm workspace of three projects: the desktop app under
+`apps/desktop`, the MCP server under `apps/mcp-server`, and the root package,
+which is a pure orchestrator (no runtime dependencies, no version). `turbo`
+routes the gates, matching the template the repo's toolchain was drawn from.
 
-The shape differs from that template in one way that changes every rule below.
-The template's `pnpm-workspace.yaml` lists only `apps/*` and `packages/*`, so
-its root `package.json` is a pure orchestrator with no task scripts of its own.
-This repo lists `"."` explicitly, so the root **is** a task-owning package.
+The shape now matches that template, with one addition the template does not
+need: the root still owns two task scripts (`lint` and `typecheck`, for the
+repo-wide oxlint pass and the root tooling tsconfig), so those two tasks are
+**registered root tasks** — `//#lint` and `//#typecheck` in `turbo.json`.
+Measured on turbo 2.10.12: a bare `turbo run <task>` selects only member
+packages' scripts; the root package joins the selection only when the task has
+a `//#<task>` definition registered. Register no other `//#` keys — the root's
+`test:mocks` and `build` wrapper scripts stay out of every bare selection for
+the same reason.
 
 ## Guidance
 
@@ -33,8 +38,8 @@ This repo lists `"."` explicitly, so the root **is** a task-owning package.
 `gate:dist`, and `check:ci` are the entry points, and none of them is a task
 name. A root script named `build` that invoked `turbo run build` would re-enter
 itself. Gate: `pnpm exec turbo run build --dry=json` lists
-`llm-wiki#build` and `llm-wiki-mcp-server#build`; a recursive script would not
-terminate at all.
+`llm-wiki#build` and `llm-wiki-mcp-server#build` and never selects the root; a
+recursive script would not terminate at all.
 
 **`check:ci` stays a three-phase enumeration, not a turbo invocation.**
 `check:ci` is `node scripts/check-ci.mjs format:check gate:tasks gate:dist`:
@@ -46,37 +51,45 @@ per-phase reporting for nothing — turbo already reports each task's outcome
 inside a phase. Gate: `pnpm check:ci` prints one `[check:ci] <phase> ok` line per
 phase.
 
-**A task definition may be package-qualified, and every task only one package
-implements must be.** `llm-wiki#lint`, `llm-wiki#test:mocks`, and
-`llm-wiki-mcp-server#test` carry their package; only `typecheck` and `build`
-stay unqualified, because only those two are defined in both packages.
-Unqualified definitions are not harmless: an unqualified `test` would also
-capture the root `test` script — which runs `test:llm` and needs paid API keys
-— after building the whole app, and the unqualified `lint` and `test:mocks`
-tasks appear in the graph for the MCP server even though that package has no
-such script. Gate: `pnpm exec turbo run lint typecheck test:mocks
-llm-wiki-mcp-server#test --dry=json` lists exactly the six tasks that execute,
-with no phantom entries for a package that does not define the script.
+**A task definition may be package-qualified or a registered root task, and
+every task must be one or the other.** `//#lint` and `//#typecheck` are the
+root's; `llm-wiki#test:mocks` and `llm-wiki-mcp-server#test` carry their
+package; only `typecheck` and `build` stay unqualified, because member packages
+define them. Unqualified definitions are not harmless: an unqualified `test`
+would also capture a root `test` wrapper — which builds the whole app before
+running suites that need paid API keys — and phantom entries appear for packages
+without the script. Gate: `pnpm exec turbo run lint typecheck test:mocks
+llm-wiki-mcp-server#test --dry=json` lists exactly the seven tasks that execute
+(`//#lint`, `//#typecheck`, `llm-wiki#typecheck`, `llm-wiki-mcp-server#typecheck`,
+`llm-wiki#test:mocks`, `llm-wiki-mcp-server#build`,
+`llm-wiki-mcp-server#test`), with no phantom entries.
 
 **`dependsOn` replaces an inline chained command, and the release path restates
-it.** The root `build` script is `vite build`; the ordering that used to be
+it.** The app's `build` script is `vite build`; the ordering that used to be
 `pnpm typecheck && vite build` now lives in the `build` task's
 `dependsOn: ["typecheck"]`. `build:desktop` is `turbo run typecheck build`, so
 the Tauri `beforeBuildCommand` still typechecks before bundling. The MCP
 `test` script likewise dropped its inline `pnpm build &&`, because the graph
-supplies it. Gate: `pnpm build:desktop` from a deleted `dist/` and
-`mcp-server/dist/` restores both.
+supplies it. Gate: `pnpm build:desktop` from a deleted `apps/desktop/dist/` and
+`apps/mcp-server/dist/` restores both.
 
 **Narrow `inputs` only to trees the task provably cannot read, and prove the
-narrowing with an A/B on a real edit.** Every root task keyed on 527 files,
-including 61 under `src-tauri/` and 41 under `repos/`; `oxlint`'s
-`ignorePatterns` and both `tsconfig` include lists exclude both trees, so the
-declared inputs over-claimed by 102 files. `llm-wiki#lint`, `typecheck`, and
-`build` now carry `!repos/**` and `!src-tauri/**`; `llm-wiki#test:mocks` carries
-`!repos/**` only. Gate: one Rust-only edit to `src-tauri/src/main.rs` left 3 of
-6 tasks cached before the change and 5 of 6 after; one `src-tauri/Cargo.toml`
-edit still invalidates `llm-wiki#test:mocks`, and one `src/` edit still
-invalidates all three root tasks.
+narrowing with an A/B on a real edit.** Root tasks key on `$TURBO_DEFAULT$`
+(the root package's files, which include the vendored `repos/` tree) plus
+explicit positive globs for the trees oxlint reads outside the root package
+(`apps/*/src/**`, `apps/*/test/**`, app-root configs, `extension/**/*.js`);
+`//#lint` carries depth-free `!**/repos/**` and `!**/src-tauri/**` negations,
+`//#typecheck` carries `!**/repos/**`. Member-package tasks keep package-relative
+negations (`!src-tauri/**` on `typecheck`/`build` resolves to
+`apps/desktop/src-tauri/**` for the app and matches nothing for the MCP server).
+What excludes which tree: `oxlint.config.ts` ignorePatterns are depth-free
+(`**/src-tauri/**`, `**/repos/**`), the app's `tsconfig.app.json` scopes to
+`apps/desktop/src`, and the root tooling tsconfig covers only
+`commitlint.config.ts` and `oxlint.config.ts`. (The A/B that justified the
+first narrowing — 61 files under `src-tauri/` and 41 under `repos/`
+over-claimed — predates the `apps/*` move; the negations it proved carry over
+verbatim in depth-free form.) Gate: after a Rust-only edit to
+`apps/desktop/src-tauri/src/main.rs`, the JS-task hashes are unchanged.
 
 **A negation cannot be undone by naming the file back.** Turbo hoists every
 `!`-pattern ahead of the positive globs, so
@@ -84,11 +97,11 @@ invalidates all three root tasks.
 negation first and the file stays excluded — measured, the resolved input map
 contained zero `src-tauri` paths either way round. This is why
 `llm-wiki#test:mocks` keeps the whole `src-tauri/` tree rather than trying to
-keep two files out of it: `src/lib/changelog.test.ts` reads
-`src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, and it is the only guard
-against version skew between `package.json`, the Tauri config, and the crate
-manifest. Gate: `llm-wiki#test:mocks` re-runs after a `src-tauri/Cargo.toml`
-edit.
+keep two files out of it: `apps/desktop/src/lib/changelog.test.ts` reads
+`apps/desktop/src-tauri/tauri.conf.json` and `apps/desktop/src-tauri/Cargo.toml`,
+and it is the only guard against version skew between the app manifest, the
+Tauri config, and the crate manifest. Gate: `llm-wiki#test:mocks` re-runs after
+an `apps/desktop/src-tauri/Cargo.toml` edit.
 
 **`dependsOn: ["^build"]` would do nothing here, so it is not written.**
 `^` expands to a package's `directDependencies`, and both packages report

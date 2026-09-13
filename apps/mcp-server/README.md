@@ -20,7 +20,7 @@ Optional:
 
 ## Build
 
-Run both commands from the repository root. `mcp-server/` is a pnpm workspace package, so the root install already provides its dependencies.
+Run both commands from the repository root. `apps/mcp-server/` is a pnpm workspace package, so the root install already provides its dependencies.
 
 ```bash
 pnpm install
@@ -40,7 +40,7 @@ Example MCP client config:
   "mcpServers": {
     "llm-wiki": {
       "command": "node",
-      "args": ["/absolute/path/to/llm_wiki/mcp-server/dist/src/index.js"],
+      "args": ["/absolute/path/to/llm_wiki/apps/mcp-server/dist/src/index.js"],
       "env": {
         "LLM_WIKI_API_TOKEN": "your-token"
       }

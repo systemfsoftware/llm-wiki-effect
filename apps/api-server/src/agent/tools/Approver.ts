@@ -1,10 +1,13 @@
 import { Effect } from 'effect'
 import { Errors } from 'llm-wiki-protocol'
 import { isShellCommandAllowedWithoutPrompt, isShellCommandApproved, shellCommandFromCall } from './permissions.js'
-import type { ToolCall } from './types.js'
+import type { ToolCall, ToolCallContext } from './types.js'
 
 export interface Approver {
-  readonly approve: (call: ToolCall) => Effect.Effect<boolean, Errors.AgentError>
+  readonly approve: (
+    call: ToolCall,
+    context: ToolCallContext,
+  ) => Effect.Effect<boolean, Errors.AgentError>
 }
 
 export const denyAll: Approver = { approve: () => Effect.succeed(false) }

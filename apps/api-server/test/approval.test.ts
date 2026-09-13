@@ -454,6 +454,7 @@ describe('supervisor approval channel', () => {
     const frame = outcome.supervisor.frames[0]
     expect(frame?.type).toBe('approval_request')
     expect(frame?.projectId).toBe('p1')
+    expect(frame?.sessionId).toBe('s1')
     expect(frame?.commands).toEqual(['echo approved'])
     expect(calls.map((call) => call.input['command'])).toEqual(['echo approved'])
     expect(calls[0]?.projectRoot).toBe(outcome.root)
@@ -485,6 +486,7 @@ describe('supervisor approval channel', () => {
     )
 
     expect(outcome.supervisor.frames).toHaveLength(1)
+    expect(outcome.supervisor.frames[0]?.sessionId).toBe('s1')
     expect(outcome.supervisor.frames[0]?.commands).toEqual(['echo denied'])
     expect(calls).toEqual([])
     expect(
@@ -522,6 +524,7 @@ describe('supervisor approval channel', () => {
         }),
     )
 
+    expect(outcome.frame.sessionId).toBe('s1')
     expect(outcome.frame.commands).toEqual(['echo slow'])
     expect(outcome.supervisor.frames).toHaveLength(1)
     expect(calls).toEqual([])
@@ -550,6 +553,7 @@ describe('supervisor approval channel', () => {
         }),
     )
 
+    expect(outcome.frame.sessionId).toBe('s1')
     expect(outcome.frame.commands).toEqual(['echo gone'])
     expect(calls).toEqual([])
     expect(outcome.response.message.content).toContain('needs approval')
@@ -613,6 +617,7 @@ describe('supervisor approval channel', () => {
     )
 
     expect(outcome.supervisor.frames).toHaveLength(1)
+    expect(outcome.supervisor.frames[0]?.sessionId).toBe('s1')
     expect(outcome.supervisor.frames[0]?.commands).toEqual(['echo wire'])
     expect(calls).toEqual([])
     expect(outcome.body).toContain('approval required: echo wire')

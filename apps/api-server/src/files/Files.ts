@@ -74,15 +74,6 @@ const fromFsList = <A>(run: () => Promise<A>): Effect.Effect<A, ListError> =>
 const fromFsRead = <A>(run: () => Promise<A>): Effect.Effect<A, ReadError> =>
   Effect.tryPromise({ try: run, catch: readFailure })
 
-const exists = async (path: string): Promise<boolean> => {
-  try {
-    await stat(path)
-    return true
-  } catch {
-    return false
-  }
-}
-
 const relativeToProject = (root: string, path: string): string => relative(root, path).split(sep).join('/')
 
 const compareNodes = (left: Domain.FileNode, right: Domain.FileNode): number => {
@@ -105,6 +96,7 @@ const readDirectory = async (dir: string): Promise<ReadonlyArray<Dirent>> => {
 const pushFileNode = async (
   root: string,
   path: string,
+  entry: Dirent | Stats,
   recursive: boolean,
   maxFiles: number,
   state: WalkState,
@@ -112,13 +104,12 @@ const pushFileNode = async (
 ): Promise<void> => {
   const name = basename(path)
   if (name.startsWith('.')) return
-  const info = await lstat(path)
-  if (info.isSymbolicLink()) return
+  if (entry.isSymbolicLink()) return
   state.count += 1
   if (state.count > maxFiles) {
     throw new Errors.TooLarge({ message: `File listing exceeds maxFiles limit (${maxFiles})` })
   }
-  const isDir = info.isDirectory()
+  const isDir = entry.isDirectory()
   const children = recursive && isDir
     ? await listTree(root, path, recursive, maxFiles, state)
     : null
@@ -127,7 +118,7 @@ const pushFileNode = async (
       name,
       path: relativeToProject(root, path),
       isDir,
-      size: isDir ? null : info.size,
+      size: isDir ? null : (await lstat(path)).size,
       children,
     }),
   )
@@ -143,7 +134,7 @@ const listTree = async (
   const entries = await readDirectory(dir)
   const out: Array<Domain.FileNode> = []
   for (const entry of entries) {
-    await pushFileNode(root, join(dir, entry.name), recursive, maxFiles, state, out)
+    await pushFileNode(root, join(dir, entry.name), entry, recursive, maxFiles, state, out)
   }
   return out.sort(compareNodes)
 }
@@ -158,22 +149,27 @@ const canonicalRoot = async (root: string): Promise<string> => {
   }
 }
 
+const realpathOrNull = async (path: string): Promise<string | null> => {
+  try {
+    return await realpath(path)
+  } catch {
+    return null
+  }
+}
+
 const containedPath = async (rootReal: string, target: string): Promise<string> => {
-  if (await exists(target)) {
-    const resolved = await realpath(target)
+  const resolved = await realpathOrNull(target)
+  if (resolved !== null) {
     if (!isWithinRoot(rootReal, resolved)) {
       throw new Errors.PathViolation({ message: 'Resolved path escapes the project directory' })
     }
     return resolved
   }
-  const parent = dirname(target)
-  if (await exists(parent)) {
-    const parentReal = await realpath(parent)
-    if (!isWithinRoot(rootReal, parentReal)) {
-      throw new Errors.PathViolation({
-        message: 'Resolved parent escapes the project directory',
-      })
-    }
+  const parentReal = await realpathOrNull(dirname(target))
+  if (parentReal !== null && !isWithinRoot(rootReal, parentReal)) {
+    throw new Errors.PathViolation({
+      message: 'Resolved parent escapes the project directory',
+    })
   }
   return target
 }
@@ -195,8 +191,9 @@ const listPublicRoots = async (
   const out: Array<Domain.FileNode> = []
   for (const publicRoot of PUBLIC_ROOTS) {
     const path = join(root, publicRoot)
-    if (!(await exists(path))) continue
-    await pushFileNode(root, path, recursive, maxFiles, state, out)
+    const info = await lstat(path).catch(() => null)
+    if (info === null) continue
+    await pushFileNode(root, path, info, recursive, maxFiles, state, out)
   }
   return out
 }

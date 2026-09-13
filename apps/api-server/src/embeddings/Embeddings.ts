@@ -1,6 +1,6 @@
 import { Context, Duration, Effect, Layer, Option, Result } from 'effect'
 import { Domain, Errors } from 'llm-wiki-protocol'
-import type { Dirent } from 'node:fs'
+import type { Dirent, Stats } from 'node:fs'
 import { readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, sep } from 'node:path'
 import type { ConfigShape } from '../config/Config.js'
@@ -158,7 +158,10 @@ const pathComponents = (raw: string): ReadonlyArray<string> => {
 const resolveWikiMarkdownPath = (
   projectRoot: string,
   relativePath: string,
-): Effect.Effect<{ readonly pagePath: string; readonly normalizedPath: string }, Errors.EmbedError> =>
+): Effect.Effect<
+  { readonly pagePath: string; readonly normalizedPath: string; readonly stats: Stats },
+  Errors.EmbedError
+> =>
   Effect.gen(function*() {
     const raw = relativePath.trim().replace(/\\/g, '/')
     if (raw === '') return yield* Effect.fail(embedError('InvalidRequest', 'path is required'))
@@ -187,20 +190,29 @@ const resolveWikiMarkdownPath = (
       try: () => realpath(join(projectRoot, raw)),
       catch: (error) => embedError('NotFound', `Wiki page not found: ${describeError(error)}`),
     })
-    const isFile = yield* Effect.promise(async () => {
+    const pageStats = yield* Effect.promise(async () => {
       try {
-        return (await stat(page)).isFile()
+        return await stat(page)
       } catch {
-        return false
+        return undefined
       }
     })
     const insideWiki = page === wiki || page.startsWith(`${wiki}${sep}`)
-    if (!insideWiki || !isFile || (extensionOf(basename(page)) ?? '').toLowerCase() !== 'md') {
+    if (
+      !insideWiki ||
+      pageStats === undefined ||
+      !pageStats.isFile() ||
+      (extensionOf(basename(page)) ?? '').toLowerCase() !== 'md'
+    ) {
       return yield* Effect.fail(
         embedError('InvalidRequest', 'path must resolve to a file inside the project wiki directory'),
       )
     }
-    return { pagePath: page, normalizedPath: relative(project, page).replace(/\\/g, '/') }
+    return {
+      pagePath: page,
+      normalizedPath: relative(project, page).replace(/\\/g, '/'),
+      stats: pageStats,
+    }
   })
 
 const walkFiles = async (dir: string): Promise<Array<string>> => {
@@ -327,6 +339,8 @@ const fetchWithRetry = (
       }
       const halved = Array.from(current).length > 64 ? halveText(current) : undefined
       if (attempts <= maxRetries && halved !== undefined) {
+        const oversizeRetryDelayMillis = Math.min(100 * attempts, 500)
+        yield* Effect.sleep(Duration.millis(oversizeRetryDelayMillis))
         current = halved
         continue
       }
@@ -561,11 +575,7 @@ const embedPageAtRoot = (
     const spec = embeddingSpecFrom(values)
     if (!spec.enabled) return yield* Effect.fail(embeddingDisabled())
     const target = yield* resolveWikiMarkdownPath(projectRoot, relativePath)
-    const metadata = yield* Effect.tryPromise({
-      try: () => stat(target.pagePath),
-      catch: (error) => embedError('NotFound', `Failed to inspect wiki page: ${describeError(error)}`),
-    })
-    if (metadata.size > MAX_PAGE_BYTES) {
+    if (target.stats.size > MAX_PAGE_BYTES) {
       return yield* Effect.fail(
         embedError(
           'InvalidRequest',

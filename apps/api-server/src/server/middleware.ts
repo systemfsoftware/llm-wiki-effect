@@ -39,8 +39,9 @@ const operationOf = (options: { readonly rpc: Rpc.AnyWithProps }): ApiOperationN
 }
 
 const payloadBytes = (payload: unknown): number => {
+  if (payload === null || payload === undefined) return 0
   try {
-    return Buffer.byteLength(JSON.stringify(payload) ?? '', 'utf8')
+    return Buffer.byteLength(JSON.stringify(payload), 'utf8')
   } catch {
     return 0
   }

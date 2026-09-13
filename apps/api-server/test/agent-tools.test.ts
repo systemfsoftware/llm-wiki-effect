@@ -40,6 +40,7 @@ import { isRecord } from '../src/json.js'
 
 const PROJECT_ROOT = '/tmp/llm-wiki-agent-tools-project'
 const WORKSPACE = `${PROJECT_ROOT}/${AGENT_WORKSPACE_DIR}`
+const SESSION_ID = 's1'
 
 const EXPECTED_TOOL_NAMES = [
   'wiki.search',
@@ -129,7 +130,7 @@ const recorder = (output: unknown = { ok: true }): Recorder => {
 const registryOf = (options: ToolRegistryOptions): ToolRegistryShape => makeToolRegistry(options)
 
 const execute = (registry: ToolRegistryShape, request: ToolCall) =>
-  Effect.runPromise(Effect.result(registry.execute(request)))
+  Effect.runPromise(Effect.result(registry.execute(request, { sessionId: SESSION_ID })))
 
 const successOf = (outcome: Result.Result<ToolResult, ToolError>): ToolResult | null =>
   Result.isSuccess(outcome) ? outcome.success : null
@@ -323,7 +324,7 @@ describe('shell approval gate', () => {
   it('approves only an exact trimmed command match', async () => {
     const approver = allowShellCommands([command, '  python3 gen.py  '])
     const approved = (input: Readonly<Record<string, unknown>>) =>
-      Effect.runPromise(approver.approve(call('shell.exec', input)))
+      Effect.runPromise(approver.approve(call('shell.exec', input), { sessionId: SESSION_ID }))
     expect(await approved({ command })).toBe(true)
     expect(await approved({ command: `  ${command}  ` })).toBe(true)
     expect(await approved({ command: 'python3 gen.py' })).toBe(true)
@@ -338,7 +339,9 @@ describe('shell approval gate', () => {
   it('refuses non-shell calls and fails closed on a failed approval channel', async () => {
     expect(
       await Effect.runPromise(
-        allowShellCommands([command]).approve(call('wiki.search', { query: command })),
+        allowShellCommands([command]).approve(call('wiki.search', { query: command }), {
+          sessionId: SESSION_ID,
+        }),
       ),
     ).toBe(false)
     const stub = recorder()
@@ -498,13 +501,18 @@ describe('shell command workspace policy', () => {
     const strict = allowShellCommands([])
     const workspace = allowShellCommandsInWorkspace([])
     const generator = call('shell.exec', { command: 'python3 gen.py' })
-    expect(await Effect.runPromise(strict.approve(generator))).toBe(false)
-    expect(await Effect.runPromise(workspace.approve(generator))).toBe(true)
+    const context = { sessionId: SESSION_ID }
+    expect(await Effect.runPromise(strict.approve(generator, context))).toBe(false)
+    expect(await Effect.runPromise(workspace.approve(generator, context))).toBe(true)
     expect(
-      await Effect.runPromise(workspace.approve(call('shell.exec', { command: 'curl https://x' }))),
+      await Effect.runPromise(
+        workspace.approve(call('shell.exec', { command: 'curl https://x' }), context),
+      ),
     ).toBe(false)
     expect(
-      await Effect.runPromise(workspace.approve(call('shell.exec', { command: 'cat ../secret.md' }))),
+      await Effect.runPromise(
+        workspace.approve(call('shell.exec', { command: 'cat ../secret.md' }), context),
+      ),
     ).toBe(false)
   })
 

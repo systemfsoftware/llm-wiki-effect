@@ -336,7 +336,11 @@ export class LlmWikiApiClient {
       return Effect.gen(function*() {
         const client = yield* Client.SocketApiClient
         return yield* run(protocolApi(client))
-      }).pipe(Effect.provide(Client.SocketApiClient.layer({ path: transport.path })))
+      }).pipe(
+        Effect.provide(
+          Client.SocketApiClient.layer({ path: transport.path, retryTransientErrors: true }),
+        ),
+      )
     }
     return Effect.gen(function*() {
       const client = yield* Client.HttpApiClient

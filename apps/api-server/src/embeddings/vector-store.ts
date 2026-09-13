@@ -158,23 +158,37 @@ const countRows = (
     catch: (error) => storage(`Count error: ${String(error)}`),
   })
 
+const optionalTable = (
+  connection: Connection,
+  names: ReadonlyArray<string>,
+  name: string,
+): Effect.Effect<Option.Option<Table>, Errors.EmbedError> =>
+  names.includes(name)
+    ? Effect.map(openNamedTable(connection, name), Option.some)
+    : Effect.succeed(Option.none<Table>())
+
+const searchVectorStore = makeVectorStore()
+
 export const lanceVectorIndex: VectorIndexShape = {
   stats: (projectRoot) =>
     Effect.gen(function*() {
       const connection = yield* connect(dirOf(projectRoot))
       const names = yield* listTables(connection)
-      const chunks = names.includes(CHUNK_TABLE)
-        ? yield* countRows(yield* openNamedTable(connection, CHUNK_TABLE))
-        : 0
-      const legacyRows = names.includes(LEGACY_TABLE)
-        ? yield* countRows(yield* openNamedTable(connection, LEGACY_TABLE))
-        : 0
+      const [chunkTable, legacyTable] = yield* Effect.all(
+        [
+          optionalTable(connection, names, CHUNK_TABLE),
+          optionalTable(connection, names, LEGACY_TABLE),
+        ],
+        { concurrency: 'unbounded' },
+      )
+      const chunks = Option.isSome(chunkTable) ? yield* countRows(chunkTable.value) : 0
+      const legacyRows = Option.isSome(legacyTable) ? yield* countRows(legacyTable.value) : 0
       return { chunks, legacyRows }
     }),
 
   optimize: (projectRoot) =>
     Effect.mapError(
-      makeVectorStore().optimizeIndex(dirOf(projectRoot)),
+      searchVectorStore.optimizeIndex(dirOf(projectRoot)),
       (error) => storage(error.message),
     ),
 

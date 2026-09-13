@@ -227,13 +227,16 @@ const PATH_INPUT_TOOLS: ReadonlyArray<string> = [
   'skill.read_file',
 ]
 
+const referenceKey = (reference: Domain.ChatReference): string => `${reference.kind}::${reference.path}`
+
 const pushUniqueReference = (
   references: Array<Domain.ChatReference>,
+  seen: Set<string>,
   reference: Domain.ChatReference,
 ): boolean => {
-  if (references.some((existing) => existing.kind === reference.kind && existing.path === reference.path)) {
-    return false
-  }
+  const key = referenceKey(reference)
+  if (seen.has(key)) return false
+  seen.add(key)
   references.push(reference)
   return true
 }
@@ -432,6 +435,7 @@ const makeRuntime = (
         yield* emit(new Domain.AgentTurnStartEvent({ type: 'turnStart', mode: modeLabel(request.mode) }))
 
         const references: Array<Domain.ChatReference> = []
+        const referenceKeys = new Set<string>()
         const observations: Array<AgentObservation> = []
         const router = routeQuery(message, request.mode, request.tools)
         const skills = yield* loadProjectSkills(request.projectRoot, request.skills)
@@ -529,7 +533,9 @@ const makeRuntime = (
             recordTool(tool, 'started', inputDetail)
             yield* toolStart(tool, inputDetail)
             const call: ToolCall = { projectRoot: request.projectRoot, tool, input }
-            const outcome = yield* Effect.result(tools.execute(call))
+            const outcome = yield* Effect.result(
+              tools.execute(call, { sessionId: request.sessionId }),
+            )
             if (Result.isFailure(outcome)) return yield* reject(tool, outcome.failure.message)
             const result = outcome.success
             if (result.status === 'approval_required') {
@@ -542,7 +548,7 @@ const makeRuntime = (
             if ('error' in mapped) return yield* reject(tool, mapped.error)
             for (const emission of mapped.emissions) {
               if (emission.type === 'reference' && emission.reference !== undefined) {
-                if (pushUniqueReference(references, emission.reference)) {
+                if (pushUniqueReference(references, referenceKeys, emission.reference)) {
                   yield* emit(
                     new Domain.AgentReferenceAddedEvent({
                       type: 'referenceAdded',

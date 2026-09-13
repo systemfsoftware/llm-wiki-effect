@@ -116,6 +116,7 @@ export const SearchPayload = Schema.Struct({
   query: Schema.String,
   topK: Schema.optional(Schema.Number),
   includeContent: Schema.optional(Schema.Boolean),
+  queryEmbedding: Schema.optional(Schema.Array(Schema.Number)),
 })
 
 export const GraphPayload = Schema.Struct({

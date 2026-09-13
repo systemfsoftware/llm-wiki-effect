@@ -384,8 +384,12 @@ const scriptedProvider = (answer: string): ProviderClientShape => {
   }
 }
 
-const fakeSearchVector = (): VectorStoreShape => ({
-  searchChunks: () => Effect.succeed([]),
+const recordingSearchVector = (queried: Array<ReadonlyArray<number>>): VectorStoreShape => ({
+  searchChunks: (_dir, embedding) =>
+    Effect.sync(() => {
+      queried.push(embedding)
+      return []
+    }),
   optimizeIndex: () => Effect.void,
 })
 
@@ -497,6 +501,7 @@ describe('socket mount', () => {
   })
 
   it('runs hybrid search and page embedding over the injected ports', async () => {
+    const queried: Array<ReadonlyArray<number>> = []
     await withSocket(
       {
         ...EMBEDDING_SPEC,
@@ -504,7 +509,7 @@ describe('socket mount', () => {
         embeddingTransport: scriptedEmbeddingTransport(),
         embeddingStore: fakeEmbeddingStore(),
         search: {
-          vector: fakeSearchVector(),
+          vector: recordingSearchVector(queried),
           embedQuery: () => Effect.succeed([0.1, 0.2, 0.3]),
         },
       },
@@ -512,6 +517,14 @@ describe('socket mount', () => {
         Effect.gen(function*() {
           const search = yield* client.search({ projectId: 'p1', query: 'attention' })
           expect(search.results.map((result) => result.path)).toContain('wiki/a.md')
+          expect(queried).toEqual([[0.1, 0.2, 0.3]])
+
+          yield* client.search({
+            projectId: 'p1',
+            query: 'attention',
+            queryEmbedding: [0.7, 0.8, 0.9],
+          })
+          expect(queried).toEqual([[0.1, 0.2, 0.3], [0.7, 0.8, 0.9]])
 
           const embedded = yield* client.embedPage({ projectId: 'p1', path: 'wiki/a.md' })
           expect(embedded.result.status).toBe('indexed')

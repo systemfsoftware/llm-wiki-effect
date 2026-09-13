@@ -63,11 +63,12 @@ const describeRoots = (
     const out: Array<RootEntry> = []
     for (const root of roots) {
       const path = normalizeProjectPath(root)
+      const [id, exists] = await Promise.all([readProjectId(path), isDirectory(path)])
       out.push({
-        id: (await readProjectId(path)) ?? path,
+        id: id ?? path,
         name: projectNameFromPath(path),
         path,
-        exists: await isDirectory(path),
+        exists,
       })
     }
     return out.sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))

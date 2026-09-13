@@ -7,6 +7,10 @@ export interface ToolCall {
   readonly input: Readonly<Record<string, unknown>>
 }
 
+export interface ToolCallContext {
+  readonly sessionId: string
+}
+
 export interface ToolExecuted {
   readonly status: 'executed'
   readonly tool: string

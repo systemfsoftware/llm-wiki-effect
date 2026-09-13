@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto'
 import type { Stats } from 'node:fs'
 import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
-import { isRecord } from '../json.js'
+import { hasErrorCode, isRecord } from '../json.js'
 import { ProjectRegistry } from '../projects/Registry.js'
 
 const SYNC_DIR = '.llm-wiki'
@@ -243,19 +243,33 @@ const md5File = async (path: string): Promise<string> => {
   return createHash('md5').update(buffer).digest('hex')
 }
 
-const readMeta = async (root: string, rel: string): Promise<FileMeta | null> => {
-  let info: Stats
+const statOrNull = async (path: string): Promise<Stats | null> => {
   try {
-    info = await stat(join(root, rel))
+    return await stat(path)
   } catch {
     return null
   }
-  if (!info.isFile()) return null
-  return {
-    hash: info.size <= MAX_HASH_BYTES ? await md5File(join(root, rel)) : null,
-    size: info.size,
-    mtimeMs: Math.trunc(info.mtimeMs),
+}
+
+const walkedFileHash = async (path: string): Promise<string | null> => {
+  try {
+    return await md5File(path)
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) return null
+    throw error
   }
+}
+
+const readMeta = async (root: string, rel: string, walked?: Stats): Promise<FileMeta | null> => {
+  const path = join(root, rel)
+  const info = walked ?? (await statOrNull(path))
+  if (info === null || !info.isFile()) return null
+  if (info.size > MAX_HASH_BYTES) {
+    return { hash: null, size: info.size, mtimeMs: Math.trunc(info.mtimeMs) }
+  }
+  const hash = walked === undefined ? await md5File(path) : await walkedFileHash(path)
+  if (hash === null) return null
+  return { hash, size: info.size, mtimeMs: Math.trunc(info.mtimeMs) }
 }
 
 const toRel = (root: string, path: string): string | undefined => {
@@ -263,11 +277,17 @@ const toRel = (root: string, path: string): string | undefined => {
   return rel === '' || rel.startsWith('..') ? undefined : rel
 }
 
+interface WatchedWalk {
+  readonly rels: ReadonlyArray<string>
+  readonly stats: ReadonlyMap<string, Stats>
+}
+
 const collectWatchedRels = async (
   root: string,
   rules: WatchRules,
-): Promise<ReadonlyArray<string>> => {
+): Promise<WatchedWalk> => {
   const out: Array<string> = []
+  const stats = new Map<string, Stats>()
   const walk = async (dir: string): Promise<void> => {
     const entries = await readdir(dir, { withFileTypes: true })
     for (const entry of entries) {
@@ -282,12 +302,13 @@ const collectWatchedRels = async (
       if (rel.startsWith('raw/sources/')) {
         const info = await stat(path)
         if (info.size > rules.maxFileSizeMb * 1024 * 1024) continue
+        stats.set(rel, info)
       }
       out.push(rel)
     }
   }
   await walk(root)
-  return out.sort()
+  return { rels: out.sort(), stats }
 }
 
 const readJsonFile = async (path: string): Promise<unknown> => {
@@ -458,7 +479,8 @@ export const rescanProjectSources = (
       const rules = watchRules(normalizeSourceWatchConfig(options.config))
       await mkdir(join(root, SYNC_DIR), { recursive: true })
       const snapshot = await readSnapshot(root)
-      const rels = new Set(await collectWatchedRels(root, rules))
+      const walked = await collectWatchedRels(root, rules)
+      const rels = new Set(walked.rels)
       for (const rel of Object.keys(snapshot.files)) {
         if (!rels.has(rel) && !(await fileExists(join(root, rel)))) rels.add(rel)
       }
@@ -469,7 +491,7 @@ export const rescanProjectSources = (
       const observed: Record<string, FileMeta> = { ...snapshot.files }
       for (const rel of [...rels].sort()) {
         const old = snapshot.files[rel]
-        const next = await readMeta(root, rel)
+        const next = await readMeta(root, rel, walked.stats.get(rel))
         if (!(next === null && old !== undefined) && sameMeta(old, next)) continue
         const kind: Domain.FileChangeKind | undefined = old === undefined && next !== null
           ? 'created'

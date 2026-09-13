@@ -176,12 +176,16 @@ export interface SupervisorApproverOptions {
 }
 
 export const makeSupervisorApprover = (options: SupervisorApproverOptions): Approver => ({
-  approve: (call) =>
+  approve: (call, context) =>
     Effect.gen(function*() {
       if (call.tool !== SHELL_EXEC_TOOL) return false
       const command = shellCommandFromCall(call)
       if (command === undefined) return false
       const projectId = yield* options.projectIdFor(call.projectRoot)
-      return yield* options.decide({ projectId, sessionId: '', commands: [command] })
+      return yield* options.decide({
+        projectId,
+        sessionId: context.sessionId,
+        commands: [command],
+      })
     }),
 })

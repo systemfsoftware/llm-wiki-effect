@@ -165,12 +165,14 @@ export const handlersLayer = (env: ServerEnv) =>
           readonly query: string
           readonly topK?: number | undefined
           readonly includeContent?: boolean | undefined
+          readonly queryEmbedding?: ReadonlyArray<number> | undefined
         }) =>
           search.search({
             projectId: payload.projectId,
             query: payload.query,
             ...optional('topK', payload.topK),
             ...optional('includeContent', payload.includeContent),
+            ...optional('queryEmbedding', payload.queryEmbedding),
           }),
 
         graph: (payload: {

@@ -13,11 +13,14 @@ import {
 import type { PermissionPolicy } from './permissions.js'
 import { requiresApproval, specFor, TOOL_SPECS } from './specs.js'
 import type { ToolSpec } from './specs.js'
-import type { ToolCall, ToolError, ToolExecutors, ToolResult } from './types.js'
+import type { ToolCall, ToolCallContext, ToolError, ToolExecutors, ToolResult } from './types.js'
 
 export interface ToolRegistryShape {
   readonly specs: ReadonlyArray<ToolSpec>
-  readonly execute: (call: ToolCall) => Effect.Effect<ToolResult, ToolError>
+  readonly execute: (
+    call: ToolCall,
+    context: ToolCallContext,
+  ) => Effect.Effect<ToolResult, ToolError>
 }
 
 export interface ToolRegistryOptions {
@@ -38,7 +41,10 @@ export const makeToolRegistry = (options: ToolRegistryOptions = {}): ToolRegistr
   const executors = options.executors ?? {}
   const policy = options.policy ?? apiDefaultPolicy()
 
-  const execute = (call: ToolCall): Effect.Effect<ToolResult, ToolError> =>
+  const execute = (
+    call: ToolCall,
+    context: ToolCallContext,
+  ): Effect.Effect<ToolResult, ToolError> =>
     Effect.gen(function*() {
       const spec = specFor(call.tool)
       if (spec === undefined) {
@@ -51,7 +57,7 @@ export const makeToolRegistry = (options: ToolRegistryOptions = {}): ToolRegistr
         if (Result.isFailure(permitted)) return yield* Effect.fail(permitted.failure)
       }
       if (requiresApproval(spec)) {
-        const approved = yield* approver.approve(call)
+        const approved = yield* approver.approve(call, context)
         if (!approved) {
           const command = shellCommandFromCall(call) ?? ''
           return {

@@ -228,12 +228,11 @@ export const makeSessionStore = (options?: SessionStoreOptions): SessionStoreSha
       } catch {
         return []
       }
-      const sessions: Array<AgentSession> = []
-      for (const name of names) {
-        if (!name.endsWith('.json')) continue
-        const parsed = await readSessionFile(join(dir, name))
-        if (parsed !== undefined) sessions.push(parsed)
-      }
+      const files = names
+        .filter((name) => name.endsWith('.json'))
+        .map((name) => join(dir, name))
+      const parsed = await Promise.all(files.map((file) => readSessionFile(file)))
+      const sessions = parsed.filter((session): session is AgentSession => session !== undefined)
       return sessions.sort(
         (left, right) =>
           right.updatedAt - left.updatedAt ||

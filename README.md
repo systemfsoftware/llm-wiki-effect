@@ -421,7 +421,7 @@ Download from [Releases](https://github.com/nashsu/llm_wiki/releases):
 git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
 pnpm install
-pnpm mcp:build         # mcp-server/dist is bundled as a Tauri resource
+pnpm mcp:build         # apps/mcp-server/dist is bundled as a Tauri resource
 pnpm tauri dev         # Development
 pnpm tauri build       # Production build
 ```

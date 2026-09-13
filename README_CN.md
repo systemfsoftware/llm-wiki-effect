@@ -421,7 +421,7 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
 pnpm install
-pnpm mcp:build         # mcp-server/dist 会作为 Tauri 资源打包
+pnpm mcp:build         # apps/mcp-server/dist 会作为 Tauri 资源打包
 pnpm tauri dev         # 开发模式
 pnpm tauri build       # 生产构建
 ```

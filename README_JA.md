@@ -421,7 +421,7 @@ LLM Wiki は、手元の文書を整理された相互リンク付きの知識�
 git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
 pnpm install
-pnpm mcp:build         # mcp-server/dist は Tauri リソースとして同梱されます
+pnpm mcp:build         # apps/mcp-server/dist は Tauri リソースとして同梱されます
 pnpm tauri dev         # 開発モード
 pnpm tauri build       # 本番ビルド
 ```

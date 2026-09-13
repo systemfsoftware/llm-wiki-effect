@@ -59,8 +59,9 @@ vendored `worktrunk-scripts` doctrine and this repo's own vendoring procedure
 both require be read-only. The same branch adds those trees wholesale from
 upstream, which is an import, not an edit.
 
-**Do not turn the rules off.** Every rule that fired is load-bearing for `src/`,
-`mcp-server/`, `extension/`, and `scripts/` — the same rules were clearing this
+**Do not turn the rules off.** Every rule that fired is load-bearing for
+`apps/desktop/src/`, `apps/mcp-server/`, `extension/`, and `scripts/` — the
+same rules were clearing this
 repo's own source one commit before the subtrees landed. The file set was wrong,
 not the rule. A scoped exclusion says _this subtree is not ours_; an `off` or an
 inline disable says _this rule does not work here_, which is a false claim and
@@ -86,8 +87,9 @@ file list.
 
 Both remedies for a finding in vendored code lose. Edit the vendored file and
 the next subtree update silently reverts it — the fix evaporates with no error
-and no diff. Weaken the rule and a real defect in `src/` stops being reported
-forever. Scoping the file set is the only move that keeps the gate meaningful
+and no diff. Weaken the rule and a real defect in `apps/desktop/src/` stops
+being reported forever. Scoping the file set is the only move that keeps the
+gate meaningful
 _and_ keeps the subtree replaceable.
 
 The failure is quiet in both directions. Nothing in the import announces that

@@ -69,7 +69,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf protobuf-compiler xdg-utils
 
       # The repo ships pre-downloaded PDFium binaries under
-      # src-tauri/pdfium/ for every supported architecture
+      # apps/desktop/src-tauri/pdfium/ for every supported architecture
       # (libpdfium.so = Linux x86_64, libpdfium-arm64.so = Linux aarch64,
       # libpdfium.dylib = macOS arm64, pdfium.dll = Windows).
       # For architectures whose bundled filename must
@@ -100,7 +100,7 @@ jobs:
 
       # No separate MCP build step: tauri-action runs beforeBuildCommand
       # (pnpm build:desktop, which starts with pnpm mcp:build) before it
-      # collects the mcp-server/dist resource.
+      # collects the apps/mcp-server/dist resource.
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:

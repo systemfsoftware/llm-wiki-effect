@@ -421,7 +421,7 @@ LLM Wiki는 문서를 자동으로 정리되고 서로 연결된 지식 베이�
 git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
 pnpm install
-pnpm mcp:build         # mcp-server/dist는 Tauri 리소스로 번들됩니다
+pnpm mcp:build         # apps/mcp-server/dist는 Tauri 리소스로 번들됩니다
 pnpm tauri dev         # 개발 모드
 pnpm tauri build       # 프로덕션 빌드
 ```

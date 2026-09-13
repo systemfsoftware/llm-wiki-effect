@@ -169,7 +169,8 @@ only evidence that separates them is an injected defect and a cache miss.
 
 ## When to Apply
 
-- Adding, renaming, or removing a script in either `package.json`.
+- Adding, renaming, or removing a script in a package.json (root or an app
+  package under apps/).
 - Changing `inputs`, `outputs`, or `dependsOn` in `turbo.json`.
 - A gate that reports `FULL TURBO` on a tree whose files just changed.
 
@@ -194,15 +195,16 @@ pnpm gate:tasks
   Time:    16ms >>> FULL TURBO
 ```
 
-A cold `pnpm gate:tasks` runs six tasks in about 13 seconds; the same command
-on an unchanged tree finishes in under a tenth of a second. Deleting `dist/`
-and `mcp-server/dist/` and running `pnpm build:desktop` restores both from
-cache, which is what makes the `outputs` keys load-bearing rather than
-decorative.
+The cold-gate measurement this doc was founded on: `pnpm gate:tasks` ran six
+tasks in about 13 seconds pre-move (it schedules seven today); the same command
+on an unchanged tree finishes in under a tenth of a second. Deleting
+`apps/desktop/dist/` and `apps/mcp-server/dist/` and running
+`pnpm build:desktop` restores both from cache, which is what makes the
+`outputs` keys load-bearing rather than decorative.
 
 The A/B that justifies the input narrowing. Each side was warmed to
 `FULL TURBO` with its own `turbo.json`, then given exactly one edit to a tracked
-file under `src-tauri/`:
+file under `apps/desktop/src-tauri/` (paths below are as measured pre-move):
 
 ```text
                 inputs as first written          inputs narrowed
@@ -215,11 +217,12 @@ Cargo.toml edit 3 cached, 6 total                5 cached, 6 total
                 lint/typecheck/test:mocks miss   test:mocks miss only
 ```
 
-The `src-tauri/Cargo.toml` row is the one that keeps the narrowing honest: the
-task that must notice a crate-version edit still does, while `lint`, `typecheck`
-and `build` correctly do not re-run for it.
+The `apps/desktop/src-tauri/Cargo.toml` row is the one that keeps the narrowing
+honest: the task that must notice a crate-version edit still does, while `lint`,
+`typecheck` and `build` correctly do not re-run for it.
 
-The graph itself, for reference:
+The graph itself. First query block measured pre-move; re-measure after any
+workspace change:
 
 ```text
 turbo query 'query { packageGraph { nodes { items { name } length } edges { items { source target } } } }'
@@ -228,38 +231,23 @@ turbo query 'query { packageGraph { nodes { items { name } length } edges { item
 turbo query 'query { boundaries { items { message path } length } }'
   10 diagnostics, all under repos/ — `@std/fs`, `@std/path`, `@std/yaml`
   imported by vendored Deno scripts. None in src/ or mcp-server/.
-
-turbo query 'query { affectedTasks(base: "origin/main", head: "HEAD") { items { fullName reason { __typename } } length } }'
-  7 tasks, every reason TaskGlobalFileChanged — the set is all seven tasks in
-  the repo, and it is the same set over HEAD~3..HEAD. With zero edges and a
-  global file hash that any root-config edit moves, an --affected filter would
-  select the same seven tasks and change nothing.
 ```
 
 One hypothesis was written down and then refuted, which is why it is recorded
-here rather than acted on: `src/components/layout/icon-sidebar.tsx` imports
+here rather than acted on (paths as they were pre-move):
+`apps/desktop/src/components/layout/icon-sidebar.tsx` imports
 `@/assets/logo.jpg`, and `vite.config.ts` aliases `@` to `./src`. The import
-resolves to `src/assets/logo.jpg`, not to the root `assets/` directory of nine
-marketing screenshots — the built `dist/assets/logo-*.jpg` is byte-identical to
-`src/assets/logo.jpg` (same md5) and no root-`assets` file appears in `dist/`.
-Excluding `assets/**` from `build`'s inputs would therefore have been safe, not
-a regression; it was left in place only because those nine files do not churn.
+resolves to `apps/desktop/src/assets/logo.jpg`, not to the root `assets/`
+directory of nine marketing screenshots — the built `dist/assets/logo-*.jpg` is
+byte-identical to `apps/desktop/src/assets/logo.jpg` (same md5) and no
+root-`assets` file appears in `dist/`. Excluding `assets/**` from `build`'s
+inputs would therefore have been safe, not a regression; it was left in place
+only because those nine files do not churn.
 
-```text
-turbo query 'query { packageGraph { nodes { items { name } length } edges { items { source target } } } }'
-  2 nodes (llm-wiki, llm-wiki-mcp-server), 0 edges
-
-turbo query 'query { boundaries { items { message path } length } }'
-  10 diagnostics, all under repos/ — `@std/fs`, `@std/path`, `@std/yaml`
-  imported by vendored Deno scripts. None in src/ or mcp-server/.
-```
-
-The root also appears twice in `turbo query 'query { packages { items { name path } } }'`
-— once as the synthetic `//` entry and once as `llm-wiki`, both with an empty
-path. Task keys of the form `//#task` target the synthetic entry; this repo
-targets the named package instead, so the two never contend. The workspace has
-no `apps/` or `packages/` directories, so the template's `package#task`
-conventions apply to exactly one non-root package.
+Today the graph is three projects — the root orchestrator plus the two members
+under `apps/` — still with zero package edges. The root appears as the
+synthetic `//` entry; the registered `//#lint` and `//#typecheck` keys target
+it, while member tasks use `package#task` keys, so the two never contend.
 
 ## Where this landed in CI
 

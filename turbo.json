@@ -1,0 +1,46 @@
+{
+  "$schema": "https://v2-10-1.turborepo.dev/schema.json",
+  "globalEnv": ["CI", "NODE_ENV"],
+  "globalPassThroughEnv": ["XDG_CACHE_HOME", "GITHUB_ACTIONS", "OXLINT_FORMAT", "AGENT"],
+  "tasks": {
+    "llm-wiki#lint": {
+      "outputLogs": "errors-only",
+      "inputs": ["$TURBO_DEFAULT$", "oxlint.config.ts", "tsconfig.json", "tsconfig.*.json", "!**/*.md"],
+      "outputs": [],
+      "cache": true
+    },
+    "typecheck": {
+      "outputLogs": "errors-only",
+      "inputs": ["$TURBO_DEFAULT$", "tsconfig.json", "tsconfig.*.json", "!**/*.md"],
+      "outputs": [],
+      "cache": true
+    },
+    "build": {
+      "outputLogs": "new-only",
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "index.html",
+        "vite.config.ts",
+        "rolldown.config.js",
+        "tsconfig*.json",
+        "!**/*.md"
+      ],
+      "outputs": ["dist/**"],
+      "dependsOn": ["typecheck"],
+      "cache": true
+    },
+    "llm-wiki#test:mocks": {
+      "outputLogs": "errors-only",
+      "inputs": ["$TURBO_DEFAULT$", "vitest.config.ts", "!**/*.md"],
+      "outputs": [],
+      "cache": true
+    },
+    "llm-wiki-mcp-server#test": {
+      "outputLogs": "errors-only",
+      "inputs": ["$TURBO_DEFAULT$", "tsconfig.test.json", "!**/*.md"],
+      "outputs": ["dist-test/**"],
+      "dependsOn": ["build"],
+      "cache": true
+    }
+  }
+}

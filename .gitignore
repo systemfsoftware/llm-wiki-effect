@@ -29,6 +29,7 @@ tests/
 # Tool outputs
 coverage/
 reports/
+.stryker-tmp/
 .turbo/
 .direnv/
 result

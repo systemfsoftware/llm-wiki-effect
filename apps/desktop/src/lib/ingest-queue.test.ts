@@ -646,8 +646,9 @@ describe('ingest-queue — cancelAllTasks', () => {
     await flushMicrotasks(2)
 
     // Manually set one task to "failed" so we can verify it survives.
-    const failedTask = getQueue()[2]
-    ;(failedTask as { status: string }).status = 'failed'
+    const failedTask = getQueue().at(2)
+    if (failedTask === undefined) throw new Error('expected a third queued task')
+    failedTask.status = 'failed'
 
     const removed = await cancelAllTasks()
 

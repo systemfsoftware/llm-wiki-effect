@@ -114,7 +114,7 @@ export async function rescanProjectFileSync(
   const config = normalizeSourceWatchConfig(sourceWatchConfig ?? useWikiStore.getState().sourceWatchConfig)
   activeSourceWatchConfig = config
 
-  const result = await rescanProjectFiles(project.id, normalizePath(project.path), config)
+  const result = await rescanProjectFiles(normalizePath(project.path))
   if (useWikiStore.getState().project?.id !== project.id) return
   useFileSyncStore.getState().setTasks(result.queue.tasks)
 

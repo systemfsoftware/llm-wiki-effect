@@ -5,6 +5,7 @@
   "tasks": {
     "lint": {
       "outputLogs": "errors-only",
+      "dependsOn": ["^build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "oxlint.config.ts",
@@ -19,6 +20,7 @@
     },
     "typecheck": {
       "outputLogs": "errors-only",
+      "dependsOn": ["^build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tsconfig*.json",

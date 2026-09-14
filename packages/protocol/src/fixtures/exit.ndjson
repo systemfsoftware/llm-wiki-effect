@@ -1,0 +1,1 @@
+{"_tag":"Exit","requestId":"2","exit":{"_tag":"Failure","cause":[{"_tag":"Fail","error":{"_tag":"ChatCancelled","message":"Agent turn cancelled"}}]}}

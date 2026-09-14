@@ -1,11 +1,8 @@
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Mutex;
 use std::thread;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tiny_http::{Header, Method, Response, Server};
-
-use crate::cors::{local_cors_headers, request_origin};
-use crate::server_bind;
 
 static CURRENT_PROJECT: Mutex<String> = Mutex::new(String::new());
 static ALL_PROJECTS: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new()); // (name, path)
@@ -39,20 +36,6 @@ pub fn get_daemon_status() -> &'static str {
     }
 }
 
-pub fn current_project_path() -> String {
-    CURRENT_PROJECT
-        .lock()
-        .map(|guard| guard.clone())
-        .unwrap_or_default()
-}
-
-pub fn all_projects() -> Vec<(String, String)> {
-    ALL_PROJECTS
-        .lock()
-        .map(|guard| guard.clone())
-        .unwrap_or_default()
-}
-
 pub fn start_clip_server(app: AppHandle) {
     thread::spawn(move || {
         let mut restart_count: u32 = 0;
@@ -60,8 +43,8 @@ pub fn start_clip_server(app: AppHandle) {
         loop {
             // Try to bind the port with retries
             let (server, addr) = {
-                let host = server_bind::configured_bind_host(&app);
-                let addr = server_bind::bind_addr(&host, PORT);
+                let host = configured_bind_host(&app);
+                let addr = bind_addr(&host, PORT);
                 let mut last_err = String::new();
                 let mut bound = None;
                 for attempt in 1..=MAX_BIND_RETRIES {
@@ -346,7 +329,7 @@ fn request_is_authorized(app: &AppHandle, request: &tiny_http::Request) -> bool 
             )
         })
         .collect::<Vec<_>>();
-    crate::api_server::is_token_authorized(app, "", &headers)
+    is_token_authorized(app, &headers)
 }
 
 #[cfg(test)]
@@ -513,4 +496,330 @@ fn handle_clip(body: &str) -> String {
         "path": relative_path,
     })
     .to_string()
+}
+
+const DEFAULT_BIND_HOST: &str = "127.0.0.1";
+const PUBLIC_BIND_HOST: &str = "0.0.0.0";
+const BIND_HOST_ENV: &str = "LLM_WIKI_BIND_HOST";
+const TOKEN_ENV: &str = "LLM_WIKI_API_TOKEN";
+
+fn request_origin(request: &tiny_http::Request) -> Option<String> {
+    request
+        .headers()
+        .iter()
+        .find(|header| header.field.equiv("Origin"))
+        .map(|header| header.value.as_str().to_string())
+}
+
+fn is_allowed_browser_origin(origin: &str) -> bool {
+    origin.starts_with("chrome-extension://")
+        || origin.starts_with("moz-extension://")
+        || origin == "http://localhost"
+        || origin.starts_with("http://localhost:")
+        || origin == "http://127.0.0.1"
+        || origin.starts_with("http://127.0.0.1:")
+        || origin == "http://[::1]"
+        || origin.starts_with("http://[::1]:")
+        || origin == "tauri://localhost"
+        || origin == "http://tauri.localhost"
+        || origin == "https://tauri.localhost"
+}
+
+fn local_cors_headers(origin: Option<&str>, allow_headers: &str) -> Vec<Header> {
+    let mut headers = vec![
+        Header::from_bytes("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS").unwrap(),
+        Header::from_bytes("Access-Control-Allow-Headers", allow_headers).unwrap(),
+        Header::from_bytes("Content-Type", "application/json").unwrap(),
+    ];
+    if let Some(origin) = origin.filter(|origin| is_allowed_browser_origin(origin)) {
+        headers.push(Header::from_bytes("Access-Control-Allow-Origin", origin).unwrap());
+        headers.push(Header::from_bytes("Vary", "Origin").unwrap());
+        headers.push(Header::from_bytes("Access-Control-Allow-Private-Network", "true").unwrap());
+    }
+    headers
+}
+
+fn configured_bind_host(app: &AppHandle) -> String {
+    configured_env_bind_host()
+        .or_else(|| configured_store_bind_host(app))
+        .unwrap_or_else(|| DEFAULT_BIND_HOST.to_string())
+}
+
+fn configured_env_bind_host() -> Option<String> {
+    std::env::var(BIND_HOST_ENV)
+        .ok()
+        .and_then(|value| sanitize_bind_host(&value))
+}
+
+fn configured_store_bind_host(app: &AppHandle) -> Option<String> {
+    let path = app.path().app_data_dir().ok()?.join("app-state.json");
+    let raw = std::fs::read_to_string(path).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    if allow_lan_access_from_state(&parsed) {
+        Some(PUBLIC_BIND_HOST.to_string())
+    } else {
+        None
+    }
+}
+
+fn bind_addr(host: &str, port: u16) -> String {
+    if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+fn sanitize_bind_host(value: &str) -> Option<String> {
+    let host = value.trim();
+    if host.is_empty() {
+        return None;
+    }
+    let valid = host
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_' | ':' | '[' | ']'));
+    if valid {
+        Some(host.to_string())
+    } else {
+        None
+    }
+}
+
+fn allow_lan_access_from_state(value: &serde_json::Value) -> bool {
+    value
+        .get("apiConfig")
+        .and_then(|config| config.get("allowLanAccess"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn token_from_app_state(value: &serde_json::Value) -> Option<String> {
+    value
+        .get("apiConfig")
+        .and_then(|config| config.get("token"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(ToString::to_string)
+}
+
+fn api_token(app: &AppHandle) -> Option<String> {
+    if let Ok(token) = std::env::var(TOKEN_ENV) {
+        let trimmed = token.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    let path = app.path().app_data_dir().ok()?.join("app-state.json");
+    let raw = std::fs::read_to_string(path).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    token_from_app_state(&parsed)
+}
+
+fn is_token_authorized(app: &AppHandle, headers: &[(String, String)]) -> bool {
+    match api_token(app) {
+        Some(token) => header_token_matches(headers, &token),
+        None => false,
+    }
+}
+
+fn header_token_matches(headers: &[(String, String)], token: &str) -> bool {
+    headers.iter().any(|(key, value)| {
+        if key == "x-llm-wiki-token" {
+            return constant_time_eq(value.as_bytes(), token.as_bytes());
+        }
+        if key == "authorization" {
+            return value
+                .strip_prefix("Bearer ")
+                .map(|provided| constant_time_eq(provided.as_bytes(), token.as_bytes()))
+                .unwrap_or(false);
+        }
+        false
+    })
+}
+
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    let max_len = left.len().max(right.len());
+    let mut diff = left.len() ^ right.len();
+    for i in 0..max_len {
+        let a = left.get(i).copied().unwrap_or(0);
+        let b = right.get(i).copied().unwrap_or(0);
+        diff |= (a ^ b) as usize;
+    }
+    diff == 0
+}
+
+#[cfg(test)]
+mod http_shared_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn header_value(headers: &[Header], name: &str) -> Option<String> {
+        headers
+            .iter()
+            .find(|header| header.field.as_str().to_string().eq_ignore_ascii_case(name))
+            .map(|header| header.value.as_str().to_string())
+    }
+
+    #[test]
+    fn allowed_browser_origins_are_narrowly_scoped() {
+        for origin in [
+            "chrome-extension://abc",
+            "moz-extension://abc",
+            "http://localhost",
+            "http://localhost:19827",
+            "http://127.0.0.1:5500",
+            "http://[::1]:3000",
+            "tauri://localhost",
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+        ] {
+            assert!(is_allowed_browser_origin(origin), "{origin}");
+        }
+
+        for origin in [
+            "",
+            "HTTP://LOCALHOST",
+            "http://localhost.evil.com",
+            "http://127.0.0.1.evil.com",
+            "https://localhost",
+            "http://evil.com",
+            "https://evil.com",
+        ] {
+            assert!(!is_allowed_browser_origin(origin), "{origin}");
+        }
+    }
+
+    #[test]
+    fn cors_headers_reflect_allowed_origin_only() {
+        let allowed = local_cors_headers(Some("chrome-extension://abc"), "Content-Type");
+        assert_eq!(
+            header_value(&allowed, "Access-Control-Allow-Origin").as_deref(),
+            Some("chrome-extension://abc")
+        );
+        assert_eq!(
+            header_value(&allowed, "Access-Control-Allow-Private-Network").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            header_value(&allowed, "Access-Control-Allow-Methods").as_deref(),
+            Some("GET, POST, PATCH, OPTIONS")
+        );
+        assert_eq!(
+            header_value(&allowed, "Access-Control-Allow-Headers").as_deref(),
+            Some("Content-Type")
+        );
+        assert_eq!(header_value(&allowed, "Vary").as_deref(), Some("Origin"));
+
+        let denied = local_cors_headers(Some("https://evil.com"), "Content-Type");
+        assert!(header_value(&denied, "Access-Control-Allow-Origin").is_none());
+        assert!(header_value(&denied, "Access-Control-Allow-Private-Network").is_none());
+        assert!(header_value(&denied, "Vary").is_none());
+
+        let missing = local_cors_headers(None, "Content-Type");
+        assert!(header_value(&missing, "Access-Control-Allow-Origin").is_none());
+    }
+
+    #[test]
+    fn sanitize_bind_host_accepts_common_lan_hosts() {
+        assert_eq!(sanitize_bind_host("0.0.0.0"), Some("0.0.0.0".to_string()));
+        assert_eq!(
+            sanitize_bind_host("  192.168.1.10  "),
+            Some("192.168.1.10".to_string())
+        );
+        assert_eq!(sanitize_bind_host("::1"), Some("::1".to_string()));
+        assert_eq!(sanitize_bind_host("[::]"), Some("[::]".to_string()));
+    }
+
+    #[test]
+    fn sanitize_bind_host_rejects_empty_or_address_injection() {
+        assert_eq!(sanitize_bind_host(""), None);
+        assert_eq!(sanitize_bind_host("0.0.0.0:19828/path"), None);
+        assert_eq!(sanitize_bind_host("127.0.0.1;rm"), None);
+    }
+
+    #[test]
+    fn bind_addr_wraps_unbracketed_ipv6_hosts() {
+        assert_eq!(bind_addr("127.0.0.1", 19827), "127.0.0.1:19827");
+        assert_eq!(bind_addr("0.0.0.0", 19827), "0.0.0.0:19827");
+        assert_eq!(bind_addr("::1", 19827), "[::1]:19827");
+        assert_eq!(bind_addr("[::]", 19827), "[::]:19827");
+    }
+
+    #[test]
+    fn allow_lan_access_reads_api_config_flag() {
+        assert!(allow_lan_access_from_state(&json!({
+            "apiConfig": { "allowLanAccess": true }
+        })));
+        assert!(!allow_lan_access_from_state(&json!({
+            "apiConfig": { "allowLanAccess": false }
+        })));
+        assert!(!allow_lan_access_from_state(&json!({})));
+    }
+
+    #[test]
+    fn app_state_token_ignores_blank_values() {
+        assert_eq!(
+            token_from_app_state(&json!({ "apiConfig": { "token": " abc " } })).as_deref(),
+            Some("abc")
+        );
+        assert_eq!(token_from_app_state(&json!({ "apiConfig": { "token": "   " } })), None);
+        assert_eq!(token_from_app_state(&json!({ "apiConfig": {} })), None);
+        assert_eq!(token_from_app_state(&json!({})), None);
+    }
+
+    #[test]
+    fn token_headers_accept_the_header_and_bearer_forms_only() {
+        let token = "s3cret";
+        assert!(header_token_matches(
+            &[("x-llm-wiki-token".to_string(), token.to_string())],
+            token
+        ));
+        assert!(header_token_matches(
+            &[("authorization".to_string(), format!("Bearer {token}"))],
+            token
+        ));
+        assert!(!header_token_matches(
+            &[("authorization".to_string(), token.to_string())],
+            token
+        ));
+        assert!(!header_token_matches(
+            &[("x-llm-wiki-token".to_string(), "other".to_string())],
+            token
+        ));
+        assert!(!header_token_matches(&[], token));
+    }
+
+    #[test]
+    fn constant_time_eq_accepts_only_identical_byte_strings() {
+        let alphabet = b"ab\x00\xff";
+        let mut state = 0x1234_5678_9abc_def0_u64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 33) as usize
+        };
+        for length in 0..64usize {
+            let left: Vec<u8> = (0..length).map(|_| alphabet[next() % alphabet.len()]).collect();
+            assert!(constant_time_eq(&left, &left), "identical inputs must match");
+
+            let mut longer = left.clone();
+            longer.push(b'x');
+            assert!(
+                !constant_time_eq(&left, &longer),
+                "a length difference must not match"
+            );
+
+            if length > 0 {
+                let mut mutated = left.clone();
+                let index = next() % length;
+                mutated[index] ^= 0xff;
+                assert!(
+                    !constant_time_eq(&left, &mutated),
+                    "a mutated byte must not match"
+                );
+            }
+        }
+    }
 }

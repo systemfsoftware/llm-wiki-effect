@@ -1,20 +1,14 @@
 import { Button } from '@/components/ui/button'
+import { type AvailableAgentSkill, listAvailableAgentSkills } from '@/lib/agent-skills'
 import { saveChatPreferences } from '@/lib/persist'
 import { useChatStore } from '@/stores/chat-store'
 import { useWikiStore } from '@/stores/wiki-store'
-import { invoke } from '@tauri-apps/api/core'
+import type { TFunction } from 'i18next'
 import { RefreshCw, Search, Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface AvailableAgentSkill {
-  id: string
-  name: string
-  description?: string
-  source: string
-}
-
-function sourceLabel(source: string, t: ReturnType<typeof useTranslation>['t']) {
+function sourceLabel(source: string, t: TFunction) {
   return t(`chat.skillSources.${source}`, { defaultValue: source })
 }
 
@@ -73,9 +67,7 @@ export function SkillsSection() {
     setLoading(true)
     setStatus(null)
     try {
-      const found = await invoke<AvailableAgentSkill[]>('agent_list_skills', {
-        projectPath,
-      })
+      const found = await listAvailableAgentSkills(projectPath)
       setSkills(found)
       const foundIds = new Set(found.map((skill) => skill.id))
       const currentSelected = useChatStore.getState().selectedSkills

@@ -44,13 +44,13 @@
 - **폴더 가져오기** — 디렉터리 구조를 유지하며 재귀적으로 가져오고, 폴더 컨텍스트를 LLM 분류 힌트로 사용합니다
 - **소스 폴더 자동 감시** — `raw/sources/`의 외부 변경을 감지하고 인제스트/삭제 정리 흐름과 동기화합니다
 - **Deep Research** — LLM에 최적화된 검색 주제와 Tavily, SerpApi, SearXNG 기반 다중 쿼리 웹 검색을 사용하고, 결과를 자동으로 Wiki에 인제스트합니다
-- **Rust 백엔드 Chat Agent** — Wiki/Source/Graph/Web 검색, workspace 파일 생성, shell 승인, 취소, 스트리밍 tool event를 지원하는 도구 사용형 채팅 runtime입니다
+- **서버 측 Chat Agent** — Wiki/Source/Graph/Web 검색, workspace 파일 생성, shell 승인, 취소, 스트리밍 tool event를 지원하는 도구 사용형 채팅 runtime입니다
 - **Agent Skills** — 로컬 `SKILL.md` 폴더를 스캔하고 활성화하며, 채팅에서 `/skill`로 선택하면 Agent가 필요할 때 Skill 지침을 읽습니다
 - **생성물 미리보기** — Agent가 만든 Markdown, HTML, 이미지 등 workspace 파일을 생성물로 표시하고, 미리보기와 출력 폴더 열기를 지원합니다
 - **Mermaid 다이어그램 렌더링** — 채팅과 미리보기에서 Mermaid 코드 블록을 직접 렌더링하고, 문법 오류는 간결한 오류 카드로 표시합니다
-- **비동기 리뷰 시스템** — LLM이 사람의 판단이 필요한 항목을 표시하고, 사전 정의된 작업과 미리 생성된 검색 쿼리를 제공합니다
+- **비동기 리뷰 시스템** — LLM이 사람의 판단이 필요한 항목을 표시하고, 사전 정의된 액션과 미리 생성된 검색 쿼리를 함께 제공합니다
 - **Chrome Web Clipper** — 웹 페이지를 한 번의 클릭으로 캡처하고 지식 베이스에 자동 인제스트합니다
-- **로컬 HTTP API + MCP Server + AI Agent Skill** — 내장 `127.0.0.1:19828` JSON API와 번들 MCP Server를 통해 하이브리드 검색, 파일 읽기, 그래프 탐색, 소스 재스캔을 지원합니다. 바로 사용할 수 있는 [agent skill](https://github.com/nashsu/llm_wiki_skill)은 한 줄 명령(`npx skills add ...`)으로 Claude Code / Codex에 설치할 수 있습니다
+- **로컬 API Server + MCP Server + AI Agent Skill** — API는 독립 프로세스로 실행됩니다(데스크톱이 로컬 socket으로 감독하며, 같은 server를 스탠드얼론으로도 실행해 `127.0.0.1:19828`에서 HTTP/WebSocket RPC를 제공합니다). 번들 MCP Server를 통해 하이브리드 검색, 파일 읽기, 그래프 탐색, 소스 재스캔을 지원합니다. 바로 사용할 수 있는 [agent skill](https://github.com/nashsu/llm_wiki_skill)은 한 줄 명령(`npx skills add ...`)으로 Claude Code / Codex에 설치할 수 있습니다
 
 ## 이게 무엇인가요?
 
@@ -217,7 +217,7 @@ LLM Wiki는 문서를 자동으로 정리되고 서로 연결된 지식 베이�
 
 1.5단계: 벡터 의미 검색(선택)
   - OpenAI 호환 /v1/embeddings 엔드포인트로 임베딩
-  - 빠른 ANN 검색을 위해 LanceDB(Rust backend)에 저장
+  - 빠른 ANN 검색을 위해 LanceDB(embedded)에 저장
   - 키워드가 겹치지 않아도 의미적으로 관련된 페이지를 찾음
   - 결과를 검색에 병합: 기존 일치를 boost하고 새 발견을 추가
 
@@ -252,9 +252,9 @@ LLM Wiki는 문서를 자동으로 정리되고 서로 연결된 지식 베이�
 - **Regenerate** — 한 번의 클릭으로 마지막 응답을 다시 생성합니다(마지막 assistant + user 메시지 쌍 제거 후 재전송)
 - **Save to Wiki** — 가치 있는 답변을 `wiki/queries/`에 보관한 뒤, 자동 인제스트로 엔티티/개념을 지식 네트워크에 추출합니다
 
-### 9. Rust 백엔드 Chat Agent와 Skills
+### 9. 서버 측 Chat Agent와 Skills
 
-원본에는 없는 기능입니다. 채팅은 브라우저 전용 TypeScript 루프가 아니라 Rust 백엔드 Agent runtime으로 실행됩니다.
+원본에는 없는 기능입니다. 채팅은 API server의 Agent runtime(`apps/api-server`의 TypeScript 도구 루프)으로 실행됩니다. 브라우저 전용 TypeScript 루프가 아닙니다. 검색·도구·provider 연결점은 server가 소유하고, 데스크톱은 스트리밍 이벤트를 채팅 패널로 중계할 뿐입니다.
 
 - **도구 사용형 Agent** — Wiki 검색, Source 검색, Graph 검색, Web 검색, AnyTXT, workspace 파일 도구, 승인된 shell 명령, Skill 파일 읽기를 선택할 수 있습니다
 - **Skill 관리** — 프로젝트 및 사용자 Skill 폴더를 스캔하고, Skill을 활성화/비활성화하며, 대화별로 `/skill` 자동완성으로 Skill을 선택합니다
@@ -329,16 +329,16 @@ LLM Wiki는 문서를 자동으로 정리되고 서로 연결된 지식 베이�
 
 원본은 text/markdown에 집중합니다. 우리는 문서 의미 구조를 보존하는 구조화 추출을 지원합니다.
 
-| 형식         | 방식                                                                                                                |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| PDF          | 파일 캐싱이 포함된 내장 pdf-extract(Rust); 복잡한 레이아웃에는 MinerU Cloud, Local API 또는 Pipeline 모드 사용 가능 |
-| DOCX         | docx-rs — headings, bold/italic, lists, tables → 구조화된 Markdown                                                  |
-| PPTX         | ZIP + XML — slide-by-slide extraction with heading/list structure                                                   |
-| XLSX/XLS/ODS | calamine — proper cell types, multi-sheet support, Markdown tables                                                  |
-| EPUB/MOBI    | 전자책 메타데이터, 장, 본문을 추출해 인제스트 가능한 콘텐츠로 변환                                                  |
-| Images       | Native preview(png, jpg, gif, webp, svg 등)                                                                         |
-| Video/Audio  | 내장 player                                                                                                         |
-| Web clips    | Readability.js + Turndown.js → clean Markdown                                                                       |
+| 형식         | 방식                                                                                                           |
+| ------------ | -------------------------------------------------------------------------------------------------------------- |
+| PDF          | 파일 캐싱이 포함된 내장 pdfium(Rust); 복잡한 레이아웃에는 MinerU Cloud, Local API 또는 Pipeline 모드 사용 가능 |
+| DOCX         | docx-rs — headings, bold/italic, lists, tables → 구조화된 Markdown                                             |
+| PPTX         | ZIP + XML — slide-by-slide extraction with heading/list structure                                              |
+| XLSX/XLS/ODS | calamine — proper cell types, multi-sheet support, Markdown tables                                             |
+| EPUB/MOBI    | 전자책 메타데이터, 장, 본문을 추출해 인제스트 가능한 콘텐츠로 변환                                             |
+| Images       | Native preview(png, jpg, gif, webp, svg 등)                                                                    |
+| Video/Audio  | 내장 player                                                                                                    |
+| Web clips    | Readability.js + Turndown.js → clean Markdown                                                                  |
 
 > MinerU는 선택 기능입니다. 복잡한 PDF에는 MinerU Cloud, 공식 Local API 또는 로컬 Pipeline 모드를 사용할 수 있습니다. 로컬 모드는 파일을 외부로 전송하지 않으며 추출된 이미지는 프로젝트가 관리하는 `wiki/media`에 저장됩니다. 실패하면 내장 파서로 fallback합니다.
 
@@ -386,20 +386,22 @@ LLM Wiki는 문서를 자동으로 정리되고 서로 연결된 지식 베이�
 
 ## 기술 스택
 
-| 계층       | 기술                                                                   |
-| ---------- | ---------------------------------------------------------------------- |
-| Desktop    | Tauri v2(Rust backend)                                                 |
-| Frontend   | React 19 + TypeScript + Vite                                           |
-| UI         | shadcn/ui + Tailwind CSS v4                                            |
-| Editor     | Milkdown(ProseMirror 기반 WYSIWYG)                                     |
-| Graph      | sigma.js + graphology + ForceAtlas2                                    |
-| Search     | Tokenized search + graph relevance + optional vector(LanceDB)          |
-| Vector DB  | LanceDB(Rust, embedded, optional)                                      |
-| 문서 파싱  | pdf-extract + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI 추출 |
-| i18n       | react-i18next                                                          |
-| State      | Zustand                                                                |
-| LLM        | Streaming fetch(OpenAI, Anthropic, Google, Ollama, Custom)             |
-| Web Search | Tavily, SerpApi, SearXNG JSON API                                      |
+| 계층       | 기술                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| Desktop    | Tauri v2(Rust shell: window, 19827 clip server, API worker supervisor)                   |
+| API Server | Node 20+ · Effect RPC(`apps/api-server`): worker는 로컬 IPC, 스탠드얼론은 HTTP/WebSocket |
+| Wire       | Effect Schema + RPC(`packages/protocol`), ndjson frames                                  |
+| Frontend   | React 19 + TypeScript + Vite                                                             |
+| UI         | shadcn/ui + Tailwind CSS v4                                                              |
+| Editor     | Milkdown(ProseMirror 기반 WYSIWYG)                                                       |
+| Graph      | sigma.js + graphology + ForceAtlas2                                                      |
+| Search     | Tokenized search + graph relevance + optional vector(LanceDB)                            |
+| Vector DB  | LanceDB(embedded, optional)                                                              |
+| 문서 파싱  | pdfium + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI 추출                        |
+| i18n       | react-i18next                                                                            |
+| State      | Zustand                                                                                  |
+| LLM        | Streaming fetch(OpenAI, Anthropic, Google, Ollama, Custom)                               |
+| Web Search | Tavily, SerpApi, SearXNG JSON API                                                        |
 
 ## 설치
 
@@ -422,6 +424,7 @@ git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
 pnpm install
 pnpm mcp:build         # apps/mcp-server/dist는 Tauri 리소스로 번들됩니다
+pnpm api:build         # apps/api-server/dist도 번들됩니다 — 앱이 spawn하는 worker 엔트리가 여기 있습니다
 pnpm tauri dev         # 개발 모드
 pnpm tauri build       # 프로덕션 빌드
 ```
@@ -446,22 +449,34 @@ pnpm tauri build       # 프로덕션 빌드
 8. **Review**에서 주의가 필요한 항목을 확인합니다
 9. **Lint**를 주기적으로 실행해 Wiki 상태를 유지합니다
 
-## 로컬 HTTP API + MCP Server + AI Agent Skill
+## 로컬 API Server + MCP Server + AI Agent Skill
 
-LLM Wiki에는 `http://127.0.0.1:19828`의 내장 로컬 HTTP API가 포함되어 있습니다(Token 보호, `127.0.0.1` 전용). 이를 통해 **Claude Code**, **Codex** 또는 HTTP를 사용할 수 있는 스크립트 같은 외부 도구가 Wiki에 쿼리할 수 있습니다.
+LLM Wiki의 API는 독립 프로세스입니다. 데스크톱 앱은 이를 감독 대상 worker로 실행하고 로컬 socket으로 통신하므로, 데스크톱은 네트워크 포트를 열지 않습니다. 같은 server를 스탠드얼론으로도 실행할 수 있으며, `http://127.0.0.1:19828`에서 HTTP RPC(Token 보호)를 제공하고 스트림은 WebSocket 업그레이드로 처리합니다. 데스크톱 앱 없이도 외부 도구가 Wiki를 쿼리할 수 있습니다.
 
-- `GET /api/v1/health` — server status(no auth)
-- `GET /api/v1/projects` — projects list
-- `GET /api/v1/projects/{id}/files` / `files/content` — files and content read
-- `POST /api/v1/projects/{id}/search` — `mode`, `tokenHits`, `vectorHits`, per-result `vectorScore`를 반환하는 **hybrid** retrieval(keyword + vector)
-- `POST /api/v1/projects/{id}/chat` — 비스트리밍 Rust 백엔드 Agent chat 엔드포인트로 assistant message, references, usage, tool events를 반환하며 Wiki/Source/Web/AnyTXT 검색을 지원합니다. `mode: "deep"`은 증거 수집 범위를 넓힙니다
-- `GET /api/v1/projects/{id}/graph` — wikilinks graph
-- `POST /api/v1/projects/{id}/sources/rescan` — backend rescan trigger
-- `POST /api/v1/projects/{id}/pages/embed` — 전체 벡터 DB를 재구축하지 않고 외부에서 생성하거나 수정한 `wiki/*.md` 페이지 하나를 인덱싱
+```bash
+pnpm api:build        # dist/src/entries/{worker,standalone}.js 번들
+LLM_WIKI_API_TOKEN=dev-token node apps/api-server/dist/src/entries/standalone.js
+```
+
+`chatStream`이 RPC stream인 것을 제외하면 모든 작업은 하나의 요청/응답 frame입니다. `health`는 Token과 API/MCP gate가 모두 필요 없는 유일한 작업이며, 스탠드얼론 server에서는 frame으로 감싼 `POST /rpc`입니다.
+
+```bash
+printf '%s\n' '{"_tag":"Request","id":"1","tag":"health","payload":null,"headers":[]}' \
+  | curl -sS --data-binary @- -H 'content-type: application/ndjson' http://127.0.0.1:19828/rpc
+```
 
 **Settings → API + MCP**에서 API를 활성화하고 token을 생성할 수 있습니다. 필요하면 로컬 unauthenticated access도 켜거나 끌 수 있습니다.
 
-MCP 호환 클라이언트를 위해 LLM Wiki는 `apps/mcp-server/`도 함께 제공합니다. `pnpm mcp:build`로 빌드한 뒤 **Settings → API + MCP**에서 현재 머신의 실제 경로가 들어간 MCP client configuration을 복사할 수 있습니다. MCP tools는 같은 API surface를 사용하므로 에이전트는 별도 HTTP glue code 없이 project list, file read, hybrid search, graph inspect, source rescan, 같은 Rust 백엔드 Agent chat endpoint 호출을 실행할 수 있습니다.
+MCP 호환 클라이언트를 위해 LLM Wiki는 `apps/mcp-server/`도 함께 제공합니다. `pnpm mcp:build`로 빌드한 뒤 **Settings → API + MCP**에서 현재 머신의 실제 경로가 들어간 MCP client configuration을 복사할 수 있습니다. 로컬 모드는 worker의 socket 경로(`LLM_WIKI_SOCKET_PATH`), 원격 모드는 base URL(`LLM_WIKI_BASE_URL`, 필요 시 `LLM_WIKI_API_TOKEN`)를 사용합니다. MCP tools는 같은 server를 호출하므로 에이전트는 별도 glue code 없이 project list, file read, 미처리 review 항목 내보내기, hybrid search, graph inspect, source rescan, Agent chat 1턴 실행을 할 수 있습니다.
+
+### REST API에서 마이그레이션
+
+`/api/v1` HTTP surface와 SSE framing, `?token=` 쿼리 인증은 **제거되었습니다**. 호환 shim은 없습니다. 이 workspace의 어떤 패키지도 npm에 게시되지 않으므로, 소비자는 저장소에 포함된 두 가지 surface 중 하나로 이동합니다.
+
+- **MCP Server** — 이름, 입력 schema, 결과 텍스트가 그대로인 11개의 `llm_wiki_*` 도구.
+- **프로토콜 패키지**(`packages/protocol`) — 저장소 checkout에서 사용: operation schema, RPC group, socket/HTTP client factory.
+
+1:1로 대응되지 않고 의미를 옮겨야 하는 지점이 두 가지입니다. 기존 HTTP 상태 코드는 이제 **frame 내부의 typed error**가 되며(전체 "상태 코드 → 오류" 매핑은 `packages/protocol/src/errors/ledger.ts`, 여기서 참조하는 오류 클래스는 `packages/protocol/src/errors/errors.ts`), 스트리밍 채팅은 `Accept: text/event-stream` 응답이 아니라 RPC stream입니다.
 
 ### 한 줄 명령으로 AI 에이전트 연결하기
 

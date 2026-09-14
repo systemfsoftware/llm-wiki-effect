@@ -1,3 +1,5 @@
+import { relay } from '@/lib/api-relay'
+import { normalizePath } from '@/lib/path-utils'
 import { normalizeSourceWatchConfig } from '@/lib/source-watch-config'
 import type { SourceWatchConfig } from '@/stores/wiki-store'
 import { invoke } from '@tauri-apps/api/core'
@@ -53,34 +55,32 @@ export function stopProjectFileWatcher(): Promise<void> {
   return invoke<void>('stop_project_file_watcher')
 }
 
-export function rescanProjectFiles(
-  projectId: string,
-  projectPath: string,
-  sourceWatchConfig?: SourceWatchConfig,
-): Promise<FileChangeRescanResult> {
-  return invoke<FileChangeRescanResult>('rescan_project_files', {
-    projectId,
-    projectPath,
-    sourceWatchConfig: normalizeSourceWatchConfig(sourceWatchConfig),
-  })
-}
-
-export function getFileChangeQueue(projectPath: string): Promise<FileChangeQueue> {
-  return invoke<FileChangeQueue>('get_file_change_queue', { projectPath })
+export function rescanProjectFiles(projectPath: string): Promise<FileChangeRescanResult> {
+  return relay()
+    .rescanSources({ projectId: normalizePath(projectPath) })
+    .then((response) => ({
+      queue: {
+        version: response.result.queue.version,
+        tasks: [...response.result.queue.tasks],
+      },
+      changedTasks: [...response.result.changedTasks],
+    }))
 }
 
 export function retryFileChangeTask(
-  projectId: string,
   projectPath: string,
   taskId: string,
 ): Promise<FileChangeQueue> {
-  return invoke<FileChangeQueue>('retry_file_change_task', { projectId, projectPath, taskId })
+  return relay()
+    .retryFileChange({ projectId: normalizePath(projectPath), taskId })
+    .then((response) => ({ version: response.queue.version, tasks: [...response.queue.tasks] }))
 }
 
 export function ignoreFileChangeTask(
-  projectId: string,
   projectPath: string,
   taskId: string,
 ): Promise<FileChangeQueue> {
-  return invoke<FileChangeQueue>('ignore_file_change_task', { projectId, projectPath, taskId })
+  return relay()
+    .ignoreFileChange({ projectId: normalizePath(projectPath), taskId })
+    .then((response) => ({ version: response.queue.version, tasks: [...response.queue.tasks] }))
 }

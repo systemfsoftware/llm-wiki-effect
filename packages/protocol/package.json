@@ -1,0 +1,48 @@
+{
+  "name": "llm-wiki-protocol",
+  "version": "0.1.0",
+  "description": "Wire contract for the LLM Wiki API server: schemas, RPC group, typed errors, client factories, and golden ndjson fixtures",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "lint": "oxlint . --type-aware --type-check",
+    "build": "rolldown -c rolldown.config.js && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "vitest run --passWithNoTests",
+    "test:mutation": "stryker run"
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@stryker-mutator/core": "catalog:",
+    "@stryker-mutator/vitest-runner": "catalog:",
+    "@systemfsoftware/all": "catalog:",
+    "@systemfsoftware/effect-gherkin-spec": "catalog:",
+    "@systemfsoftware/tsconfig": "catalog:",
+    "@types/node": "^20.0.0",
+    "fast-check": "catalog:",
+    "llm-wiki-oxlint-config": "workspace:*",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "rolldown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

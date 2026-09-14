@@ -7,8 +7,5 @@ pub mod extract_images;
 pub mod file_history;
 pub mod file_sync;
 pub mod fs;
-pub mod page_embedding;
 pub mod project;
 pub mod project_maintenance;
-pub mod search;
-pub mod vectorstore;

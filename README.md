@@ -44,13 +44,13 @@
 - **Folder Import** — recursive folder import preserving directory structure, folder context as LLM classification hint
 - **Source Folder Auto-Watch** — detects external changes in `raw/sources/` and keeps ingest/delete cleanup in sync
 - **Deep Research** — LLM-optimized search topics, multi-query web search via Tavily, SerpApi, or SearXNG, auto-ingest results into wiki
-- **Rust Backend Chat Agent** — tool-using chat runtime with wiki/source/graph/web retrieval, workspace file generation, shell approval, cancellation, and streaming tool events
+- **Agent Chat Runtime** — server-side tool-using chat runtime with wiki/source/graph/web retrieval, workspace file generation, shell approval, cancellation, and streaming tool events
 - **Agent Skills** — scan and enable local `SKILL.md` folders, select skills with `/skill`, and let the Agent read skill instructions on demand
 - **Generated Outputs Preview** — Agent-created Markdown, HTML, images, and other workspace files appear as outputs with preview and quick folder access
 - **Mermaid Diagram Rendering** — render Mermaid code blocks directly in chat and preview, with compact syntax-error cards instead of raw parser output
 - **Async Review System** — LLM flags items for human judgment, predefined actions, pre-generated search queries
 - **Chrome Web Clipper** — one-click web page capture with auto-ingest into knowledge base
-- **Local HTTP API + MCP Server + AI Agent Skill** — built-in `127.0.0.1:19828` JSON API and bundled MCP server for hybrid search, file read, graph traversal, and source rescan; ready-made [agent skill](https://github.com/nashsu/llm_wiki_skill) installs into Claude Code / Codex with one command (`npx skills add …`)
+- **Local API Server + MCP Server + AI Agent Skill** — the API runs as its own process (the desktop supervises it over a local socket, and the same server runs standalone, serving RPC over HTTP/WebSocket on `127.0.0.1:19828`) with a bundled MCP server for hybrid search, file read, graph traversal, and source rescan; ready-made [agent skill](https://github.com/nashsu/llm_wiki_skill) installs into Claude Code / Codex with one command (`npx skills add …`)
 
 ## What is this?
 
@@ -217,7 +217,7 @@ Phase 1: Tokenized Search
 
 Phase 1.5: Vector Semantic Search (optional)
   - Embedding via any OpenAI-compatible /v1/embeddings endpoint
-  - Stored in LanceDB (Rust backend) for fast ANN retrieval
+  - Stored in LanceDB (embedded) for fast ANN retrieval
   - Cosine similarity finds semantically related pages even without keyword overlap
   - Results merged into search: boosts existing matches + adds new discoveries
 
@@ -252,9 +252,9 @@ The original has a single query interface. We built **full multi-conversation su
 - **Regenerate** — re-generate the last response with one click (removes last assistant + user message pair, re-sends)
 - **Save to Wiki** — archive valuable answers to `wiki/queries/`, then auto-ingest to extract entities/concepts into the knowledge network
 
-### 9. Rust Backend Chat Agent & Skills
+### 9. Server-Side Chat Agent & Skills
 
-Not in the original. Chat now runs through a Rust backend Agent runtime rather than a browser-only TypeScript loop:
+Not in the original. Chat runs through the API server's agent runtime — a tool loop in TypeScript inside `apps/api-server` — rather than a browser-only TypeScript loop: the server owns the retrieval, tool, and provider seams, and the desktop relays the streamed events to the chat panel.
 
 - **Tool-using Agent** — can choose wiki search, source search, graph search, web search, AnyTXT, workspace file tools, approved shell commands, and skill file reads
 - **Skill management** — scan project and user skill folders, enable or disable skills, and pick a skill per conversation with `/skill` completion
@@ -329,16 +329,16 @@ The original mentions Obsidian Web Clipper. We built a **dedicated Chrome Extens
 
 The original focuses on text/markdown. We support structured extraction preserving document semantics:
 
-| Format       | Method                                                                                                                   |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| PDF          | Built-in pdf-extract (Rust) with file caching; optional MinerU Cloud, Local API, or Pipeline parsing for complex layouts |
-| DOCX         | docx-rs — headings, bold/italic, lists, tables → structured Markdown                                                     |
-| PPTX         | ZIP + XML — slide-by-slide extraction with heading/list structure                                                        |
-| XLSX/XLS/ODS | calamine — proper cell types, multi-sheet support, Markdown tables                                                       |
-| EPUB/MOBI    | Electronic book metadata, chapters, and body text → ingest-ready content                                                 |
-| Images       | Native preview (png, jpg, gif, webp, svg, etc.)                                                                          |
-| Video/Audio  | Built-in player                                                                                                          |
-| Web clips    | Readability.js + Turndown.js → clean Markdown                                                                            |
+| Format       | Method                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| PDF          | Built-in pdfium (Rust) with file caching; optional MinerU Cloud, Local API, or Pipeline parsing for complex layouts |
+| DOCX         | docx-rs — headings, bold/italic, lists, tables → structured Markdown                                                |
+| PPTX         | ZIP + XML — slide-by-slide extraction with heading/list structure                                                   |
+| XLSX/XLS/ODS | calamine — proper cell types, multi-sheet support, Markdown tables                                                  |
+| EPUB/MOBI    | Electronic book metadata, chapters, and body text → ingest-ready content                                            |
+| Images       | Native preview (png, jpg, gif, webp, svg, etc.)                                                                     |
+| Video/Audio  | Built-in player                                                                                                     |
+| Web clips    | Readability.js + Turndown.js → clean Markdown                                                                       |
 
 > MinerU is optional. Use MinerU Cloud, an official Local API endpoint, or Local Pipeline mode for complex PDFs. Local modes keep processing on your machine, and extracted images are stored in the project-managed `wiki/media` directory. If MinerU fails, LLM Wiki falls back to the built-in parser.
 
@@ -386,20 +386,22 @@ The original is platform-agnostic (abstract pattern). We handle concrete cross-p
 
 ## Tech Stack
 
-| Layer      | Technology                                                                   |
-| ---------- | ---------------------------------------------------------------------------- |
-| Desktop    | Tauri v2 (Rust backend)                                                      |
-| Frontend   | React 19 + TypeScript + Vite                                                 |
-| UI         | shadcn/ui + Tailwind CSS v4                                                  |
-| Editor     | Milkdown (ProseMirror-based WYSIWYG)                                         |
-| Graph      | sigma.js + graphology + ForceAtlas2                                          |
-| Search     | Tokenized search + graph relevance + optional vector (LanceDB)               |
-| Vector DB  | LanceDB (Rust, embedded, optional)                                           |
-| Documents  | pdf-extract + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI extraction |
-| i18n       | react-i18next                                                                |
-| State      | Zustand                                                                      |
-| LLM        | Streaming fetch (OpenAI, Anthropic, Google, Ollama, Custom)                  |
-| Web Search | Tavily, SerpApi, SearXNG JSON API                                            |
+| Layer         | Technology                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| Desktop       | Tauri v2 (Rust shell: window, clip server on 19827, API worker supervisor)                  |
+| API server    | Node 20+ · Effect RPC (`apps/api-server`): worker over local IPC, standalone HTTP/WebSocket |
+| Wire contract | Effect Schema + RPC (`packages/protocol`), ndjson frames                                    |
+| Frontend      | React 19 + TypeScript + Vite                                                                |
+| UI            | shadcn/ui + Tailwind CSS v4                                                                 |
+| Editor        | Milkdown (ProseMirror-based WYSIWYG)                                                        |
+| Graph         | sigma.js + graphology + ForceAtlas2                                                         |
+| Search        | Tokenized search + graph relevance + optional vector (LanceDB)                              |
+| Vector DB     | LanceDB (embedded, optional)                                                                |
+| Documents     | pdfium + MinerU Cloud/Local + docx-rs + calamine + EPUB/MOBI extraction                     |
+| i18n          | react-i18next                                                                               |
+| State         | Zustand                                                                                     |
+| LLM           | Streaming fetch (OpenAI, Anthropic, Google, Ollama, Custom)                                 |
+| Web Search    | Tavily, SerpApi, SearXNG JSON API                                                           |
 
 ## Installation
 
@@ -422,6 +424,7 @@ git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
 pnpm install
 pnpm mcp:build         # apps/mcp-server/dist is bundled as a Tauri resource
+pnpm api:build         # apps/api-server/dist is bundled too — its worker entry is what the app spawns
 pnpm tauri dev         # Development
 pnpm tauri build       # Production build
 ```
@@ -446,25 +449,34 @@ pnpm tauri build       # Production build
 8. Check **Review** for items needing your attention
 9. Run **Lint** periodically to maintain wiki health
 
-## Local HTTP API + MCP Server + AI Agent Skill
+## Local API Server + MCP Server + AI Agent Skill
 
-LLM Wiki ships a built-in local HTTP API at `http://127.0.0.1:19828` (token-protected, `127.0.0.1`-only) so external tools — including AI agents like **Claude Code**, **Codex**, or any HTTP-capable script — can query your wiki:
+LLM Wiki's API is its own process. The desktop app spawns it as a supervised worker and talks to it over a local socket, so the desktop never opens a network port; the same server also runs standalone, serving RPC over HTTP on `http://127.0.0.1:19828` (token-protected) with a WebSocket upgrade for streams, so external tools can query a wiki with no desktop app running:
 
-- `GET /api/v1/health` — server status (no auth)
-- `GET /api/v1/projects` — list projects
-- `GET /api/v1/projects/{id}/files` / `files/content` — read files and content
-- `GET /api/v1/projects/{id}/reviews?status=unresolved` — export Review tab items for wiki maintenance (`status`: `unresolved`, `resolved`, or `all`; optional `type` and `limit`)
-- `PATCH /api/v1/projects/{id}/reviews/{reviewId}` — update one Review item (JSON body `{ "resolved": true, "action": "label" }`; `resolved` defaults to true, pass false to reopen)
-- `POST /api/v1/projects/{id}/reviews/resolve` — bulk-resolve Review items (JSON body `{ "ids": [...], "action": "label" }`), returns `{ resolved, notFound, count }`; the Review tab's Refresh button re-reads the result from disk
-- `POST /api/v1/projects/{id}/search` — **hybrid** retrieval (keyword + vector) returning `mode`, `tokenHits`, `vectorHits`, per-result `vectorScore`
-- `POST /api/v1/projects/{id}/chat` — backend Agent chat endpoint for wiki/source/web/AnyTXT retrieval. JSON requests remain non-streaming by default; send `"stream": true` or `Accept: text/event-stream` for SSE events (`meta`, incremental `agent`, then `done`, `cancelled`, or `error`). The terminal `done` frame contains the complete aggregate response, so clients should not render both message deltas and the final message as separate answers. `mode: "deep"` broadens evidence collection, while the full Deep Research workspace remains available in the desktop UI
-- `GET /api/v1/projects/{id}/graph` — wikilinks graph
-- `POST /api/v1/projects/{id}/sources/rescan` — trigger a backend rescan
-- `POST /api/v1/projects/{id}/pages/embed` — index one externally created or updated `wiki/*.md` page without rebuilding the whole vector database
+```bash
+pnpm api:build        # bundles dist/src/entries/{worker,standalone}.js
+LLM_WIKI_API_TOKEN=dev-token node apps/api-server/dist/src/entries/standalone.js
+```
+
+Every operation is a request/response frame except `chatStream`, which is an RPC stream. `health` is the one operation that needs neither a token nor the API/MCP gates — over the standalone server it is a framed `POST /rpc`:
+
+```bash
+printf '%s\n' '{"_tag":"Request","id":"1","tag":"health","payload":null,"headers":[]}' \
+  | curl -sS --data-binary @- -H 'content-type: application/ndjson' http://127.0.0.1:19828/rpc
+```
 
 Enable the API, generate a token, and choose whether local unauthenticated access is allowed in **Settings → API + MCP**.
 
-For MCP-compatible clients, LLM Wiki also includes a local MCP server in `apps/mcp-server/`. After building it with `pnpm mcp:build`, **Settings → API + MCP** shows a copyable MCP client configuration with the correct local path for your machine. The MCP tools call the same API surface, so agent clients can list projects, read files, export unresolved Review items, run hybrid search, inspect the graph, trigger source rescans, and call the same Rust backend Agent chat endpoint without custom HTTP glue code.
+For MCP-compatible clients, LLM Wiki also includes a local MCP server in `apps/mcp-server/`. After building it with `pnpm mcp:build`, **Settings → API + MCP** shows a copyable MCP client configuration with the correct local entry path for your machine — local mode carries the worker's socket path (`LLM_WIKI_SOCKET_PATH`), remote mode a base URL (`LLM_WIKI_BASE_URL`, plus `LLM_WIKI_API_TOKEN`). The MCP tools call the same server, so agent clients can list projects, read files, export unresolved Review items, run hybrid search, inspect the graph, trigger source rescans, and run an Agent chat turn without custom glue code.
+
+### Migrating from the REST API
+
+The `/api/v1` HTTP surface, its SSE framing, and its `?token=` query auth are **gone**, with no compatibility shim. Nothing in this workspace publishes to npm, so consumers move to one of the two surfaces that ship in the repository:
+
+- **The MCP server** — 11 `llm_wiki_*` tools with unchanged names, input schemas, and result text.
+- **The protocol package** (`packages/protocol`) from a repository checkout — the operation schemas, the RPC group, and the socket/HTTP client factories.
+
+Two conventions translate rather than map one-to-one: a retired HTTP status is now a _typed error inside the frame_ (the full status → error mapping is `packages/protocol/src/errors/ledger.ts`, the error classes it names are `packages/protocol/src/errors/errors.ts`), and streamed chat is an RPC stream rather than an `Accept: text/event-stream` response.
 
 ### Plug your AI agent in with one command
 

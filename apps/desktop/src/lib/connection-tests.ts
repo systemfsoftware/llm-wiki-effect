@@ -18,7 +18,7 @@ export async function testEmbeddingConnection(cfg: EmbeddingConfig): Promise<Pro
   }
 
   const started = performance.now()
-  const vector = await fetchEmbedding('LLM Wiki embedding connection test.', cfg, 0)
+  const vector = await fetchEmbedding('LLM Wiki embedding connection test.', cfg)
   if (!vector) {
     return {
       ok: false,
@@ -33,8 +33,8 @@ export async function testEmbeddingConnection(cfg: EmbeddingConfig): Promise<Pro
 }
 
 export async function testEmbeddingFunction(cfg: EmbeddingConfig): Promise<ProviderTestResult> {
-  const first = await fetchEmbedding('LLM Wiki functional embedding test: apple banana graph.', cfg, 0)
-  const second = await fetchEmbedding('LLM Wiki functional embedding test: apple banana graph.', cfg, 0)
+  const first = await fetchEmbedding('LLM Wiki functional embedding test: apple banana graph.', cfg)
+  const second = await fetchEmbedding('LLM Wiki functional embedding test: apple banana graph.', cfg)
   if (!first || !second) {
     return {
       ok: false,

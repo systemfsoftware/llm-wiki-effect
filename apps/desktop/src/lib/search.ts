@@ -1,6 +1,5 @@
+import { relay } from '@/lib/api-relay'
 import { normalizePath } from '@/lib/path-utils'
-import { useWikiStore } from '@/stores/wiki-store'
-import { invoke } from '@tauri-apps/api/core'
 
 export interface ImageRef {
   url: string
@@ -13,71 +12,61 @@ export interface SearchResult {
   snippet: string
   titleMatch: boolean
   score: number
-  vectorScore?: number
+  vectorScore?: number | undefined
   images: ImageRef[]
 }
 
-interface BackendSearchResponse {
-  // Reserved for result badges/debug UI. The backend already returns these
-  // signals so API and WebView search share the same retrieval contract.
-  mode: 'keyword' | 'vector' | 'hybrid'
-  results: SearchResult[]
-  tokenHits: number
-  vectorHits: number
-  graphHits?: number
+const STOP_WORDS: Record<string, true> = {
+  的: true,
+  是: true,
+  了: true,
+  什么: true,
+  在: true,
+  有: true,
+  和: true,
+  与: true,
+  对: true,
+  从: true,
+  the: true,
+  is: true,
+  a: true,
+  an: true,
+  what: true,
+  how: true,
+  are: true,
+  was: true,
+  were: true,
+  do: true,
+  does: true,
+  did: true,
+  be: true,
+  been: true,
+  being: true,
+  have: true,
+  has: true,
+  had: true,
+  it: true,
+  its: true,
+  in: true,
+  on: true,
+  at: true,
+  to: true,
+  for: true,
+  of: true,
+  with: true,
+  by: true,
+  this: true,
+  that: true,
+  these: true,
+  those: true,
 }
-
-const STOP_WORDS = new Set([
-  '的',
-  '是',
-  '了',
-  '什么',
-  '在',
-  '有',
-  '和',
-  '与',
-  '对',
-  '从',
-  'the',
-  'is',
-  'a',
-  'an',
-  'what',
-  'how',
-  'are',
-  'was',
-  'were',
-  'do',
-  'does',
-  'did',
-  'be',
-  'been',
-  'being',
-  'have',
-  'has',
-  'had',
-  'it',
-  'its',
-  'in',
-  'on',
-  'at',
-  'to',
-  'for',
-  'of',
-  'with',
-  'by',
-  'this',
-  'that',
-  'these',
-  'those',
-])
 
 export function tokenizeQuery(query: string): string[] {
   const rawTokens = query
     .toLowerCase()
     .split(/[\s,，。！？、；：""''（）()\-_/\\·~～…]+/)
     .filter((t) => t.length > 1)
-    .filter((t) => !STOP_WORDS.has(t))
+    .filter((t) => STOP_WORDS[t] !== true)
 
   const tokens: string[] = []
   for (const token of rawTokens) {
@@ -91,7 +80,7 @@ export function tokenizeQuery(query: string): string[] {
         tokens.push(first + second)
       }
       for (const ch of chars) {
-        if (!STOP_WORDS.has(ch)) tokens.push(ch)
+        if (STOP_WORDS[ch] !== true) tokens.push(ch)
       }
       tokens.push(token)
     } else {
@@ -107,19 +96,20 @@ export async function searchWiki(
 ): Promise<SearchResult[]> {
   if (!query.trim()) return []
   const pp = normalizePath(projectPath)
-  const embCfg = useWikiStore.getState().embeddingConfig
-
-  const response = await invoke<BackendSearchResponse>('search_project', {
-    projectPath: pp,
+  const response = await relay().search({
+    projectId: pp,
     query,
     topK: 20,
     includeContent: false,
-    queryEmbedding: null,
-    embeddingConfig: embCfg,
   })
 
   return response.results.map((result) => ({
-    ...result,
     path: `${pp}/${normalizePath(result.path).replace(/^\/+/, '')}`,
+    title: result.title,
+    snippet: result.snippet,
+    titleMatch: result.titleMatch,
+    score: result.score,
+    ...(result.vectorScore === undefined ? {} : { vectorScore: result.vectorScore }),
+    images: result.images.map((image) => ({ url: image.url, alt: image.alt })),
   }))
 }

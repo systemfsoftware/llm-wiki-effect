@@ -1,11 +1,6 @@
-import {
-  createMissingWikiPage,
-  getPageLinks,
-  type PageLinkEntry,
-  type PageLinksResponse,
-  readFile,
-} from '@/commands/fs'
+import { createMissingWikiPage, readFile } from '@/commands/fs'
 import { streamChat } from '@/lib/llm-client'
+import { getPageLinks, type PageLinkEntry, type PageLinksResponse } from '@/lib/page-links'
 import { normalizePath } from '@/lib/path-utils'
 import { refreshProjectFileTree } from '@/lib/project-file-tree-refresh'
 import { normalizeSelectionReplacement } from '@/lib/selection-edit'

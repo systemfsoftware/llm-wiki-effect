@@ -14,6 +14,8 @@
     "mcp:build": "turbo run build --filter=llm-wiki-mcp-server",
     "mcp:typecheck": "turbo run typecheck --filter=llm-wiki-mcp-server",
     "mcp:test": "turbo run test --filter=llm-wiki-mcp-server",
+    "api:build": "turbo run build --filter=llm-wiki-api-server",
+    "api:test": "turbo run test --filter=llm-wiki-api-server",
     "format": "node bin/dprint.mjs fmt",
     "format:check": "node bin/dprint.mjs check",
     "changeset": "changeset",
@@ -24,7 +26,7 @@
     "typecheck": "turbo run typecheck",
     "precommit": "pnpm exec lint-staged --no-revert --config .lintstagedrc.js",
     "prepare": "husky",
-    "gate:tasks": "turbo run --continue --concurrency=100% lint typecheck test:mocks llm-wiki-mcp-server#test",
+    "gate:tasks": "turbo run --continue --concurrency=100% lint typecheck llm-wiki#test:mocks llm-wiki-mcp-server#test llm-wiki-protocol#test llm-wiki-api-server#test",
     "gate:dist": "turbo run --concurrency=100% --continue build",
     "check:ci": "node scripts/check-ci.mjs format:check gate:tasks gate:dist"
   },

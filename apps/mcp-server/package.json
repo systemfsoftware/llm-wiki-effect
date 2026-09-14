@@ -24,7 +24,10 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@effect/platform-node": "catalog:",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "effect": "catalog:",
+    "llm-wiki-protocol": "workspace:*"
   },
   "devDependencies": {
     "@systemfsoftware/tsconfig": "catalog:",

@@ -44,13 +44,13 @@
 - **文件夹导入** — 递归导入保留目录结构，文件夹路径作为 LLM 分类上下文
 - **Source 文件夹自动监听** — 检测 `raw/sources/` 的外部变更，并同步触发摄入或删除清理
 - **深度研究** — LLM 智能生成搜索主题，通过 Tavily、SerpApi 或 SearXNG 进行多查询网络搜索，研究结果自动摄入 Wiki
-- **Rust 后端 Chat Agent** — 支持工具调用的聊天运行时，可进行 Wiki/Source/Graph/Web 检索、workspace 文件生成、shell 审批、取消和流式工具事件展示
+- **服务端 Chat Agent** — 支持工具调用的聊天运行时，可进行 Wiki/Source/Graph/Web 检索、workspace 文件生成、shell 审批、取消和流式工具事件展示
 - **Agent Skills** — 扫描并启用本地 `SKILL.md` 目录，在聊天中用 `/skill` 选择，让 Agent 按需读取 Skill 指令
 - **生成物预览** — Agent 生成的 Markdown、HTML、图片等 workspace 文件会作为生成物展示，支持预览和快速打开目录
 - **Mermaid 流程图渲染** — 聊天和预览中可直接渲染 Mermaid 代码块，语法错误会显示为紧凑错误卡片
-- **异步审核系统** — LLM 在摄入时标记需人工判断的项，预定义操作，预生成搜索查询
+- **异步审核系统** — LLM 标记出需要人工判断的条目，附带预定义操作和预生成的检索查询
 - **Chrome 网页剪藏** — 一键捕获网页内容，自动摄入知识库
-- **本地 HTTP API + MCP Server + AI Agent Skill** — 内置 `127.0.0.1:19828` JSON API 和随包提供的 MCP Server，支持 Hybrid 检索、文件读取、知识图谱遍历、源资料重新扫描；配套 [agent skill](https://github.com/nashsu/llm_wiki_skill) 一行命令接入 Claude Code / Codex（`npx skills add …`）
+- **本地 API Server + MCP Server + AI Agent Skill** — API 作为独立进程运行（桌面端通过本地 socket 监督它，同一份 server 也能独立运行，在 `127.0.0.1:19828` 上以 HTTP/WebSocket 提供 RPC），随包提供的 MCP Server 支持 Hybrid 检索、文件读取、知识图谱遍历、源资料重新扫描；配套 [agent skill](https://github.com/nashsu/llm_wiki_skill) 一行命令接入 Claude Code / Codex（`npx skills add …`）
 
 ## 这是什么？
 
@@ -217,7 +217,7 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 
 阶段 1.5：向量语义搜索（可选）
   - 通过任意 OpenAI 兼容的 /v1/embeddings 端点生成 embedding
-  - 存储在 LanceDB（Rust 后端）中进行快速 ANN 检索
+  - 存储在 LanceDB（嵌入式）中进行快速 ANN 检索
   - 余弦相似度发现即使没有关键词重叠也语义相关的页面
   - 结果合并：增强已有匹配 + 添加新发现
 
@@ -252,9 +252,9 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 - **重新生成** —— 一键重新生成最后一条回复（移除最后的助手+用户消息对，重新发送）
 - **保存到 Wiki** —— 将有价值的回答归档到 `wiki/queries/`，然后自动摄入提取实体/概念到知识网络
 
-### 9. Rust 后端 Chat Agent 与 Skills
+### 9. 服务端 Chat Agent 与 Skills
 
-原始设计中没有。聊天现在由 Rust 后端 Agent runtime 驱动，而不是只在浏览器端运行 TypeScript 循环：
+原始设计中没有。聊天由 API server 的 Agent runtime（位于 `apps/api-server` 的 TypeScript 工具循环）驱动，而不是只在浏览器端跑 TypeScript 循环：检索、工具和 provider 的接口都归 server 所有，桌面端只负责把流式事件转发给聊天面板。
 
 - **工具型 Agent** —— 可自主选择 Wiki 检索、Source 检索、图谱检索、网页搜索、AnyTXT、workspace 文件工具、已批准的 shell 命令和 Skill 文件读取
 - **Skill 管理** —— 扫描项目级和用户级 Skill 目录，启用或禁用 Skill，并在每个会话中通过 `/skill` 补全选择 Skill
@@ -329,16 +329,16 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 
 原始设计聚焦于纯文本/Markdown。我们支持保留文档语义的结构化提取：
 
-| 格式         | 方法                                                                                         |
-| ------------ | -------------------------------------------------------------------------------------------- |
-| PDF          | 内置 pdf-extract（Rust）+ 文件缓存；可选 MinerU 云端、Local API 或 Pipeline 模式解析复杂排版 |
-| DOCX         | docx-rs —— 标题、加粗/斜体、列表、表格 → 结构化 Markdown                                     |
-| PPTX         | ZIP + XML —— 逐页提取，保留标题/列表结构                                                     |
-| XLSX/XLS/ODS | calamine —— 正确的单元格类型、多工作表支持、Markdown 表格                                    |
-| EPUB/MOBI    | 提取电子书元数据、章节和正文，转换为可摄取内容                                               |
-| 图片         | 原生预览（png, jpg, gif, webp, svg 等）                                                      |
-| 视频/音频    | 内置播放器                                                                                   |
-| 网页剪藏     | Readability.js + Turndown.js → 干净的 Markdown                                               |
+| 格式         | 方法                                                                                    |
+| ------------ | --------------------------------------------------------------------------------------- |
+| PDF          | 内置 pdfium（Rust）+ 文件缓存；可选 MinerU 云端、Local API 或 Pipeline 模式解析复杂排版 |
+| DOCX         | docx-rs —— 标题、加粗/斜体、列表、表格 → 结构化 Markdown                                |
+| PPTX         | ZIP + XML —— 逐页提取，保留标题/列表结构                                                |
+| XLSX/XLS/ODS | calamine —— 正确的单元格类型、多工作表支持、Markdown 表格                               |
+| EPUB/MOBI    | 提取电子书元数据、章节和正文，转换为可摄取内容                                          |
+| 图片         | 原生预览（png, jpg, gif, webp, svg 等）                                                 |
+| 视频/音频    | 内置播放器                                                                              |
+| 网页剪藏     | Readability.js + Turndown.js → 干净的 Markdown                                          |
 
 > MinerU 是可选功能。复杂 PDF 可使用 MinerU 云端、官方 Local API 或本地 Pipeline 模式；本地模式无需上传文件，提取的图片会保存到项目管理的 `wiki/media` 目录。若 MinerU 失败，LLM Wiki 会回退到内置解析器。
 
@@ -386,20 +386,22 @@ LLM Wiki 是一个跨平台桌面应用，能将你的文档自动转化为有�
 
 ## 技术栈
 
-| 层级       | 技术                                                                 |
-| ---------- | -------------------------------------------------------------------- |
-| 桌面       | Tauri v2（Rust 后端）                                                |
-| 前端       | React 19 + TypeScript + Vite                                         |
-| UI         | shadcn/ui + Tailwind CSS v4                                          |
-| 编辑器     | Milkdown（基于 ProseMirror 的所见即所得）                            |
-| 图谱       | sigma.js + graphology + ForceAtlas2                                  |
-| 搜索       | 分词搜索 + 图谱关联度 + 可选向量（LanceDB）                          |
-| 向量数据库 | LanceDB（Rust，嵌入式，可选）                                        |
-| 文档解析   | pdf-extract + MinerU 云端/本地 + docx-rs + calamine + EPUB/MOBI 提取 |
-| 国际化     | react-i18next                                                        |
-| 状态管理   | Zustand                                                              |
-| LLM        | 流式 fetch（OpenAI、Anthropic、Google、Ollama、自定义）              |
-| 网络搜索   | Tavily、SerpApi、SearXNG JSON API                                    |
+| 层级       | 技术                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| 桌面       | Tauri v2（Rust 外壳：窗口、19827 端口的剪藏服务、API worker 监督）                       |
+| API Server | Node 20+ · Effect RPC（`apps/api-server`）：worker 走本地 IPC，独立模式走 HTTP/WebSocket |
+| 通信契约   | Effect Schema + RPC（`packages/protocol`），ndjson 帧                                    |
+| 前端       | React 19 + TypeScript + Vite                                                             |
+| UI         | shadcn/ui + Tailwind CSS v4                                                              |
+| 编辑器     | Milkdown（基于 ProseMirror 的所见即所得）                                                |
+| 图谱       | sigma.js + graphology + ForceAtlas2                                                      |
+| 搜索       | 分词搜索 + 图谱关联度 + 可选向量（LanceDB）                                              |
+| 向量数据库 | LanceDB（嵌入式，可选）                                                                  |
+| 文档解析   | pdfium + MinerU 云端/本地 + docx-rs + calamine + EPUB/MOBI 提取                          |
+| 国际化     | react-i18next                                                                            |
+| 状态管理   | Zustand                                                                                  |
+| LLM        | 流式 fetch（OpenAI、Anthropic、Google、Ollama、自定义）                                  |
+| 网络搜索   | Tavily、SerpApi、SearXNG JSON API                                                        |
 
 ## 安装
 
@@ -422,6 +424,7 @@ git clone https://github.com/nashsu/llm_wiki.git
 cd llm_wiki
 pnpm install
 pnpm mcp:build         # apps/mcp-server/dist 会作为 Tauri 资源打包
+pnpm api:build         # apps/api-server/dist 同样会打包——应用启动的 worker 入口就在其中
 pnpm tauri dev         # 开发模式
 pnpm tauri build       # 生产构建
 ```
@@ -446,22 +449,34 @@ pnpm tauri build       # 生产构建
 8. 查看 **审核** 处理需要你关注的项目
 9. 定期运行 **Lint** 维护 Wiki 健康度
 
-## 本地 HTTP API + MCP Server + AI Agent Skill
+## 本地 API Server + MCP Server + AI Agent Skill
 
-LLM Wiki 内置一个本地 HTTP API（监听 `http://127.0.0.1:19828`，Token 鉴权，仅本机可达），任何外部工具——包括 **Claude Code**、**Codex** 这类 AI Agent，或者任意能发 HTTP 请求的脚本——都可以直接查询你的知识库：
+LLM Wiki 的 API 是一个独立进程。桌面应用把它作为受监督的 worker 启动，并通过本地 socket 与它通信，因此桌面端不会开放任何网络端口；同一份 server 也能独立运行，在 `http://127.0.0.1:19828` 上以 HTTP 提供 RPC（Token 鉴权），流式响应走 WebSocket 升级——这样即使没有桌面应用，外部工具也能查询知识库：
 
-- `GET /api/v1/health` —— 服务状态（无需鉴权）
-- `GET /api/v1/projects` —— 项目列表
-- `GET /api/v1/projects/{id}/files` / `files/content` —— 读取文件树与内容
-- `POST /api/v1/projects/{id}/search` —— **Hybrid 混合检索**（关键词 + 向量），返回 `mode`、`tokenHits`、`vectorHits`，每条结果带 `vectorScore`
-- `POST /api/v1/projects/{id}/chat` —— 非流式 Rust 后端 Agent 聊天接口，返回助手消息、引用、用量和工具事件；支持 Wiki/Source/Web/AnyTXT 检索，`mode: "deep"` 会扩展证据收集范围
-- `GET /api/v1/projects/{id}/graph` —— Wikilinks 知识图谱
-- `POST /api/v1/projects/{id}/sources/rescan` —— 触发后端重新扫描
-- `POST /api/v1/projects/{id}/pages/embed` —— 为外部创建或更新的单个 `wiki/*.md` 页面建立向量索引，无需重建整个向量数据库
+```bash
+pnpm api:build        # 打包 dist/src/entries/{worker,standalone}.js
+LLM_WIKI_API_TOKEN=dev-token node apps/api-server/dist/src/entries/standalone.js
+```
+
+除 `chatStream` 是 RPC 流之外，每个操作都是一次请求/响应帧。`health` 是唯一既不需要 Token、也不经过 API/MCP 开关的操作——在独立 server 上它就是一个带帧的 `POST /rpc`：
+
+```bash
+printf '%s\n' '{"_tag":"Request","id":"1","tag":"health","payload":null,"headers":[]}' \
+  | curl -sS --data-binary @- -H 'content-type: application/ndjson' http://127.0.0.1:19828/rpc
+```
 
 在 **设置 → API + MCP** 中开启 API、生成 Token，并按需选择是否允许本机无鉴权访问。
 
-对于兼容 MCP 的客户端，LLM Wiki 还内置了 `apps/mcp-server/`。执行 `pnpm mcp:build` 构建后，**设置 → API + MCP** 会展示一份可复制的 MCP 客户端配置，并自动填入当前机器上的真实入口路径。MCP 工具复用同一套 API 能力，因此 Agent 可以直接列出项目、读取文件、执行 Hybrid 检索、查看图谱、触发资料源重新扫描，并调用同一套 Rust 后端 Agent 聊天接口，不需要再手写 HTTP 调用。
+对于兼容 MCP 的客户端，LLM Wiki 还内置了 `apps/mcp-server/`。执行 `pnpm mcp:build` 构建后，**设置 → API + MCP** 会展示一份可复制的 MCP 客户端配置，并自动填入当前机器上的真实入口路径——本地模式带上 worker 的 socket 路径（`LLM_WIKI_SOCKET_PATH`），远程模式则使用 base URL（`LLM_WIKI_BASE_URL`，以及 `LLM_WIKI_API_TOKEN`）。MCP 工具调用的是同一个 server，因此 Agent 可以直接列出项目、读取文件、导出未处理的审核项、执行 Hybrid 检索、查看图谱、触发资料源重新扫描，并运行一轮 Agent 聊天，不需要再手写胶水代码。
+
+### 从 REST API 迁移
+
+`/api/v1` HTTP 接口、SSE 分帧以及 `?token=` 查询参数鉴权都已**移除**，且不提供兼容层。本仓库中的任何包都不会发布到 npm，因此使用方应迁移到随仓库提供的两种接口之一：
+
+- **MCP Server** —— 11 个 `llm_wiki_*` 工具，名称、入参 schema 和结果文本均保持不变。
+- **协议包**（`packages/protocol`）—— 从仓库 checkout 使用：操作 schema、RPC group，以及 socket/HTTP 客户端工厂。
+
+有两处需要语义转换而非一一对应：原来的 HTTP 状态码现在表现为**帧内的 typed error**（完整的“状态码 → 错误”对照表在 `packages/protocol/src/errors/ledger.ts`，其中引用的错误类在 `packages/protocol/src/errors/errors.ts`）；流式聊天是 RPC stream，而不是 `Accept: text/event-stream` 响应。
 
 ### 一条命令把 AI Agent 接进你的知识库
 

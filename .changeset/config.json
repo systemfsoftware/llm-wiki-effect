@@ -7,6 +7,6 @@
   "access": "restricted",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["llm-wiki-mcp-server"],
+  "ignore": ["llm-wiki-mcp-server", "llm-wiki-protocol", "llm-wiki-api-server"],
   "privatePackages": { "version": true, "tag": false }
 }

@@ -215,7 +215,7 @@ export function ActivityPanel() {
 
   const handleFileSyncRescan = useCallback(() => {
     if (!project) return
-    rescanProjectFiles(project.id, normalizePath(project.path), useWikiStore.getState().sourceWatchConfig)
+    rescanProjectFiles(normalizePath(project.path))
       .then((result) => {
         setFileSyncTasks(result.queue.tasks)
         return useFileSyncStore.getState().setLastError(null)
@@ -225,7 +225,7 @@ export function ActivityPanel() {
 
   const handleFileSyncRetry = useCallback((taskId: string) => {
     if (!project) return
-    retryFileChangeTask(project.id, normalizePath(project.path), taskId)
+    retryFileChangeTask(normalizePath(project.path), taskId)
       .then((queue) => {
         setFileSyncTasks(queue.tasks)
         return useFileSyncStore.getState().setLastError(null)
@@ -235,7 +235,7 @@ export function ActivityPanel() {
 
   const handleFileSyncIgnore = useCallback((taskId: string) => {
     if (!project) return
-    ignoreFileChangeTask(project.id, normalizePath(project.path), taskId)
+    ignoreFileChangeTask(normalizePath(project.path), taskId)
       .then((queue) => {
         setFileSyncTasks(queue.tasks)
         return useFileSyncStore.getState().setLastError(null)

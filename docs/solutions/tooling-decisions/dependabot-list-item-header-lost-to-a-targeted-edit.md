@@ -81,7 +81,7 @@ automated gate in `pnpm check:ci` did, before or after.
 
 Restore the list-item header so the cargo block is its own sequence entry —
 `- package-ecosystem: "cargo"` immediately before
-`directory: "/apps/desktop/src-tauri"` — leaving six entries, each a unique
+`directory: "/apps/desktop/src-tauri"` — leaving every entry a unique
 `(package-ecosystem, directory)` pair, with cargo present:
 
 ```yaml
@@ -142,7 +142,9 @@ console.log(seen.size + " unique (package-ecosystem, directory) entries");
 Assert uniqueness and expected membership, not a hardcoded count — the count is
 an author-supplied value, and keying a gate on it repeats the defect one level
 up. Run the same assertion against a known-bad input once (the corrupted file)
-to prove the gate can fail.
+to prove the gate can fail. Measured after the API-server extraction: the script
+reports `9 unique (package-ecosystem, directory) entries` — the two new npm
+entries are `/apps/api-server` and `/packages/protocol`.
 
 **A format pass is not a structure pass.** dprint reads and rewrites YAML and
 cannot flag a missing sequence marker; any config an external service consumes

@@ -1,573 +1,350 @@
-export const DEFAULT_API_BASE_URL = 'http://127.0.0.1:19828'
+import { NodeHttpClient } from '@effect/platform-node'
+import { Cause, Effect, Exit, Layer } from 'effect'
+import { Client, Domain, Errors } from 'llm-wiki-protocol'
+
+export const SOCKET_PATH_ENV = 'LLM_WIKI_SOCKET_PATH'
+export const BASE_URL_ENV = 'LLM_WIKI_BASE_URL'
+export const API_TOKEN_ENV = 'LLM_WIKI_API_TOKEN'
+
+const RPC_PATH = '/rpc'
+
+const MISSING_ENDPOINT = `No LLM Wiki API endpoint is configured. Set ${SOCKET_PATH_ENV} to the desktop worker's ` +
+  `socket path, or ${BASE_URL_ENV} to the standalone API base URL.`
+
+export interface FilesRequest {
+  readonly projectId: string
+  readonly root: 'wiki' | 'sources' | 'all'
+  readonly recursive?: boolean | undefined
+  readonly maxFiles?: number | undefined
+}
+
+export interface FileContentRequest {
+  readonly projectId: string
+  readonly path: string
+}
+
+export interface ReviewsRequest {
+  readonly projectId: string
+  readonly status: 'unresolved' | 'resolved' | 'all'
+  readonly type?: string | undefined
+  readonly limit?: number | undefined
+}
+
+export interface SearchRequest {
+  readonly projectId: string
+  readonly query: string
+  readonly topK?: number | undefined
+  readonly includeContent?: boolean | undefined
+}
+
+export interface ChatRequest {
+  readonly message: string
+  readonly sessionId?: string | undefined
+  readonly persistSession?: boolean | undefined
+  readonly mode?: Domain.AgentMode | undefined
+  readonly topK?: number | undefined
+  readonly includeContent?: boolean | undefined
+  readonly tools: { readonly wiki: boolean; readonly web: boolean; readonly anytxt: boolean }
+  readonly skills?: ReadonlyArray<string> | undefined
+}
+
+export interface ChatCancelRequest {
+  readonly projectId: string
+  readonly sessionId: string
+}
+
+export interface GraphRequest {
+  readonly projectId: string
+  readonly q?: string | undefined
+  readonly nodeType?: string | undefined
+  readonly limit?: number | undefined
+}
+
+export interface RescanSourcesRequest {
+  readonly projectId: string
+}
+
+export interface EmbedPageRequest {
+  readonly projectId: string
+  readonly path: string
+  readonly force: boolean
+}
+
+export interface LlmWikiApi {
+  health(): Effect.Effect<Domain.Health, unknown>
+  projects(): Effect.Effect<Domain.ProjectsResponse, unknown>
+  files(request: FilesRequest): Effect.Effect<Domain.FilesResponse, unknown>
+  fileContent(request: FileContentRequest): Effect.Effect<Domain.FileContentResponse, unknown>
+  reviews(request: ReviewsRequest): Effect.Effect<Domain.ReviewsResponse, unknown>
+  search(request: SearchRequest): Effect.Effect<Domain.SearchResponse, unknown>
+  chat(request: ChatRequest): Effect.Effect<Domain.ChatResponse, unknown>
+  chatCancel(request: ChatCancelRequest): Effect.Effect<Domain.ChatCancelResponse, unknown>
+  graph(request: GraphRequest): Effect.Effect<Domain.GraphResponse, unknown>
+  rescanSources(request: RescanSourcesRequest): Effect.Effect<Domain.RescanSourcesResponse, unknown>
+  embedPage(request: EmbedPageRequest): Effect.Effect<Domain.EmbedPageResponse, unknown>
+}
+
+const protocolApi = (client: Client.ApiClient): LlmWikiApi => ({
+  health: () => client.health(undefined),
+  projects: () => client.projects(undefined),
+  files: (request) => client.files(request),
+  fileContent: (request) => client.fileContent(request),
+  reviews: (request) => client.reviews(request),
+  search: (request) => client.search(request),
+  chat: (request) => client.chat(request),
+  chatCancel: (request) => client.chatCancel(request),
+  graph: (request) => client.graph(request),
+  rescanSources: (request) => client.rescanSources(request),
+  embedPage: (request) => client.embedPage(request),
+})
 
 export interface LlmWikiApiClientOptions {
-  baseUrl?: string
-  token?: string
-  fetchImpl?: typeof fetch
+  readonly socketPath?: string | undefined
+  readonly baseUrl?: string | undefined
+  readonly token?: string | undefined
+  readonly api?: LlmWikiApi | undefined
 }
 
-export interface ApiProject {
-  id: string
-  name: string
-  path: string
-  current: boolean
-}
+export type LlmWikiTransport =
+  | { readonly mode: 'socket'; readonly path: string }
+  | { readonly mode: 'http'; readonly url: string; readonly token: string | undefined }
 
-export interface ApiFileNode {
-  name: string
-  path: string
-  isDir: boolean
-  children?: ApiFileNode[]
-}
-
-export interface ApiSearchResult {
-  path: string
-  title: string
-  snippet: string
-  score: number
-  titleMatch?: boolean
-  images?: Array<{ url: string; alt: string }>
-  vectorScore?: number | null
-}
-
-export interface ApiSearchResponse {
-  results: ApiSearchResult[]
-  mode?: string
-  tokenHits?: number
-  vectorHits?: number
-}
-
-export interface ApiPageEmbeddingResult {
-  path: string
-  pageId: string
-  revision: string
-  chunks: number
-  vectorsWritten: number
-  status: string
-}
-
-export interface ApiChatReference {
-  title: string
-  path: string
-  kind: string
-  snippet?: string
-  score?: number
-}
-
-export interface ApiChatToolEvent {
-  tool: string
-  status: string
-  detail?: string
-}
-
-export interface ApiChatEvent {
-  type: string
-  [key: string]: unknown
-}
-
-export interface ApiChatUsage {
-  promptChars?: number
-  completionChars?: number
-  referenceCount?: number
-  toolEventCount?: number
-}
-
-export interface ApiChatResponse {
-  projectId?: string
-  sessionId: string
-  mode?: string
-  message: {
-    role: string
-    content: string
+export const resolveTransport = (options: LlmWikiApiClientOptions): LlmWikiTransport | null => {
+  const socketPath = options.socketPath?.trim() ?? ''
+  if (socketPath !== '') return { mode: 'socket', path: socketPath }
+  const baseUrl = options.baseUrl?.trim().replace(/\/+$/, '') ?? ''
+  if (baseUrl === '') return null
+  return {
+    mode: 'http',
+    url: baseUrl.endsWith(RPC_PATH) ? baseUrl : `${baseUrl}${RPC_PATH}`,
+    token: options.token?.trim() || undefined,
   }
-  references: ApiChatReference[]
-  toolEvents: ApiChatToolEvent[]
-  events: ApiChatEvent[]
-  usage?: ApiChatUsage
 }
 
-export interface ApiGraphNode {
-  id: string
-  label: string
-  type: string
-  path?: string
-  linkCount?: number
-  weight?: number
-}
+export class LlmWikiApiError extends Error {
+  readonly tag: string | null
 
-export interface ApiGraphEdge {
-  source: string
-  target: string
-  weight?: number
-}
-
-export type ApiReviewStatus = 'unresolved' | 'resolved' | 'all'
-
-export interface ApiReviewOption {
-  label: string
-  action: string
-}
-
-export interface ApiReviewItem {
-  id: string
-  type: string
-  title: string
-  description: string
-  sourcePath?: string
-  affectedPages?: string[]
-  searchQueries?: string[]
-  options: ApiReviewOption[]
-  resolved: boolean
-  resolvedAction?: string
-  createdAt: number
-}
-
-export interface ApiReviewsResponse {
-  projectId?: string
-  status: ApiReviewStatus
-  count: number
-  reviews: ApiReviewItem[]
-}
-
-export interface ApiFilesResponse {
-  files: ApiFileNode[]
-  truncated?: boolean
-}
-
-export interface ApiHealth {
-  ok?: boolean
-  status?: string
-  enabled?: boolean
-  mcpEnabled?: boolean
-  authRequired?: boolean
-  authConfigured?: boolean
-  allowUnauthenticated?: boolean
-  tokenSource?: string
-  [key: string]: unknown
-}
-
-export function normalizeBaseUrl(value?: string): string {
-  const raw = (value ?? DEFAULT_API_BASE_URL).trim() || DEFAULT_API_BASE_URL
-  return raw.replace(/\/+$/, '')
-}
-
-function apiPath(path: string): string {
-  return path.startsWith('/api/v1') ? path : `/api/v1${path.startsWith('/') ? path : `/${path}`}`
-}
-
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function requireObject(value: unknown, context: string): Record<string, unknown> {
-  if (!isJsonObject(value)) throw new Error(`${context}: expected JSON object`)
-  return value
-}
-
-function numberOrUndefined(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
-}
-
-function stringOrDefault(value: unknown, fallback = ''): string {
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  return fallback
-}
-
-function requireString(value: unknown, context: string): string {
-  if (typeof value !== 'string' || !value) {
-    throw new Error(`${context}: expected non-empty string`)
+  constructor(tag: string | null, message: string) {
+    super(message)
+    this.name = 'LlmWikiApiError'
+    this.tag = tag
   }
-  return value
 }
 
-function requireNumber(value: unknown, context: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new Error(`${context}: expected finite number`)
+const protocolErrorTags: Readonly<Record<string, true>> = Object.fromEntries(
+  Errors.ApiErrorTag.literals.map((tag) => [tag, true]),
+)
+
+const errorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message
+  return typeof error === 'string' ? error : String(error)
+}
+
+const protocolErrorTag = (error: unknown): string | null => {
+  if (!(error instanceof Error)) return null
+  const tag = Reflect.get(error, '_tag')
+  return typeof tag === 'string' && protocolErrorTags[tag] === true ? tag : null
+}
+
+const transportMessage = (error: unknown): string =>
+  `LLM Wiki API request failed. Is the desktop app running? ${errorMessage(error)}`
+
+const toApiError = (cause: Cause.Cause<unknown>): LlmWikiApiError => {
+  const fail = cause.reasons.find((reason) => reason._tag === 'Fail')
+  if (fail !== undefined && fail._tag === 'Fail') {
+    const tag = protocolErrorTag(fail.error)
+    if (tag !== null) {
+      return new LlmWikiApiError(tag, `LLM Wiki API ${tag}: ${errorMessage(fail.error)}`)
+    }
+    return new LlmWikiApiError(null, transportMessage(fail.error))
   }
-  return value
+  const defect = cause.reasons.find((reason) => reason._tag === 'Die')
+  if (defect !== undefined && defect._tag === 'Die') {
+    return new LlmWikiApiError(null, transportMessage(defect.defect))
+  }
+  return new LlmWikiApiError(null, 'LLM Wiki API request was interrupted.')
+}
+
+const httpTransportLayer = (url: string, token: string | undefined): Layer.Layer<Client.HttpApiClient> =>
+  Client.HttpApiClient.layer({ url, token }).pipe(Layer.provide(NodeHttpClient.layerNodeHttp))
+
+export type ApiProject = Domain.Project
+export type ApiFileNode = Domain.FileNode
+export type ApiSearchResult = Domain.SearchResult
+export type ApiGraphNode = Domain.GraphNode
+export type ApiReviewItem = Domain.ReviewItem
+export type ApiReviewsResponse = Domain.ReviewsResponse
+export type ApiChatResponse = Domain.ChatResponse
+
+export interface FilesOptions {
+  readonly root?: 'wiki' | 'sources' | 'all' | undefined
+  readonly recursive?: boolean | undefined
+  readonly maxFiles?: number | undefined
+}
+
+export interface ReviewsOptions {
+  readonly status?: Domain.ReviewStatus | undefined
+  readonly type?: string | undefined
+  readonly limit?: number | undefined
+}
+
+export interface SearchOptions {
+  readonly topK?: number | undefined
+  readonly includeContent?: boolean | undefined
+}
+
+export interface ChatOptions {
+  readonly sessionId?: string | undefined
+  readonly mode?: Domain.AgentMode | undefined
+  readonly topK?: number | undefined
+  readonly includeContent?: boolean | undefined
+  readonly wiki?: boolean | undefined
+  readonly web?: boolean | undefined
+  readonly anytxt?: boolean | undefined
+  readonly skills?: ReadonlyArray<string> | undefined
+  readonly persistSession?: boolean | undefined
+}
+
+export interface GraphOptions {
+  readonly q?: string | undefined
+  readonly nodeType?: string | undefined
+  readonly limit?: number | undefined
 }
 
 export class LlmWikiApiClient {
-  private readonly baseUrl: string
+  private readonly socketPath: string | undefined
+  private readonly baseUrl: string | undefined
   private readonly token: string | undefined
-  private readonly fetchImpl: typeof fetch
+  private readonly seam: LlmWikiApi | undefined
 
   constructor(options: LlmWikiApiClientOptions = {}) {
-    this.baseUrl = normalizeBaseUrl(options.baseUrl ?? process.env['LLM_WIKI_API_BASE_URL'])
-    this.token = options.token ?? process.env['LLM_WIKI_API_TOKEN']
-    this.fetchImpl = options.fetchImpl ?? fetch
+    this.socketPath = options.socketPath ?? process.env[SOCKET_PATH_ENV]
+    this.baseUrl = options.baseUrl ?? process.env[BASE_URL_ENV]
+    this.token = options.token ?? process.env[API_TOKEN_ENV]
+    this.seam = options.api
   }
 
-  async health(): Promise<ApiHealth> {
-    return this.request('/health', { auth: false })
+  get endpoint(): string {
+    const transport = resolveTransport(this.options())
+    if (transport === null) return `no endpoint configured (set ${SOCKET_PATH_ENV} or ${BASE_URL_ENV})`
+    return transport.mode === 'socket' ? `unix socket ${transport.path}` : transport.url
   }
 
-  async projects(): Promise<{ projects: ApiProject[]; currentProject: ApiProject | null }> {
-    const json = await this.request('/projects')
-    const projects = Array.isArray(json['projects']) ? json['projects'].map(parseProject) : []
-    const currentProject = json['currentProject'] ? parseProject(json['currentProject']) : null
-    return { projects, currentProject }
+  async health(): Promise<Domain.Health> {
+    return this.request((api) => api.health())
   }
 
-  async files(
-    projectId = 'current',
-    options: { root?: 'wiki' | 'sources' | 'all'; recursive?: boolean; maxFiles?: number } = {},
-  ): Promise<ApiFilesResponse> {
-    const params = new URLSearchParams()
-    params.set('root', options.root ?? 'wiki')
-    if (options.recursive !== undefined) params.set('recursive', String(options.recursive))
-    if (options.maxFiles !== undefined) params.set('maxFiles', String(options.maxFiles))
-    const json = await this.request(`/projects/${encodeURIComponent(projectId)}/files?${params.toString()}`)
-    return {
-      files: Array.isArray(json['files']) ? json['files'].map(parseFileNode) : [],
-      truncated: json['truncated'] === true,
-    }
+  async projects(): Promise<Domain.ProjectsResponse> {
+    return this.request((api) => api.projects())
   }
 
-  async fileContent(projectId = 'current', path: string): Promise<{ path: string; content: string }> {
-    const params = new URLSearchParams({ path })
-    const json = await this.request(`/projects/${encodeURIComponent(projectId)}/files/content?${params.toString()}`)
-    return {
-      path: typeof json['path'] === 'string' ? json['path'] : path,
-      content: typeof json['content'] === 'string' ? json['content'] : '',
-    }
+  async files(projectId = 'current', options: FilesOptions = {}): Promise<Domain.FilesResponse> {
+    return this.request((api) =>
+      api.files({
+        projectId,
+        root: options.root ?? 'wiki',
+        ...(options.recursive === undefined ? {} : { recursive: options.recursive }),
+        ...(options.maxFiles === undefined ? {} : { maxFiles: options.maxFiles }),
+      })
+    )
   }
 
-  async reviews(
-    projectId = 'current',
-    options: { status?: ApiReviewStatus; type?: string; limit?: number } = {},
-  ): Promise<ApiReviewsResponse> {
-    const params = new URLSearchParams()
-    if (options.status) params.set('status', options.status)
-    if (options.type) params.set('type', options.type)
-    if (options.limit !== undefined) params.set('limit', String(options.limit))
-    const suffix = params.toString() ? `?${params.toString()}` : ''
-    const json = await this.request(`/projects/${encodeURIComponent(projectId)}/reviews${suffix}`)
-    const reviews = Array.isArray(json['reviews']) ? json['reviews'].map(parseReviewItem) : []
-    const responseProjectId = typeof json['projectId'] === 'string' ? json['projectId'] : undefined
-    return {
-      ...(responseProjectId !== undefined ? { projectId: responseProjectId } : {}),
-      status: parseReviewStatus(json['status']),
-      count: numberOrUndefined(json['count']) ?? reviews.length,
-      reviews,
-    }
+  async fileContent(projectId = 'current', path: string): Promise<Domain.FileContentResponse> {
+    return this.request((api) => api.fileContent({ projectId, path }))
   }
 
-  async search(
-    projectId = 'current',
-    query: string,
-    options: { topK?: number; includeContent?: boolean } = {},
-  ): Promise<ApiSearchResponse> {
-    const json = await this.request(`/projects/${encodeURIComponent(projectId)}/search`, {
-      method: 'POST',
-      body: {
+  async reviews(projectId = 'current', options: ReviewsOptions = {}): Promise<Domain.ReviewsResponse> {
+    return this.request((api) =>
+      api.reviews({
+        projectId,
+        status: options.status ?? 'unresolved',
+        ...(options.type === undefined ? {} : { type: options.type }),
+        ...(options.limit === undefined ? {} : { limit: options.limit }),
+      })
+    )
+  }
+
+  async search(projectId = 'current', query: string, options: SearchOptions = {}): Promise<Domain.SearchResponse> {
+    return this.request((api) =>
+      api.search({
+        projectId,
         query,
-        topK: options.topK,
-        includeContent: options.includeContent,
-      },
-    })
-    const mode = typeof json['mode'] === 'string' ? json['mode'] : undefined
-    const tokenHits = numberOrUndefined(json['tokenHits'])
-    const vectorHits = numberOrUndefined(json['vectorHits'])
-    return {
-      results: Array.isArray(json['results']) ? json['results'].map(parseSearchResult) : [],
-      ...(mode !== undefined ? { mode } : {}),
-      ...(tokenHits !== undefined ? { tokenHits } : {}),
-      ...(vectorHits !== undefined ? { vectorHits } : {}),
-    }
+        ...(options.topK === undefined ? {} : { topK: options.topK }),
+        ...(options.includeContent === undefined ? {} : { includeContent: options.includeContent }),
+      })
+    )
   }
 
-  async chat(
-    projectId = 'current',
-    message: string,
-    options: {
-      sessionId?: string
-      mode?: string
-      topK?: number
-      includeContent?: boolean
-      wiki?: boolean
-      web?: boolean
-      anytxt?: boolean
-      skills?: string[]
-      persistSession?: boolean
-    } = {},
-  ): Promise<ApiChatResponse> {
-    const json = await this.request(`/projects/${encodeURIComponent(projectId)}/chat`, {
-      method: 'POST',
-      body: {
+  async chat(projectId = 'current', message: string, options: ChatOptions = {}): Promise<Domain.ChatResponse> {
+    return this.request((api) =>
+      api.chat({
         message,
-        sessionId: options.sessionId,
-        persistSession: options.persistSession,
-        mode: options.mode,
-        topK: options.topK,
-        includeContent: options.includeContent,
+        ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
+        ...(options.persistSession === undefined ? {} : { persistSession: options.persistSession }),
+        ...(options.mode === undefined ? {} : { mode: options.mode }),
+        ...(options.topK === undefined ? {} : { topK: options.topK }),
+        ...(options.includeContent === undefined ? {} : { includeContent: options.includeContent }),
         tools: {
           wiki: options.wiki ?? true,
           web: options.web ?? false,
           anytxt: options.anytxt ?? false,
         },
-        skills: options.skills,
-      },
-    })
-    const msg = requireObject(json['message'], 'chat message')
-    const responseProjectId = typeof json['projectId'] === 'string' ? json['projectId'] : undefined
-    const responseMode = typeof json['mode'] === 'string' ? json['mode'] : undefined
-    const usage = parseChatUsage(json['usage'])
-    return {
-      ...(responseProjectId !== undefined ? { projectId: responseProjectId } : {}),
-      sessionId: typeof json['sessionId'] === 'string' ? json['sessionId'] : '',
-      ...(responseMode !== undefined ? { mode: responseMode } : {}),
-      message: {
-        role: typeof msg['role'] === 'string' ? msg['role'] : 'assistant',
-        content: typeof msg['content'] === 'string' ? msg['content'] : '',
-      },
-      references: Array.isArray(json['references']) ? json['references'].map(parseChatReference) : [],
-      toolEvents: Array.isArray(json['toolEvents']) ? json['toolEvents'].map(parseChatToolEvent) : [],
-      events: Array.isArray(json['events']) ? json['events'].map(parseChatEvent) : [],
-      ...(usage !== undefined ? { usage } : {}),
-    }
-  }
-
-  async cancelChat(projectId = 'current', sessionId: string): Promise<{ sessionId: string; cancelled: boolean }> {
-    const json = await this.request(
-      `/projects/${encodeURIComponent(projectId)}/chat/${encodeURIComponent(sessionId)}/cancel`,
-      {
-        method: 'POST',
-      },
+        ...(options.skills === undefined ? {} : { skills: options.skills }),
+      })
     )
-    return {
-      sessionId: typeof json['sessionId'] === 'string' ? json['sessionId'] : sessionId,
-      cancelled: json['cancelled'] === true,
-    }
   }
 
-  async graph(
-    projectId = 'current',
-    options: { q?: string; nodeType?: string; limit?: number } = {},
-  ): Promise<{ nodes: ApiGraphNode[]; edges: ApiGraphEdge[] }> {
-    const params = new URLSearchParams()
-    if (options.q) params.set('q', options.q)
-    if (options.nodeType) params.set('nodeType', options.nodeType)
-    if (options.limit !== undefined) params.set('limit', String(options.limit))
-    const suffix = params.toString() ? `?${params.toString()}` : ''
-    const json = await this.request(`/projects/${encodeURIComponent(projectId)}/graph${suffix}`)
-    return {
-      nodes: Array.isArray(json['nodes']) ? json['nodes'].map(parseGraphNode) : [],
-      edges: Array.isArray(json['edges']) ? json['edges'].map(parseGraphEdge) : [],
-    }
+  async cancelChat(projectId = 'current', sessionId: string): Promise<Domain.ChatCancelResponse> {
+    return this.request((api) => api.chatCancel({ projectId, sessionId }))
   }
 
-  async rescan(projectId = 'current'): Promise<Record<string, unknown>> {
-    return this.request(`/projects/${encodeURIComponent(projectId)}/sources/rescan`, {
-      method: 'POST',
-    })
-  }
-
-  async embedPage(path: string, projectId = 'current', force = false): Promise<ApiPageEmbeddingResult> {
-    const json = await this.request(`/projects/${encodeURIComponent(projectId)}/pages/embed`, {
-      method: 'POST',
-      body: { path, force },
-    })
-    const result = requireObject(json['result'], 'page embedding result')
-    return {
-      path: requireString(result['path'], 'page embedding result.path'),
-      pageId: requireString(result['pageId'], 'page embedding result.pageId'),
-      revision: requireString(result['revision'], 'page embedding result.revision'),
-      chunks: requireNumber(result['chunks'], 'page embedding result.chunks'),
-      vectorsWritten: requireNumber(result['vectorsWritten'], 'page embedding result.vectorsWritten'),
-      status: requireString(result['status'], 'page embedding result.status'),
-    }
-  }
-
-  private async request(
-    path: string,
-    options: { method?: 'GET' | 'POST'; body?: unknown; auth?: boolean } = {},
-  ): Promise<Record<string, unknown>> {
-    const url = `${this.baseUrl}${apiPath(path)}`
-    const headers: Record<string, string> = { Accept: 'application/json' }
-    if (options.auth !== false && this.token?.trim()) {
-      headers['Authorization'] = `Bearer ${this.token.trim()}`
-    }
-    if (options.body !== undefined) headers['Content-Type'] = 'application/json'
-
-    let response: Response
-    try {
-      const body = options.body === undefined ? undefined : JSON.stringify(options.body)
-      response = await this.fetchImpl(url, {
-        method: options.method ?? (body === undefined ? 'GET' : 'POST'),
-        headers,
-        ...(body !== undefined ? { body } : {}),
+  async graph(projectId = 'current', options: GraphOptions = {}): Promise<Domain.GraphResponse> {
+    return this.request((api) =>
+      api.graph({
+        projectId,
+        ...(options.q ? { q: options.q } : {}),
+        ...(options.nodeType ? { nodeType: options.nodeType } : {}),
+        ...(options.limit === undefined ? {} : { limit: options.limit }),
       })
-    } catch (err) {
-      throw new Error(
-        `LLM Wiki API request failed. Is the desktop app running? ${err instanceof Error ? err.message : String(err)}`,
-        { cause: err },
+    )
+  }
+
+  async rescan(projectId = 'current'): Promise<Domain.RescanSourcesResponse> {
+    return this.request((api) => api.rescanSources({ projectId }))
+  }
+
+  async embedPage(path: string, projectId = 'current', force = false): Promise<Domain.PageEmbeddingResult> {
+    const response = await this.request((api) => api.embedPage({ projectId, path, force }))
+    return response.result
+  }
+
+  private options(): LlmWikiApiClientOptions {
+    return { socketPath: this.socketPath, baseUrl: this.baseUrl, token: this.token }
+  }
+
+  private async request<A>(run: (api: LlmWikiApi) => Effect.Effect<A, unknown>): Promise<A> {
+    const exit = await Effect.runPromise(Effect.exit(this.call(run)))
+    if (Exit.isSuccess(exit)) return exit.value
+    throw toApiError(exit.cause)
+  }
+
+  private call<A>(run: (api: LlmWikiApi) => Effect.Effect<A, unknown>): Effect.Effect<A, unknown> {
+    if (this.seam !== undefined) return run(this.seam)
+    const transport = resolveTransport(this.options())
+    if (transport === null) throw new LlmWikiApiError(null, MISSING_ENDPOINT)
+    if (transport.mode === 'socket') {
+      return Effect.gen(function*() {
+        const client = yield* Client.SocketApiClient
+        return yield* run(protocolApi(client))
+      }).pipe(
+        Effect.provide(
+          Client.SocketApiClient.layer({ path: transport.path, retryTransientErrors: true }),
+        ),
       )
     }
-
-    const text = await response.text()
-    let json: Record<string, unknown>
-    try {
-      json = text ? requireObject(JSON.parse(text), 'LLM Wiki API response') : {}
-    } catch (err) {
-      throw new Error(
-        `LLM Wiki API returned non-JSON response (${response.status}): ${text.slice(0, 300)}${
-          err instanceof Error ? ` (${err.message})` : ''
-        }`,
-        { cause: err },
-      )
-    }
-
-    if (!response.ok || json['ok'] === false) {
-      const message = typeof json['error'] === 'string' ? json['error'] : response.statusText
-      throw new Error(`LLM Wiki API ${response.status}: ${message}`)
-    }
-    return json
-  }
-}
-
-function parseProject(value: unknown): ApiProject {
-  const obj = requireObject(value, 'project')
-  return {
-    id: stringOrDefault(obj['id']),
-    name: stringOrDefault(obj['name']),
-    path: stringOrDefault(obj['path']),
-    current: obj['current'] === true,
-  }
-}
-
-function parseFileNode(value: unknown): ApiFileNode {
-  const obj = requireObject(value, 'file node')
-  const children = Array.isArray(obj['children']) ? obj['children'].map(parseFileNode) : undefined
-  return {
-    name: stringOrDefault(obj['name']),
-    path: stringOrDefault(obj['path']),
-    isDir: obj['isDir'] === true || obj['is_dir'] === true,
-    ...(children ? { children } : {}),
-  }
-}
-
-function parseSearchResult(value: unknown): ApiSearchResult {
-  const obj = requireObject(value, 'search result')
-  return {
-    path: stringOrDefault(obj['path']),
-    title: stringOrDefault(obj['title']),
-    snippet: stringOrDefault(obj['snippet']),
-    score: numberOrUndefined(obj['score']) ?? 0,
-    titleMatch: obj['titleMatch'] === true,
-    images: Array.isArray(obj['images'])
-      ? obj['images'].map((image) => {
-        const item = requireObject(image, 'image')
-        return { url: stringOrDefault(item['url']), alt: stringOrDefault(item['alt']) }
-      })
-      : [],
-    vectorScore: numberOrUndefined(obj['vectorScore']) ?? null,
-  }
-}
-
-function parseChatReference(value: unknown): ApiChatReference {
-  const obj = requireObject(value, 'chat reference')
-  const snippet = typeof obj['snippet'] === 'string' ? obj['snippet'] : undefined
-  const score = numberOrUndefined(obj['score'])
-  return {
-    title: stringOrDefault(obj['title']),
-    path: stringOrDefault(obj['path']),
-    kind: stringOrDefault(obj['kind'], 'wiki'),
-    ...(snippet !== undefined ? { snippet } : {}),
-    ...(score !== undefined ? { score } : {}),
-  }
-}
-
-function parseChatToolEvent(value: unknown): ApiChatToolEvent {
-  const obj = requireObject(value, 'chat tool event')
-  const detail = typeof obj['detail'] === 'string' ? obj['detail'] : undefined
-  return {
-    tool: stringOrDefault(obj['tool']),
-    status: stringOrDefault(obj['status']),
-    ...(detail !== undefined ? { detail } : {}),
-  }
-}
-
-function parseChatEvent(value: unknown): ApiChatEvent {
-  const obj = requireObject(value, 'chat event')
-  return {
-    ...obj,
-    type: stringOrDefault(obj['type']),
-  }
-}
-
-function parseChatUsage(value: unknown): ApiChatUsage | undefined {
-  if (value === undefined || value === null) return undefined
-  const obj = requireObject(value, 'chat usage')
-  const promptChars = numberOrUndefined(obj['promptChars'])
-  const completionChars = numberOrUndefined(obj['completionChars'])
-  const referenceCount = numberOrUndefined(obj['referenceCount'])
-  const toolEventCount = numberOrUndefined(obj['toolEventCount'])
-  return {
-    ...(promptChars !== undefined ? { promptChars } : {}),
-    ...(completionChars !== undefined ? { completionChars } : {}),
-    ...(referenceCount !== undefined ? { referenceCount } : {}),
-    ...(toolEventCount !== undefined ? { toolEventCount } : {}),
-  }
-}
-
-function parseReviewStatus(value: unknown): ApiReviewStatus {
-  return value === 'resolved' || value === 'all' ? value : 'unresolved'
-}
-
-function stringArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined
-  return value.map((item) => String(item))
-}
-
-function parseReviewItem(value: unknown): ApiReviewItem {
-  const obj = requireObject(value, 'review item')
-  const sourcePath = typeof obj['sourcePath'] === 'string' ? obj['sourcePath'] : undefined
-  const affectedPages = stringArray(obj['affectedPages'])
-  const searchQueries = stringArray(obj['searchQueries'])
-  const resolvedAction = typeof obj['resolvedAction'] === 'string' ? obj['resolvedAction'] : undefined
-  return {
-    id: stringOrDefault(obj['id']),
-    type: stringOrDefault(obj['type']),
-    title: stringOrDefault(obj['title']),
-    description: stringOrDefault(obj['description']),
-    ...(sourcePath !== undefined ? { sourcePath } : {}),
-    ...(affectedPages !== undefined ? { affectedPages } : {}),
-    ...(searchQueries !== undefined ? { searchQueries } : {}),
-    options: Array.isArray(obj['options'])
-      ? obj['options'].map((option) => {
-        const item = requireObject(option, 'review option')
-        return { label: stringOrDefault(item['label']), action: stringOrDefault(item['action']) }
-      })
-      : [],
-    resolved: obj['resolved'] === true,
-    ...(resolvedAction !== undefined ? { resolvedAction } : {}),
-    createdAt: numberOrUndefined(obj['createdAt']) ?? 0,
-  }
-}
-
-function parseGraphNode(value: unknown): ApiGraphNode {
-  const obj = requireObject(value, 'graph node')
-  const path = typeof obj['path'] === 'string' ? obj['path'] : undefined
-  const linkCount = numberOrUndefined(obj['linkCount'])
-  const weight = numberOrUndefined(obj['weight'])
-  return {
-    id: stringOrDefault(obj['id']),
-    label: stringOrDefault(obj['label']),
-    type: stringOrDefault(obj['nodeType'] ?? obj['type'], 'other'),
-    ...(path !== undefined ? { path } : {}),
-    ...(linkCount !== undefined ? { linkCount } : {}),
-    ...(weight !== undefined ? { weight } : {}),
-  }
-}
-
-function parseGraphEdge(value: unknown): ApiGraphEdge {
-  const obj = requireObject(value, 'graph edge')
-  const weight = numberOrUndefined(obj['weight'])
-  return {
-    source: stringOrDefault(obj['source']),
-    target: stringOrDefault(obj['target']),
-    ...(weight !== undefined ? { weight } : {}),
+    return Effect.gen(function*() {
+      const client = yield* Client.HttpApiClient
+      return yield* run(protocolApi(client))
+    }).pipe(Effect.provide(httpTransportLayer(transport.url, transport.token)))
   }
 }

@@ -198,22 +198,6 @@ export async function applyTextSelectionEdit(input: {
   return invoke<string>('apply_text_selection_edit', input)
 }
 
-export interface PageLinkEntry {
-  title: string
-  path?: string
-  snippet?: string
-}
-
-export interface PageLinksResponse {
-  outgoing: PageLinkEntry[]
-  backlinks: PageLinkEntry[]
-  missing: PageLinkEntry[]
-}
-
-export async function getPageLinks(projectPath: string, filePath: string): Promise<PageLinksResponse> {
-  return invoke<PageLinksResponse>('get_page_links', { projectPath, filePath })
-}
-
 export async function createMissingWikiPage(
   projectPath: string,
   title: string,
@@ -275,6 +259,10 @@ export async function clipServerStatus(): Promise<string> {
 
 export async function apiServerStatus(): Promise<string> {
   return invoke<string>('api_server_status')
+}
+
+export async function apiServerSocketPath(): Promise<string> {
+  return invoke<string>('api_server_socket_path')
 }
 
 export async function apiServerReloadConfig(): Promise<string> {

@@ -22,17 +22,19 @@ This repo adopted `oxlint` with a config derived from the sibling
 hold here, and one of its practices is unsafe on a tree that has never been
 linted. The rules now live in one place — the shared base at
 `packages/oxlint-config/src/oxlint-config.base.ts`, spread into each package's
-`oxlint.config.ts` — so a stack-specific decision made here applies to the app,
-the MCP server, and the config package at once.
+`oxlint.config.ts` — so a stack-specific decision made here applies to every
+package at once: the app, the API server, the MCP server, the protocol package,
+and the config package.
 
 ## Guidance
 
 **Do not import `@systemfsoftware/all`.** That preset bans `node:*` imports and
 enables the Effect, workflow, and cell-vocabulary plugins; it declares `effect`
-as a peer. This repo is a Tauri shell plus a React UI plus a Node MCP server,
-and `node:fs`, `node:path`, and `node:child_process` are load-bearing in `src/lib`,
-`mcp-server`, and the build configs. Applying the preset here reports errors
-against a stack the repo does not use.
+as a peer. This repo is a Tauri shell plus a React UI plus Node
+services — the API server, the MCP server, the protocol package — and `node:fs`,
+`node:path`, and `node:child_process` are load-bearing in the app's `src/lib`,
+in `apps/api-server`, in `apps/mcp-server`, and in the build configs. Applying
+the preset here reports errors against a stack the repo does not use.
 
 **`react/react-in-jsx-scope` is off, and only that rule.** It premises the
 classic JSX runtime. The app tsconfig sets `jsx: react-jsx`, so JSX compiles to

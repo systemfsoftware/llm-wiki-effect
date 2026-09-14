@@ -859,7 +859,7 @@ async function autoIngestImpl(
             // was added — the safety-net section was just rewritten
             // with captions, but the embeddings still reflect the old
             // empty-alt content.
-            await reembedSourceSummary(pp, sourceIdentity, sourceSummarySlug)
+            await reembedSourceSummary(pp, sourceSummarySlug)
           }
         } else {
           console.log(`[ingest:diag] cache-hit branch: skipping injection (no images returned from extraction)`)
@@ -1483,10 +1483,7 @@ async function autoIngestImpl(
           const pageId = wpath.split('/').pop()?.replace(/\.md$/, '') ?? ''
           if (!pageId || ['index', 'log', 'overview'].includes(pageId)) continue
           try {
-            const content = await readFile(`${pp}/${wpath}`)
-            const fmTitle = parseFrontmatter(content).frontmatter?.['title']
-            const title = typeof fmTitle === 'string' && fmTitle.trim() ? fmTitle.trim() : pageId
-            await embedPage(pp, pageId, title, content, embCfg)
+            await embedPage(pp, normalizePath(wpath))
           } catch {
             // non-critical
           }
@@ -3278,18 +3275,13 @@ async function injectImagesIntoSourceSummary(
  */
 async function reembedSourceSummary(
   pp: string,
-  sourceIdentity: string,
   sourceSummarySlug: string,
 ): Promise<void> {
   const embCfg = useWikiStore.getState().embeddingConfig
   if (!embCfg.enabled || !embCfg.model) return
-  const sourceSummaryFullPath = `${pp}/wiki/sources/${sourceSummarySlug}.md`
   try {
-    const content = await readFile(sourceSummaryFullPath)
-    const fmTitle = parseFrontmatter(content).frontmatter?.['title']
-    const title = typeof fmTitle === 'string' && fmTitle.trim() ? fmTitle.trim() : sourceIdentity
     const { embedPage } = await import('@/lib/embedding')
-    await embedPage(pp, sourceSummarySlug, title, content, embCfg)
+    await embedPage(pp, sourceSummarySlug)
     console.log(`[ingest:caption] re-embedded ${sourceSummarySlug} with captioned alt text`)
   } catch (err) {
     console.warn(

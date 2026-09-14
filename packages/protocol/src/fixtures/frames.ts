@@ -1,44 +1,28 @@
-export interface RequestFrameEnvelope {
-  readonly _tag: 'Request'
-  readonly id: string
-  readonly tag: string
-  readonly payload: unknown
-  readonly headers: ReadonlyArray<readonly [string, string]>
-}
+import type {
+  ChunkFrameEnvelope,
+  DefectFrameEnvelope,
+  ExitFrameEnvelope,
+  GoldenEnvelope,
+  RequestFrameEnvelope,
+} from './frames.schema.js'
 
-export interface ChunkFrameEnvelope {
-  readonly _tag: 'Chunk'
-  readonly requestId: string
-  readonly values: ReadonlyArray<unknown>
-}
+export type { ChunkFrameEnvelope, DefectFrameEnvelope, ExitFrameEnvelope, GoldenEnvelope, RequestFrameEnvelope }
 
-export interface ExitFrameEnvelope {
-  readonly _tag: 'Exit'
-  readonly requestId: string
-  readonly exit: unknown
-}
-
-export interface DefectFrameEnvelope {
-  readonly _tag: 'Defect'
-  readonly defect: unknown
-}
-
-export type GoldenEnvelope =
-  | RequestFrameEnvelope
-  | ChunkFrameEnvelope
-  | ExitFrameEnvelope
-  | DefectFrameEnvelope
-
-export interface GoldenFrame {
+export type GoldenFrame<E extends GoldenEnvelope = GoldenEnvelope> = {
   readonly name: string
   readonly file: string
   readonly bytes: string
-  readonly envelope: GoldenEnvelope
+  readonly envelope: E
 }
 
-export const GoldenFrames: Readonly<
-  Record<'request' | 'embedTexts' | 'voidRequest' | 'chunk' | 'exit' | 'defect', GoldenFrame>
-> = {
+export const GoldenFrames: Readonly<{
+  request: GoldenFrame<RequestFrameEnvelope>
+  embedTexts: GoldenFrame<RequestFrameEnvelope>
+  voidRequest: GoldenFrame<RequestFrameEnvelope>
+  chunk: GoldenFrame<ChunkFrameEnvelope>
+  exit: GoldenFrame<ExitFrameEnvelope>
+  defect: GoldenFrame<DefectFrameEnvelope>
+}> = {
   request: {
     name: 'request',
     file: 'request.ndjson',

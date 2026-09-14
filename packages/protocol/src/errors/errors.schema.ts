@@ -84,5 +84,23 @@ export const ApiError = Schema.Union([
   EmbedError,
 ])
 
+export const ApiErrorTag = Schema.Literals([
+  'Unauthorized',
+  'ApiDisabled',
+  'NotFound',
+  'InvalidRequest',
+  'PathViolation',
+  'UnsupportedMediaType',
+  'TooLarge',
+  'RateLimited',
+  'Busy',
+  'BindConflict',
+  'McpDisabled',
+  'ChatCancelled',
+  'AgentError',
+  'EmbedError',
+])
+
 export type ApiError = Schema.Schema.Type<typeof ApiError>
+export type ApiErrorTag = Schema.Schema.Type<typeof ApiErrorTag>
 export type EmbedErrorKind = Schema.Schema.Type<typeof EmbedErrorKind>

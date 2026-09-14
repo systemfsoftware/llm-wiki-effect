@@ -1,24 +1,4 @@
-import { Schema } from 'effect'
-import type { EmbedErrorKind } from './errors.js'
-
-export const ApiErrorTag = Schema.Literals([
-  'Unauthorized',
-  'ApiDisabled',
-  'NotFound',
-  'InvalidRequest',
-  'PathViolation',
-  'UnsupportedMediaType',
-  'TooLarge',
-  'RateLimited',
-  'Busy',
-  'BindConflict',
-  'McpDisabled',
-  'ChatCancelled',
-  'AgentError',
-  'EmbedError',
-])
-
-export type ApiErrorTag = Schema.Schema.Type<typeof ApiErrorTag>
+import type { ApiErrorTag, EmbedErrorKind } from './errors.schema.js'
 
 export interface RetiredStatusSite {
   readonly status: number | null

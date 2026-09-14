@@ -2,14 +2,18 @@ import * as NodeSocket from '@effect/platform-node/NodeSocket'
 import { Context, Layer } from 'effect'
 import { RpcClient } from 'effect/unstable/rpc'
 import type * as Socket from 'effect/unstable/socket/Socket'
-import type * as Net from 'node:net'
 import { ApiProtocol, ApiSerializationLayer } from '../rpc.js'
 import type { ApiClient } from '../rpc.js'
 
 export interface SocketApiClientOptions {
   readonly path: string
   readonly retryTransientErrors?: boolean | undefined
-  readonly openTimeout?: Net.NetConnectOpts['timeout'] | undefined
+  readonly openTimeout?: number | undefined
+}
+
+const protocolSocketOptions = (options: SocketApiClientOptions) => {
+  if (options.openTimeout === undefined) return { path: options.path }
+  return { path: options.path, timeout: options.openTimeout }
 }
 
 export class SocketApiClient extends Context.Service<SocketApiClient, ApiClient>()(
@@ -23,11 +27,6 @@ export class SocketApiClient extends Context.Service<SocketApiClient, ApiClient>
         RpcClient.layerProtocolSocket({ retryTransientErrors: options.retryTransientErrors }),
       ),
       Layer.provide(ApiSerializationLayer),
-      Layer.provide(
-        NodeSocket.layerNet({
-          path: options.path,
-          ...(options.openTimeout === undefined ? {} : { timeout: options.openTimeout }),
-        }),
-      ),
+      Layer.provide(NodeSocket.layerNet(protocolSocketOptions(options))),
     )
 }

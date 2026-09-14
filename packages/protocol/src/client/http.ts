@@ -15,10 +15,19 @@ export interface HttpApiClientOptions {
   readonly transformClient?: HttpApiClientTransform | undefined
 }
 
-const authorizationLayer = (token: string | undefined): Layer.Layer<never> => {
-  const trimmed = token?.trim() ?? ''
-  const headers = trimmed === '' ? Headers.empty : Headers.fromInput({ authorization: `Bearer ${trimmed}` })
-  return Layer.succeedContext(Context.make(RpcClient.CurrentHeaders, headers))
+const hasToken = (token: string | undefined): token is string => token !== undefined && token.trim().length > 0
+
+const authorizationHeaders = (token: string | undefined): Headers.Headers => {
+  if (hasToken(token)) return Headers.fromInput({ authorization: `Bearer ${token.trim()}` })
+  return Headers.empty
+}
+
+const authorizationLayer = (token: string | undefined): Layer.Layer<never> =>
+  Layer.succeedContext(Context.make(RpcClient.CurrentHeaders, authorizationHeaders(token)))
+
+const protocolHttpOptions = (options: HttpApiClientOptions) => {
+  if (options.transformClient === undefined) return { url: options.url }
+  return { url: options.url, transformClient: options.transformClient }
 }
 
 export class HttpApiClient extends Context.Service<HttpApiClient, ApiClient>()(
@@ -28,13 +37,7 @@ export class HttpApiClient extends Context.Service<HttpApiClient, ApiClient>()(
     options: HttpApiClientOptions,
   ): Layer.Layer<HttpApiClient, never, HttpClient.HttpClient> =>
     Layer.effect(HttpApiClient, RpcClient.make(ApiProtocol)).pipe(
-      Layer.provide(
-        RpcClient.layerProtocolHttp(
-          options.transformClient === undefined
-            ? { url: options.url }
-            : { url: options.url, transformClient: options.transformClient },
-        ),
-      ),
+      Layer.provide(RpcClient.layerProtocolHttp(protocolHttpOptions(options))),
       Layer.provide(ApiSerializationLayer),
       Layer.provideMerge(authorizationLayer(options.token)),
     )

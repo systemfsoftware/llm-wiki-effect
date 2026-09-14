@@ -316,6 +316,12 @@ importers:
       fast-check:
         specifier: ^4.7.0
         version: 4.10.0
+      llm-wiki-api-server:
+        specifier: workspace:*
+        version: link:../api-server
+      llm-wiki-mcp-server:
+        specifier: workspace:*
+        version: link:../mcp-server
       llm-wiki-oxlint-config:
         specifier: workspace:*
         version: link:../../packages/oxlint-config

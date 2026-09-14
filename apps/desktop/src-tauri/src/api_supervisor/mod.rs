@@ -1,6 +1,7 @@
 mod approval;
 mod frame;
 mod sink;
+mod worker_socket;
 
 pub use frame::WORKER_NOT_RUNNING;
 pub use sink::EventSink;
@@ -10,11 +11,11 @@ use frame::{
     decode_server_frame, encode_ack, encode_proxied_request, error_envelope, exit_envelope,
     ExitFrame, ServerFrame,
 };
+use interprocess::TryClone;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -34,8 +35,6 @@ const MAX_WORKER_LOG_LINES: usize = 40;
 const SOCKET_ENV: &str = "LLM_WIKI_SOCKET_PATH";
 const APP_STATE_FLAG: &str = "--app-state";
 const APPROVAL_SOCKET_FLAG: &str = "--approval-socket";
-const RPC_SOCKET_FILE: &str = "api-server.sock";
-const APPROVAL_SOCKET_FILE: &str = "shell-approval.sock";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkerStatus {
@@ -90,7 +89,7 @@ enum Incoming {
 }
 
 pub struct Supervisor {
-    writer: Mutex<UnixStream>,
+    writer: Mutex<worker_socket::Stream>,
     pending: Mutex<HashMap<String, SyncSender<Incoming>>>,
     approvals: Mutex<Option<Arc<ApprovalClient>>>,
     approval_socket: PathBuf,
@@ -184,7 +183,7 @@ impl Supervisor {
             let _ = child.kill();
             let _ = child.wait();
         }
-        let _ = lock(&self.writer).shutdown(std::net::Shutdown::Both);
+        let _ = worker_socket::shutdown(&lock(&self.writer));
         let _ = lock(&self.exit_rx).recv_timeout(EXIT_DEADLINE);
     }
 
@@ -276,7 +275,7 @@ fn spawn_worker(
     spec: &WorkerSpec,
     sink: Arc<dyn EventSink>,
 ) -> Result<Arc<Supervisor>, SpawnFailure> {
-    if let Err(err) = std::fs::remove_file(&spec.rpc_socket) {
+    if let Err(err) = worker_socket::clear_stale_socket(&spec.rpc_socket) {
         if err.kind() != std::io::ErrorKind::NotFound {
             return Err(SpawnFailure {
                 status: WorkerStatus::Failed,
@@ -287,7 +286,7 @@ fn spawn_worker(
             });
         }
     }
-    if let Err(err) = std::fs::remove_file(&spec.approval_socket) {
+    if let Err(err) = worker_socket::clear_stale_socket(&spec.approval_socket) {
         if err.kind() != std::io::ErrorKind::NotFound {
             return Err(SpawnFailure {
                 status: WorkerStatus::Failed,
@@ -409,7 +408,7 @@ fn spawn_worker(
         }
     };
 
-    let stream = match UnixStream::connect(&socket_path) {
+    let stream = match worker_socket::connect(Path::new(&socket_path)) {
         Ok(stream) => stream,
         Err(err) => {
             let _ = child.kill();
@@ -460,7 +459,11 @@ fn spawn_worker(
     Ok(supervisor)
 }
 
-fn read_loop(reader: BufReader<UnixStream>, supervisor: Arc<Supervisor>, exit: mpsc::Sender<()>) {
+fn read_loop(
+    reader: BufReader<worker_socket::Stream>,
+    supervisor: Arc<Supervisor>,
+    exit: mpsc::Sender<()>,
+) {
     for line in reader.lines() {
         let line = match line {
             Ok(line) => line,
@@ -729,12 +732,13 @@ fn worker_spec(app: &AppHandle) -> Result<WorkerSpec, SpawnFailure> {
             "No Node runtime was found for the LLM Wiki worker. Install Node 20+ on PATH or reinstall the desktop app so its bundled runtime is present."
                 .to_string(),
     })?;
+    let sockets = worker_socket::socket_paths(&app_data);
     Ok(WorkerSpec {
         node,
         entry,
         app_state: app_data.join("app-state.json"),
-        rpc_socket: app_data.join(RPC_SOCKET_FILE),
-        approval_socket: app_data.join(APPROVAL_SOCKET_FILE),
+        rpc_socket: sockets.rpc,
+        approval_socket: sockets.approval,
         extra_env: Vec::new(),
     })
 }
@@ -873,12 +877,13 @@ mod tests {
             std::fs::write(&entry, include_str!("testdata/fake_worker.mjs")).expect("fake worker");
             let app_state = root.join("app-state.json");
             std::fs::write(&app_state, "{}").expect("app state");
+            let sockets = worker_socket::socket_paths(&root);
             let spec = WorkerSpec {
                 node,
                 entry,
                 app_state,
-                rpc_socket: root.join("api-server.sock"),
-                approval_socket: root.join("shell-approval.sock"),
+                rpc_socket: sockets.rpc,
+                approval_socket: sockets.approval,
                 extra_env: vec![(
                     "LLM_WIKI_FAKE_TRACE".to_string(),
                     root.join("launch.json").to_string_lossy().into_owned(),
@@ -1013,7 +1018,7 @@ mod tests {
         assert_eq!(after["ok"], json!(false));
         assert_eq!(after["error"]["_tag"], json!(WORKER_NOT_RUNNING));
         assert!(
-            UnixStream::connect(&harness.spec.rpc_socket).is_err(),
+            worker_socket::connect(&harness.spec.rpc_socket).is_err(),
             "the worker socket must stop accepting connections after shutdown"
         );
     }

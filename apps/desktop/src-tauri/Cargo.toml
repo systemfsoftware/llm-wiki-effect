@@ -43,6 +43,7 @@ html2text = { version = "0.17.1", default-features = false, features = ["xml"] }
 #   same caption, no redundant VLM calls. Pulled in here so the
 #   extraction layer can also expose the hash if a caller wants it.
 image = { version = "0.25", default-features = false, features = ["png"] }
+interprocess = { version = "2", default-features = false }
 md-5 = "0.10"
 mobi = "0.8"
 notify = "8"

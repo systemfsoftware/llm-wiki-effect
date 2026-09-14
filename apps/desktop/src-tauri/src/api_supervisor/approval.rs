@@ -1,9 +1,10 @@
 use crate::api_supervisor::frame::{error_envelope, ok_envelope};
 use crate::api_supervisor::sink::EventSink;
+use crate::api_supervisor::worker_socket;
+use interprocess::TryClone;
 use serde_json::{json, Value};
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
@@ -60,14 +61,14 @@ fn canonical(commands: &[String]) -> Vec<String> {
 }
 
 pub struct ApprovalClient {
-    writer: Mutex<UnixStream>,
+    writer: Mutex<worker_socket::Stream>,
     pending: Mutex<VecDeque<ApprovalRequest>>,
     problems: Mutex<VecDeque<String>>,
 }
 
 impl ApprovalClient {
     pub fn connect(path: &Path, sink: Arc<dyn EventSink>) -> Result<Arc<Self>, String> {
-        let stream = UnixStream::connect(path).map_err(|err| {
+        let stream = worker_socket::connect(path).map_err(|err| {
             format!(
                 "cannot reach the worker approval socket {}: {err}",
                 path.display()
@@ -154,7 +155,7 @@ impl ApprovalClient {
     }
 }
 
-fn read_loop(stream: UnixStream, client: Arc<ApprovalClient>, sink: Arc<dyn EventSink>) {
+fn read_loop(stream: worker_socket::Stream, client: Arc<ApprovalClient>, sink: Arc<dyn EventSink>) {
     for line in BufReader::new(stream).lines() {
         let line = match line {
             Ok(line) => line,
